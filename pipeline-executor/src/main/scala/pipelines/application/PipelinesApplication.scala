@@ -5,16 +5,16 @@ import tasks._
 import com.typesafe.scalalogging.StrictLogging
 import com.typesafe.config.Config
 import akka.actor.ActorSystem
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 import org.gc.pipelines.util.ActorSource
-import org.gc.pipelines.stages.Tasks
 
 class PipelinesApplication(
     eventSource: SequencingCompleteEventSource,
     pipelineState: PipelineState,
     config: Config,
-    actorSystem: ActorSystem
+    actorSystem: ActorSystem,
+    pipelines: Seq[Pipeline]
 )(implicit EC: ExecutionContext)
     extends StrictLogging {
 
@@ -40,9 +40,18 @@ class PipelinesApplication(
 
   (previousUnfinishedRuns ++ futureRuns)
     .mapAsync(1) { run =>
-      for {
-        _ <- Tasks.demultiplexing(run)(CPUMemoryRequest(1, 500))
-      } yield run
+      pipelines.find(_.canProcess(run)) match {
+        case Some(pipeline) =>
+          logger.info(s"Found suitable pipeline for $run")
+          for {
+            _ <- pipeline.execute(run)
+          } yield run
+        case None =>
+          logger.info(s"No pipeline to execute $run")
+          Future.successful(run)
+
+      }
+
     }
     .watchTermination() {
       case (mat, future) =>
@@ -59,7 +68,5 @@ class PipelinesApplication(
         logger.info(s"Run $run finished.")
       }
     }
-
-  def close() = taskSystem.shutdown
 
 }

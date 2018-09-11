@@ -1,8 +1,11 @@
-package org.gc.pipelines.application
+package org.gc.pipelines
 
 import com.typesafe.scalalogging.StrictLogging
 import com.typesafe.config.ConfigFactory
 import akka.actor.ActorSystem
+import tasks._
+
+import org.gc.pipelines.application._
 
 object Main extends App with StrictLogging {
   logger.info("Main thread started.")
@@ -23,9 +26,19 @@ object Main extends App with StrictLogging {
 
   val actorSystem = ActorSystem("Main")
 
+  // val pipeline = new Pipeline {
+  //   def execute(r: RunfolderReadyForProcessing)(
+  //       implicit tsc: TaskSystemComponents): Future[Unit] =
+  //     Future.successful(())
+  // }
+
   import scala.concurrent.ExecutionContext.Implicits.global
   val app =
-    new PipelinesApplication(eventSource, pipelineState, config, actorSystem)
+    new PipelinesApplication(eventSource,
+                             pipelineState,
+                             config,
+                             actorSystem,
+                             Nil)
 
   logger.info("Main thread will stop.")
 }

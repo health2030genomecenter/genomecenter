@@ -4,8 +4,10 @@ import org.scalatest._
 
 import org.scalatest.{Matchers, BeforeAndAfterAll}
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import tasks._
+import tasks.circesupport._
 
 import com.typesafe.config.ConfigFactory
 
@@ -16,6 +18,7 @@ import akka.testkit.TestKit
 import com.typesafe.scalalogging.StrictLogging
 
 import org.gc.pipelines.application._
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class PipelinesApplicationTest
@@ -40,7 +43,8 @@ class PipelinesApplicationTest
     val app = new PipelinesApplication(eventSource,
                                        pipelineState,
                                        config,
-                                       implicitly[ActorSystem])
+                                       implicitly[ActorSystem],
+                                       List(TestPipeline))
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .runWith(Sink.seq),
@@ -62,4 +66,21 @@ class FakeSequencingCompleteEventSource(take: Int)
         2 seconds,
         RunfolderReadyForProcessing("fake", SampleSheet("fake"), "fakePath"))
       .take(take.toLong)
+}
+
+object TestPipeline extends Pipeline {
+
+  def canProcess(r: RunfolderReadyForProcessing) = true
+
+  val pretend =
+    AsyncTask[RunfolderReadyForProcessing, Int]("demultiplexing", 1) {
+      input => implicit computationEnvironment =>
+        log.info(s"Pretending that run $input is being processed..")
+        Future.successful(1)
+    }
+
+  def execute(r: RunfolderReadyForProcessing)(
+      implicit tsc: TaskSystemComponents): Future[Unit] =
+    pretend(r)(CPUMemoryRequest(1, 500)).map(_ => ())
+
 }
