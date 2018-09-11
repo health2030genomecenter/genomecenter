@@ -26,12 +26,28 @@ lazy val tasksSlurm = project
     )
   )
 
+lazy val pipelineExecutor = project
+  .in(file("pipeline-executor"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "pipeline-executor",
+    libraryDependencies ++= Seq(
+      "io.github.pityka" %% "tasks-core" % "0.0.19",
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      "ch.qos.logback" % "logback-classic" % "1.2.3",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.5.11",
+      "com.typesafe.akka" %% "akka-testkit" % "2.5.11" % "test"
+    )
+  )
+  .dependsOn(tasksSlurm)
+
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
   .settings(
     publishArtifact := false
   )
-  .aggregate(tasksSlurm)
+  .aggregate(tasksSlurm, pipelineExecutor)
 
 scalafmtOnCompile in ThisBuild := true
 
