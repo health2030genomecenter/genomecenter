@@ -80,7 +80,7 @@ object TestPipeline extends Pipeline {
     }
 
   def execute(r: RunfolderReadyForProcessing)(
-      implicit tsc: TaskSystemComponents): Future[Unit] =
-    pretend(r)(CPUMemoryRequest(1, 500)).map(_ => ())
+      implicit tsc: TaskSystemComponents): Future[Boolean] =
+    pretend(r)(CPUMemoryRequest(1, 500)).map(_ => true)
 
 }

@@ -6,5 +6,5 @@ import tasks._
 trait Pipeline {
   def canProcess(r: RunfolderReadyForProcessing): Boolean
   def execute(r: RunfolderReadyForProcessing)(
-      implicit tsc: TaskSystemComponents): Future[Unit]
+      implicit tsc: TaskSystemComponents): Future[Boolean]
 }

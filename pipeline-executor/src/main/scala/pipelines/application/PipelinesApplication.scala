@@ -44,11 +44,15 @@ class PipelinesApplication(
         case Some(pipeline) =>
           logger.info(s"Found suitable pipeline for $run")
           for {
-            _ <- pipeline.execute(run)
-          } yield run
+            success <- pipeline.execute(run).recover {
+              case error =>
+                logger.error(s"$pipeline failed on $run", error)
+                false
+            }
+          } yield (run, success)
         case None =>
           logger.info(s"No pipeline to execute $run")
-          Future.successful(run)
+          Future.successful((run, false))
 
       }
 
@@ -62,11 +66,15 @@ class PipelinesApplication(
         }
         mat
     }
-    .runForeach { run =>
-      pipelineState.processingFinished(run).foreach { _ =>
-        processingFinishedListener ! ProcessingFinished(run)
-        logger.info(s"Run $run finished.")
-      }
+    .runForeach {
+      case (run, success) =>
+        val saved =
+          if (success) pipelineState.processingFinished(run)
+          else Future.successful(())
+        saved.foreach { _ =>
+          processingFinishedListener ! ProcessingFinished(run)
+          logger.info(s"Run $run finished.")
+        }
     }
 
 }
