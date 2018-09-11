@@ -5,6 +5,7 @@ import tasks._
 import com.typesafe.scalalogging.StrictLogging
 import com.typesafe.config.Config
 import akka.actor.ActorSystem
+import scala.concurrent.ExecutionContext
 
 import org.gc.pipelines.util.ActorSource
 import org.gc.pipelines.stages.Tasks
@@ -14,9 +15,8 @@ class PipelinesApplication(
     pipelineState: PipelineState,
     config: Config,
     actorSystem: ActorSystem
-) extends StrictLogging {
-
-  import scala.concurrent.ExecutionContext.Implicits.global
+)(implicit EC: ExecutionContext)
+    extends StrictLogging {
 
   private val previousUnfinishedRuns =
     Source.fromFuture(pipelineState.incompleteRuns).mapConcat(identity)

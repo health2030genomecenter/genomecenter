@@ -6,9 +6,10 @@ import akka.actor.ActorSystem
 
 object Main extends App with StrictLogging {
   logger.info("Main thread started.")
+
   val config = ConfigFactory.load
 
-  val eventSource: SequencingCompleteEventSource =
+  val eventSource =
     CompositeSequencingCompleteEventSource(
       FolderWatcherEventSource("/data/UHTS/raw/instrument1/",
                                "SequencingComplete.txt",
@@ -19,8 +20,12 @@ object Main extends App with StrictLogging {
     )
 
   val pipelineState = new InMemoryPipelineState
+
   val actorSystem = ActorSystem("Main")
+
+  import scala.concurrent.ExecutionContext.Implicits.global
   val app =
     new PipelinesApplication(eventSource, pipelineState, config, actorSystem)
+
   logger.info("Main thread will stop.")
 }

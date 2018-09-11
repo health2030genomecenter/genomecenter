@@ -16,6 +16,7 @@ import akka.testkit.TestKit
 import com.typesafe.scalalogging.StrictLogging
 
 import org.gc.pipelines.application._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class PipelinesApplicationTest
     extends TestKit(ActorSystem("PipelinesApplication"))
