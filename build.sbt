@@ -33,11 +33,13 @@ lazy val pipelineExecutor = project
     name := "pipeline-executor",
     libraryDependencies ++= Seq(
       "io.github.pityka" %% "tasks-core" % "0.0.19",
+      "io.github.pityka" %% "fileutils" % "1.2.1",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.11",
-      "com.typesafe.akka" %% "akka-testkit" % "2.5.11" % "test"
+      "com.typesafe.akka" %% "akka-testkit" % "2.5.11" % "test",
+      "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.20"
     )
   )
   .dependsOn(tasksSlurm)

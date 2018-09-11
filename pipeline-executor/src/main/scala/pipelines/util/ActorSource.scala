@@ -1,4 +1,4 @@
-package org.gc.pipelines
+package org.gc.pipelines.util
 
 import akka.actor._
 import akka.stream.scaladsl._
