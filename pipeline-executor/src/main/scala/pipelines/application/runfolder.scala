@@ -14,7 +14,8 @@ case class RunfolderReadyForProcessing(runId: String,
                                        sampleSheet: SampleSheet,
                                        runFolderPath: String)
 
-case class ProcessingFinished(run: RunfolderReadyForProcessing)
+case class ProcessingFinished(run: RunfolderReadyForProcessing,
+                              success: Boolean)
 
 trait SequencingCompleteEventSource {
   def events: Source[RunfolderReadyForProcessing, _]

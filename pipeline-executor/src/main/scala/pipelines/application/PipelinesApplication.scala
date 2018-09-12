@@ -72,7 +72,7 @@ class PipelinesApplication(
           if (success) pipelineState.processingFinished(run)
           else Future.successful(())
         saved.foreach { _ =>
-          processingFinishedListener ! ProcessingFinished(run)
+          processingFinishedListener ! ProcessingFinished(run, success)
           logger.info(s"Run $run finished.")
         }
     }

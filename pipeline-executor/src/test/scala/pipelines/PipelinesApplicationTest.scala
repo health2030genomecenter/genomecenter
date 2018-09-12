@@ -25,13 +25,15 @@ class PipelinesApplicationTest
     extends TestKit(ActorSystem("PipelinesApplication"))
     with FunSuiteLike
     with BeforeAndAfterAll
+    with GivenWhenThen
     with Matchers {
 
   override def afterAll: Unit = {
     TestKit.shutdownActorSystem(system)
   }
 
-  test("pipelines application should react if a run is ready") {
+  test(
+    "pipelines application should react if a RunfolderReady event is received") {
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
   tasks.cache.enabled = false
@@ -50,7 +52,31 @@ class PipelinesApplicationTest
                                        .runWith(Sink.seq),
                                      atMost = 15 seconds)
 
-    processedRuns.size shouldBe numberOfRuns
+    processedRuns.count(_.success) shouldBe numberOfRuns
+
+  }
+
+  test(
+    "pipelines application should respect the pipeline's `canProcess` method") {
+    implicit val materializer = ActorMaterializer()
+    val config = ConfigFactory.parseString("""
+  tasks.cache.enabled = false
+    """)
+    val numberOfRuns = 3
+    val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns)
+    val pipelineState = new InMemoryPipelineState
+
+    val app = new PipelinesApplication(eventSource,
+                                       pipelineState,
+                                       config,
+                                       implicitly[ActorSystem],
+                                       List(TestPipelineWhichNeverRuns))
+
+    val processedRuns = Await.result(app.processingFinishedSource
+                                       .runWith(Sink.seq),
+                                     atMost = 15 seconds)
+
+    processedRuns.count(_.success) shouldBe 0
 
   }
 
@@ -71,6 +97,23 @@ class FakeSequencingCompleteEventSource(take: Int)
 object TestPipeline extends Pipeline {
 
   def canProcess(r: RunfolderReadyForProcessing) = true
+
+  val pretend =
+    AsyncTask[RunfolderReadyForProcessing, Int]("demultiplexing", 1) {
+      input => implicit computationEnvironment =>
+        log.info(s"Pretending that run $input is being processed..")
+        Future.successful(1)
+    }
+
+  def execute(r: RunfolderReadyForProcessing)(
+      implicit tsc: TaskSystemComponents): Future[Boolean] =
+    pretend(r)(CPUMemoryRequest(1, 500)).map(_ => true)
+
+}
+
+object TestPipelineWhichNeverRuns extends Pipeline {
+
+  def canProcess(r: RunfolderReadyForProcessing) = false
 
   val pretend =
     AsyncTask[RunfolderReadyForProcessing, Int]("demultiplexing", 1) {
