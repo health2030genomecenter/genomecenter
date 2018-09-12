@@ -12,6 +12,7 @@ import akka.stream.ActorMaterializer
 import akka.testkit.{TestKit, TestProbe}
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.model.SampleSheet
 import fileutils._
 
 class FolderWatcherEventSourceTest

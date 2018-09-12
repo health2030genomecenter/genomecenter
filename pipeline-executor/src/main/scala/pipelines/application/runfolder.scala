@@ -11,6 +11,8 @@ import java.io.File
 import fileutils.openSource
 import com.typesafe.scalalogging.StrictLogging
 
+import org.gc.pipelines.model.SampleSheet
+
 case class RunfolderReadyForProcessing(runId: String,
                                        sampleSheet: SampleSheet,
                                        runFolderPath: String)

@@ -18,6 +18,7 @@ import akka.testkit.TestKit
 import com.typesafe.scalalogging.StrictLogging
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.model.SampleSheet
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
