@@ -4,7 +4,8 @@ import org.scalatest._
 
 class SampleSheetTest extends FunSuite with Matchers {
 
-  test("Sample sheet should be parsed correctly, including the [GenomeCenter] section") {
+  test(
+    "Sample sheet should be parsed correctly, including the [GenomeCenter] section") {
     new Fixture {
       val parsed = SampleSheet(exampleSampleSheetContent).parsed
       parsed.runId shouldBe None
@@ -21,7 +22,11 @@ class SampleSheetTest extends FunSuite with Matchers {
       )
 
       parsed.genomeCenterMetadata shouldBe Map(
-        "customKey" -> Some("customValue"))
+        "customKey" -> "customValue",
+        "bcl2fastqArguments" -> """["--flag","stuff,with,comma"]""")
+
+      parsed.extraBcl2FastqCliArguments shouldBe Seq("--flag",
+                                                     "stuff,with,comma")
 
     }
 
@@ -44,6 +49,7 @@ Adapter,AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
 AdapterRead2,AGATCGGAAGAGCGTCGTGTAGGGAAAGAGT
 [GenomeCenter]
 customKey,customValue
+bcl2fastqArguments,["--flag","stuff,with,comma"]
 [Data]
 Sample_ID,Sample_Name,I7_Index_ID,index,I5_Index_ID,index2,Lane,Sample_Project
 A10001,Sample_A,D701,ATTACTCG,D501,TATAGCCT,L1,proj

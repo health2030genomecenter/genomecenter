@@ -6,6 +6,7 @@ import akka.actor.ActorSystem
 import tasks._
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.stages.ProtoPipeline
 
 object Main extends App with StrictLogging {
   logger.info("Main thread started.")
@@ -13,24 +14,16 @@ object Main extends App with StrictLogging {
   val config = ConfigFactory.load
 
   val eventSource =
-    CompositeSequencingCompleteEventSource(
-      FolderWatcherEventSource("/data/UHTS/raw/instrument1/",
-                               "SequencingComplete.txt",
-                               "samplesheet.txt"),
-      FolderWatcherEventSource("/data/UHTS/raw/instrument2/",
-                               "SequencingComplete.txt",
-                               "samplesheet.txt")
-    )
+    PipelineConfiguration.eventSource
 
-  val pipelineState = new InMemoryPipelineState
+  val pipelineState = PipelineConfiguration.pipelineState
 
   val actorSystem = ActorSystem("Main")
 
-  // val pipeline = new Pipeline {
-  //   def execute(r: RunfolderReadyForProcessing)(
-  //       implicit tsc: TaskSystemComponents): Future[Unit] =
-  //     Future.successful(())
-  // }
+  val pipeline = {
+    import scala.concurrent.ExecutionContext.Implicits.global
+    new ProtoPipeline
+  }
 
   import scala.concurrent.ExecutionContext.Implicits.global
   val app =
