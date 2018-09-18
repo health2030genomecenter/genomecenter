@@ -31,7 +31,7 @@ object Main extends App with StrictLogging {
                              pipelineState,
                              config,
                              actorSystem,
-                             Nil)
+                             List(pipeline))
 
   logger.info("Main thread will stop.")
 }
