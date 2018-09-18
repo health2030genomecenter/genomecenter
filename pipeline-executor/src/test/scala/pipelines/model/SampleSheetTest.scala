@@ -17,8 +17,8 @@ class SampleSheetTest extends FunSuite with Matchers {
         SampleSheet.Multiplex(SampleId("A10001"),
                               Project("proj"),
                               Lane("L1"),
-                              IndexId("D701"),
-                              Some(IndexId("D501")))
+                              Index("ATTACTCG"),
+                              Some(Index("TATAGCCT")))
       )
 
       parsed.genomeCenterMetadata shouldBe Map(
