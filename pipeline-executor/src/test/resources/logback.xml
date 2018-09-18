@@ -6,7 +6,9 @@
     </encoder>
   </appender>
 
-  <root level="DEBUG">
+    <logger name="tasks" level="WARN"/>
+
+  <root level="INFO">
     <appender-ref ref="STDOUT" />
   </root>
   

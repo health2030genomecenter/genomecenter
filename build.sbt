@@ -40,7 +40,12 @@ lazy val pipelineExecutor = project
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.11",
       "com.typesafe.akka" %% "akka-testkit" % "2.5.11" % "test",
       "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.20"
-    )
+    ),
+    unmanagedClasspath in Test += {
+      val testFolder = System.getenv("GC_TESTFOLDER")
+      if (testFolder == null) baseDirectory.value
+      else new File(testFolder).getCanonicalFile
+    }
   )
   .dependsOn(tasksSlurm)
 

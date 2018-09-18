@@ -117,22 +117,32 @@ object SampleSheet extends StrictLogging {
         .drop(1)
         .takeWhile(line => !line.startsWith("["))
 
-    def getFirstKeyValuePair(line: String) = {
-      val Seq(key, rest @ _*) = line.split(',').toSeq
-      (key, rest.headOption)
+    def getFirstKeyValuePair(line: String) =
+      line.split(',').toSeq match {
+        case Seq()               => None
+        case Seq(key, rest @ _*) => Some((key, rest.headOption))
+      }
+
+    def getFirstKeyAndRestOfLine(line: String) = line.split(',').toSeq match {
+      case Seq(key, rest @ _*) => Some((key, rest.mkString(",")))
+      case Seq()               => None
     }
-    def getFirstKeyAndRestOfLine(line: String) = {
-      val Seq(key, rest @ _*) = line.split(',').toSeq
-      (key, rest.mkString(","))
-    }
-    val header = getSectionLines("Header").map(getFirstKeyValuePair).toMap
+    val header = getSectionLines("Header")
+      .map(getFirstKeyValuePair)
+      .collect {
+        case Some(pair) => pair
+      }
+      .toMap
 
     val dataLines = getSectionLines("Data")
     val dataHeader = dataLines.head.split(',').toList
     val dataContentLines = dataLines.drop(1).map(_.split(',').toSeq)
 
     val genomeCenterMetadata =
-      getSectionLines("GenomeCenter").map(getFirstKeyAndRestOfLine).toMap
+      getSectionLines("GenomeCenter")
+        .map(getFirstKeyAndRestOfLine)
+        .collect { case Some(pair) => pair }
+        .toMap
 
     ParsedData(
       header = header,
