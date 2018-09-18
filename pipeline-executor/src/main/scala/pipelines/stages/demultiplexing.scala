@@ -25,16 +25,15 @@ object Demultiplexing {
       runFolder => implicit computationEnvironment =>
         releaseResources
 
-        val lanes = runFolder.sampleSheet.parsed.lanes
+        val lanes: Seq[Lane] = runFolder.sampleSheet.parsed.lanes
 
-        val demultiplexedLanesFuture = Future.sequence(lanes.map { lane =>
-          perLane(DemultiplexSingleLaneInput(runFolder, lane))(
-            CPUMemoryRequest(12, 40000))
-        })
-
-        demultiplexedLanesFuture.map { demultiplexedLanes =>
+        for {
+          demultiplexedLanes <- Future.sequence(lanes.map { lane =>
+            perLane(DemultiplexSingleLaneInput(runFolder, lane))(
+              CPUMemoryRequest(12, 40000))
+          })
+        } yield
           DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet)
-        }
 
     }
 
@@ -54,6 +53,8 @@ object Demultiplexing {
 
           val executable = fileutils.TempFile.getExecutableFromJar("/bcl2fastq")
 
+          val laneNumber = laneToProcess.dropWhile(_ == 'L').toInt
+
           val fastQFilesF = SharedFile.fromFolder { outputFolder =>
             val bashCommand = {
               val stdout = new File(outputFolder, "stdout").getAbsolutePath
@@ -63,7 +64,9 @@ object Demultiplexing {
                 "--runfolder-dir",
                 runFolderPath,
                 "--output-dir",
-                outputFolder.getAbsolutePath
+                outputFolder.getAbsolutePath,
+                "--tiles",
+                "s_" + laneNumber
               ) ++ extraArguments
 
               val escaped = commandLine.mkString("'", " ", "'")
