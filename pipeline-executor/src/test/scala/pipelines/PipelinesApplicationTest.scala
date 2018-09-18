@@ -33,7 +33,7 @@ class PipelinesApplicationTest
     TestKit.shutdownActorSystem(system)
   }
 
-  ignore(
+  test(
     "pipelines application should react if a RunfolderReady event is received") {
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -57,7 +57,7 @@ class PipelinesApplicationTest
 
   }
 
-  ignore(
+  test(
     "pipelines application should respect the pipeline's `canProcess` method") {
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
