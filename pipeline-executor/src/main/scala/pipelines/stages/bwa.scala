@@ -10,6 +10,8 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import tasks._
 import tasks.circesupport._
 import fileutils.TempFile
+import scala.concurrent.Future
+import java.io.File
 
 case class PerLaneBWAAlignmentInput(
     read1: FastQ,
@@ -21,7 +23,133 @@ case class PerLaneBWAAlignmentInput(
     reference: ReferenceFasta
 ) extends WithSharedFiles(read1.file, read2.file, reference.file)
 
+case class FastQPerLane(lane: Lane, read1: FastQ, read2: FastQ)
+
+case class PerSampleBWAAlignmentInput(
+    fastqs: Seq[FastQPerLane],
+    project: Project,
+    sampleId: SampleId,
+    runId: RunId,
+    reference: ReferenceFasta
+) extends WithSharedFiles(fastqs.flatMap(fq =>
+      List(fq.read1.file, fq.read2.file)) :+ reference.file: _*)
+
 object BWAAlignment {
+
+  val alignFastqPerSample =
+    AsyncTask[PerSampleBWAAlignmentInput, BamWithSampleMetadata]("align-fastq",
+                                                                 1) {
+      case PerSampleBWAAlignmentInput(fastqs,
+                                      project,
+                                      sampleId,
+                                      runId,
+                                      reference) =>
+        ce =>
+          ce.withFilePrefix(Seq(project, sampleId)) {
+            implicit computationEnvironment =>
+              releaseResources
+
+              def alignLane(lane: FastQPerLane) =
+                alignSingleLane(
+                  PerLaneBWAAlignmentInput(lane.read1,
+                                           lane.read2,
+                                           project,
+                                           sampleId,
+                                           runId,
+                                           lane.lane,
+                                           reference))(
+                  CPUMemoryRequest(4, 12000))
+
+              for {
+                alignedLanes <- Future.sequence(fastqs.map(alignLane))
+                merged <- mergeAndMarkDuplicate(
+                  BamsWithSampleMetadata(project,
+                                         sampleId,
+                                         runId,
+                                         alignedLanes.map(_.bam)))(
+                  CPUMemoryRequest(4, 32000))
+              } yield merged
+          }
+    }
+
+  val mergeAndMarkDuplicate =
+    AsyncTask[BamsWithSampleMetadata, BamWithSampleMetadata](
+      "merge-markduplicate",
+      1) {
+      case BamsWithSampleMetadata(project, sampleId, runId, bams) =>
+        implicit computationEnvironment =>
+          val picardJar = extractPicardJar()
+
+          val tempFolder =
+            TempFile
+              .createTempFolder(".markDuplicateTempFolder")
+              .getAbsolutePath
+
+          val tmpDuplicateMarkedBam = TempFile.createTempFile(".bam")
+          val tmpMetricsFile = TempFile.createTempFile(".metrics")
+          val tmpStdOut = TempFile.createTempFile(".stdout")
+          val tmpStdErr = TempFile.createTempFile(".stderr")
+
+          for {
+            localBams <- Future.sequence(bams.map(_.file.file))
+            result <- {
+
+              localBams.foreach { localBam =>
+                Exec.bash("buildbamindex", onError = Exec.ThrowIfNonZero)(
+                  s"""java -Xmx8G -Dpicard.useLegacyParser=false -jar $picardJar BuildBamIndex \\
+                 --INPUT ${localBam.getAbsolutePath} \\
+                 > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)"""
+                )
+              }
+
+              val inputFlags = localBams
+                .map(_.getAbsolutePath)
+                .mkString("--INPUT ", "--INPUT ", "")
+
+              val bashScript = s"""
+        java -Xmx32G -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
+          $inputFlags \\
+          --OUTPUT ${tmpDuplicateMarkedBam.getAbsolutePath} \\
+          --METRICS_FILE ${tmpMetricsFile.getAbsolutePath} \\
+          --OPTICAL_DUPLICATE_PIXEL_DISTANCE=250 \\
+          --CREATE_INDEX=true \\
+          --TMP_DIR $tempFolder \\
+          > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
+        """
+
+              Exec.bash(logDiscriminator = "markduplicates",
+                        onError = Exec.ThrowIfNonZero)(bashScript)
+
+              val expectedBai =
+                new File(
+                  tmpDuplicateMarkedBam.getAbsolutePath
+                    .stripSuffix(".bam") + ".bai")
+
+              val nameStub = project + "." + sampleId + "." + runId
+
+              for {
+                _ <- SharedFile(tmpStdOut,
+                                name = nameStub + ".stdout",
+                                deleteFile = true)
+                _ <- SharedFile(tmpStdErr,
+                                name = nameStub + ".stderr",
+                                deleteFile = true)
+                _ <- SharedFile(expectedBai,
+                                name = nameStub + ".bai",
+                                deleteFile = true)
+                _ <- SharedFile(tmpMetricsFile,
+                                name = nameStub + ".metrics",
+                                deleteFile = true)
+                bam <- SharedFile(tmpDuplicateMarkedBam,
+                                  name = nameStub + ".bam",
+                                  deleteFile = true)
+              } yield BamWithSampleMetadata(project, sampleId, runId, Bam(bam))
+
+            }
+          } yield result
+
+    }
+
   val alignSingleLane =
     AsyncTask[PerLaneBWAAlignmentInput, BamWithSampleMetadataPerLane](
       "bwa-perlane",
@@ -34,23 +162,9 @@ object BWAAlignment {
                                     lane,
                                     reference) =>
         implicit computationEnvironment =>
-          val picardJar: String =
-            fileutils.TempFile
-              .getExecutableFromJar("/bin/picard_2.8.14.jar",
-                                    "picard_2.8.14.jar")
-              .getAbsolutePath
+          val picardJar = extractPicardJar()
 
-          val bwaExecutable: String = {
-            val resourceName =
-              if (util.isMac) "/bin/bwa_0.7.17-r1188_mac"
-              else if (util.isLinux) "/bin/bwa_0.7.17-r1188_linux64"
-              else
-                throw new RuntimeException(
-                  "Unknown OS: " + System.getProperty("os.name"))
-            fileutils.TempFile
-              .getExecutableFromJar(resourceName, "bwa_0.7.17-r1188")
-              .getAbsolutePath
-          }
+          val bwaExecutable = extractBwaExecutable()
 
           val bwaNumberOfThreads = math.max(1, resourceAllocated.cpu - 1)
 
@@ -179,6 +293,23 @@ object BWAAlignment {
 
     }
 
+  private def extractPicardJar(): String =
+    fileutils.TempFile
+      .getExecutableFromJar("/bin/picard_2.8.14.jar", "picard_2.8.14.jar")
+      .getAbsolutePath
+
+  private def extractBwaExecutable(): String = {
+    val resourceName =
+      if (util.isMac) "/bin/bwa_0.7.17-r1188_mac"
+      else if (util.isLinux) "/bin/bwa_0.7.17-r1188_linux64"
+      else
+        throw new RuntimeException(
+          "Unknown OS: " + System.getProperty("os.name"))
+    fileutils.TempFile
+      .getExecutableFromJar(resourceName, "bwa_0.7.17-r1188")
+      .getAbsolutePath
+  }
+
 }
 
 object PerLaneBWAAlignmentInput {
@@ -186,4 +317,18 @@ object PerLaneBWAAlignmentInput {
     deriveEncoder[PerLaneBWAAlignmentInput]
   implicit val decoder: Decoder[PerLaneBWAAlignmentInput] =
     deriveDecoder[PerLaneBWAAlignmentInput]
+}
+
+object PerSampleBWAAlignmentInput {
+  implicit val encoder: Encoder[PerSampleBWAAlignmentInput] =
+    deriveEncoder[PerSampleBWAAlignmentInput]
+  implicit val decoder: Decoder[PerSampleBWAAlignmentInput] =
+    deriveDecoder[PerSampleBWAAlignmentInput]
+}
+
+object FastQPerLane {
+  implicit val encoder: Encoder[FastQPerLane] =
+    deriveEncoder[FastQPerLane]
+  implicit val decoder: Decoder[FastQPerLane] =
+    deriveDecoder[FastQPerLane]
 }

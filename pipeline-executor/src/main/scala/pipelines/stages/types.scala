@@ -23,6 +23,18 @@ case class BamWithSampleMetadataPerLane(project: Project,
                                         bam: Bam)
     extends ResultWithSharedFiles(bam.file)
 
+case class BamsWithSampleMetadata(project: Project,
+                                  sampleId: SampleId,
+                                  runId: RunId,
+                                  bams: Seq[Bam])
+    extends ResultWithSharedFiles(bams.map(_.file): _*)
+
+case class BamWithSampleMetadata(project: Project,
+                                 sampleId: SampleId,
+                                 runId: RunId,
+                                 bam: Bam)
+    extends ResultWithSharedFiles(bam.file)
+
 case class FastQ(file: SharedFile) extends ResultWithSharedFiles(file)
 
 case class Bam(file: SharedFile) extends ResultWithSharedFiles(file)
@@ -66,6 +78,20 @@ object BamWithSampleMetadataPerLane {
     deriveEncoder[BamWithSampleMetadataPerLane]
   implicit val decoder: Decoder[BamWithSampleMetadataPerLane] =
     deriveDecoder[BamWithSampleMetadataPerLane]
+}
+
+object BamsWithSampleMetadata {
+  implicit val encoder: Encoder[BamsWithSampleMetadata] =
+    deriveEncoder[BamsWithSampleMetadata]
+  implicit val decoder: Decoder[BamsWithSampleMetadata] =
+    deriveDecoder[BamsWithSampleMetadata]
+}
+
+object BamWithSampleMetadata {
+  implicit val encoder: Encoder[BamWithSampleMetadata] =
+    deriveEncoder[BamWithSampleMetadata]
+  implicit val decoder: Decoder[BamWithSampleMetadata] =
+    deriveDecoder[BamWithSampleMetadata]
 }
 
 object ReferenceFasta {
