@@ -56,7 +56,9 @@ object Demultiplexing {
           val extraArguments = sampleSheet.parsed.extraBcl2FastqCliArguments
 
           val executable =
-            fileutils.TempFile.getExecutableFromJar("/bin/bcl2fastq")
+            fileutils.TempFile.getExecutableFromJar(resourceName =
+                                                      "/bin/bcl2fastq_v220",
+                                                    fileName = "bcl2fastq_v220")
 
           val laneNumber = laneToProcess.dropWhile(_ == 'L').toInt
 
