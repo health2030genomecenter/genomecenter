@@ -10,7 +10,7 @@ import tasks._
 import tasks.circesupport._
 import fileutils.TempFile
 
-case class PerLaneAlignmentInput(
+case class PerLaneBWAAlignmentInput(
     read1: FastQ,
     read2: FastQ,
     project: Project,
@@ -20,18 +20,18 @@ case class PerLaneAlignmentInput(
     reference: ReferenceFasta
 )
 
-object Alignment {
+object BWAAlignment {
   val alignSingleLane =
-    AsyncTask[PerLaneAlignmentInput, BamWithSampleMetadataPerLane](
-      "alignfastqs-perlane",
+    AsyncTask[PerLaneBWAAlignmentInput, BamWithSampleMetadataPerLane](
+      "bwa-perlane",
       1) {
-      case PerLaneAlignmentInput(read1,
-                                 read2,
-                                 project,
-                                 sampleId,
-                                 runId,
-                                 lane,
-                                 reference) =>
+      case PerLaneBWAAlignmentInput(read1,
+                                    read2,
+                                    project,
+                                    sampleId,
+                                    runId,
+                                    lane,
+                                    reference) =>
         implicit computationEnvironment =>
           val picardJar: String =
             fileutils.TempFile
@@ -162,9 +162,9 @@ object Alignment {
 
 }
 
-object PerLaneAlignmentInput {
-  implicit val encoder: Encoder[PerLaneAlignmentInput] =
-    deriveEncoder[PerLaneAlignmentInput]
-  implicit val decoder: Decoder[PerLaneAlignmentInput] =
-    deriveDecoder[PerLaneAlignmentInput]
+object PerLaneBWAAlignmentInput {
+  implicit val encoder: Encoder[PerLaneBWAAlignmentInput] =
+    deriveEncoder[PerLaneBWAAlignmentInput]
+  implicit val decoder: Decoder[PerLaneBWAAlignmentInput] =
+    deriveDecoder[PerLaneBWAAlignmentInput]
 }
