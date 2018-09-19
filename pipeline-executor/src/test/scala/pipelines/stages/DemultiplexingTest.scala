@@ -57,24 +57,10 @@ class DemultiplexingTestSuite
         "GIB")
       result.get.fastqs.toList.map(_.readType).toSet shouldBe Set("R2", "R1")
       result.get.fastqs.toList.map(_.lane).toSet shouldBe Set("L001")
+      And("the file history field should be filled in")
+      result.get.fastqs.toList.map(_.fastq.file.history).forall(_.isDefined) shouldBe true
 
     }
-  }
-}
-
-trait TestHelpers {
-
-  def await[T](f: Future[T]) = Await.result(f, atMost = 60 seconds)
-
-  def makeTestConfig = {
-    val tmp = tasks.util.TempFile.createTempFile(".temp")
-    tmp.delete
-    val config = ConfigFactory.parseString(
-      s"""tasks.fileservice.storageURI=${tmp.getAbsolutePath}
-      hosts.numCPU=12
-      """
-    )
-    (config, tmp)
   }
 
   trait Fixture {
@@ -121,6 +107,22 @@ GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,,,L001
     val runFolderPath = extractRunFolderTestData
 
     val (testConfig, basePath) = makeTestConfig
+  }
+}
+
+trait TestHelpers {
+
+  def await[T](f: Future[T]) = Await.result(f, atMost = 60 seconds)
+
+  def makeTestConfig = {
+    val tmp = tasks.util.TempFile.createTempFile(".temp")
+    tmp.delete
+    val config = ConfigFactory.parseString(
+      s"""tasks.fileservice.storageURI=${tmp.getAbsolutePath}
+      hosts.numCPU=12
+      """
+    )
+    (config, tmp)
   }
 
 }
