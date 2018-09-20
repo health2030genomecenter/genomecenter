@@ -20,7 +20,7 @@ class MarkDuplicatesTestSuite
       val result = withTaskSystem(testConfig) { implicit ts =>
         val input =
           BamsWithSampleMetadata(
-            bams = List(Bam(await(SharedFile(bam, "some.bam")))),
+            bams = Set(Bam(await(SharedFile(bam, "some.bam")))),
             project = project,
             sampleId = sampleId,
             runId = runId
