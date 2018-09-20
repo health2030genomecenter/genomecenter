@@ -114,7 +114,7 @@ GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,,,L001
 
 trait TestHelpers {
 
-  def await[T](f: Future[T]) = Await.result(f, atMost = 60 seconds)
+  def await[T](f: Future[T]) = Await.result(f, atMost = 180 seconds)
 
   def makeTestConfig = {
     val tmp = tasks.util.TempFile.createTempFile(".temp")
