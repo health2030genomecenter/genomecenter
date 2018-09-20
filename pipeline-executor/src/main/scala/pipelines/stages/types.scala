@@ -6,7 +6,7 @@ import io.circe._
 import io.circe.generic.semiauto._
 import org.gc.pipelines.model._
 
-case class ReferenceFasta(file: SharedFile)
+case class ReferenceFasta(file: SharedFile) extends WithSharedFiles(file)
 
 case class FastQWithSampleMetadata(project: Project,
                                    sampleId: SampleId,
@@ -26,8 +26,8 @@ case class BamWithSampleMetadataPerLane(project: Project,
 case class BamsWithSampleMetadata(project: Project,
                                   sampleId: SampleId,
                                   runId: RunId,
-                                  bams: Seq[Bam])
-    extends ResultWithSharedFiles(bams.map(_.file): _*)
+                                  bams: Set[Bam])
+    extends ResultWithSharedFiles(bams.map(_.file).toSeq: _*)
 
 case class BamWithSampleMetadata(project: Project,
                                  sampleId: SampleId,
@@ -40,6 +40,11 @@ case class FastQ(file: SharedFile) extends ResultWithSharedFiles(file)
 case class Bam(file: SharedFile) extends ResultWithSharedFiles(file)
 
 case class Bai(file: SharedFile) extends ResultWithSharedFiles(file)
+
+case class FastQPerLane(lane: Lane, read1: FastQ, read2: FastQ)
+
+case class BWAAlignedReads(bams: Set[BamWithSampleMetadata])
+    extends WithSharedFiles(bams.map(_.bam.file).toSeq: _*)
 
 //
 // Codecs from here on
@@ -99,4 +104,18 @@ object ReferenceFasta {
     deriveEncoder[ReferenceFasta]
   implicit val decoder: Decoder[ReferenceFasta] =
     deriveDecoder[ReferenceFasta]
+}
+
+object FastQPerLane {
+  implicit val encoder: Encoder[FastQPerLane] =
+    deriveEncoder[FastQPerLane]
+  implicit val decoder: Decoder[FastQPerLane] =
+    deriveDecoder[FastQPerLane]
+}
+
+object BWAAlignedReads {
+  implicit val encoder: Encoder[BWAAlignedReads] =
+    deriveEncoder[BWAAlignedReads]
+  implicit val decoder: Decoder[BWAAlignedReads] =
+    deriveDecoder[BWAAlignedReads]
 }

@@ -23,22 +23,95 @@ case class PerLaneBWAAlignmentInput(
     reference: ReferenceFasta
 ) extends WithSharedFiles(read1.file, read2.file, reference.file)
 
-case class FastQPerLane(lane: Lane, read1: FastQ, read2: FastQ)
-
 case class PerSampleBWAAlignmentInput(
-    fastqs: Seq[FastQPerLane],
+    fastqs: Set[FastQPerLane],
     project: Project,
     sampleId: SampleId,
     runId: RunId,
     reference: ReferenceFasta
-) extends WithSharedFiles(fastqs.flatMap(fq =>
-      List(fq.read1.file, fq.read2.file)) :+ reference.file: _*)
+) extends WithSharedFiles(
+      fastqs
+        .flatMap(fq => List(fq.read1.file, fq.read2.file))
+        .toSeq :+ reference.file: _*)
+
+case class BWAInput(demultiplexed: DemultiplexedReadData,
+                    reference: ReferenceFasta)
+    extends WithSharedFiles(demultiplexed.files ++ reference.files: _*)
 
 object BWAAlignment {
 
+  def selectReadType(fqs: Seq[FastQWithSampleMetadata], readType: ReadType) =
+    fqs
+      .filter(_.readType == readType)
+      .headOption
+      .map(_.fastq)
+
+  def groupBySample(
+      demultiplexed: DemultiplexedReadData,
+      referenceFasta: ReferenceFasta): Seq[PerSampleBWAAlignmentInput] =
+    demultiplexed.fastqs
+      .groupBy { fq =>
+        (fq.project, fq.sampleId, fq.runId)
+      }
+      .toSeq
+      .map {
+        case ((project, sampleId, runId), perSampleFastQs) =>
+          val perLaneFastQs =
+            perSampleFastQs
+              .groupBy(_.lane)
+              .toSeq
+              .map(_._2)
+              .map { (fqsInLane: Set[FastQWithSampleMetadata]) =>
+                val maybeRead1 =
+                  selectReadType(fqsInLane.toSeq, ReadType("R1"))
+                val maybeRead2 =
+                  selectReadType(fqsInLane.toSeq, ReadType("R2"))
+
+                val lane = {
+                  val distinctLanesInGroup = fqsInLane.map(_.lane)
+                  assert(distinctLanesInGroup.size == 1) // due to groupBy
+                  distinctLanesInGroup.head
+                }
+
+                for {
+                  read1 <- maybeRead1
+                  read2 <- maybeRead2
+                } yield FastQPerLane(lane, read1, read2)
+              }
+              .flatten
+          PerSampleBWAAlignmentInput(
+            perLaneFastQs.toSet,
+            project,
+            sampleId,
+            runId,
+            referenceFasta
+          )
+      }
+
+  val allSamples =
+    AsyncTask[BWAInput, BWAAlignedReads]("bwa", 1) {
+      case BWAInput(demultiplexedRun, referenceFasta) =>
+        implicit computationEnvironment =>
+          releaseResources
+
+          val perSample = groupBySample(demultiplexedRun, referenceFasta)
+
+          val futureAlignedSamples =
+            perSample.map { sample =>
+              BWAAlignment
+                .alignFastqPerSample(sample)(CPUMemoryRequest(1, 500))
+            }
+
+          Future
+            .sequence(futureAlignedSamples)
+            .map(alignedSamples => BWAAlignedReads(alignedSamples.toSet))
+
+    }
+
   val alignFastqPerSample =
-    AsyncTask[PerSampleBWAAlignmentInput, BamWithSampleMetadata]("align-fastq",
-                                                                 1) {
+    AsyncTask[PerSampleBWAAlignmentInput, BamWithSampleMetadata](
+      "bwa-persample",
+      1) {
       case PerSampleBWAAlignmentInput(fastqs,
                                       project,
                                       sampleId,
@@ -326,9 +399,9 @@ object PerSampleBWAAlignmentInput {
     deriveDecoder[PerSampleBWAAlignmentInput]
 }
 
-object FastQPerLane {
-  implicit val encoder: Encoder[FastQPerLane] =
-    deriveEncoder[FastQPerLane]
-  implicit val decoder: Decoder[FastQPerLane] =
-    deriveDecoder[FastQPerLane]
+object BWAInput {
+  implicit val encoder: Encoder[BWAInput] =
+    deriveEncoder[BWAInput]
+  implicit val decoder: Decoder[BWAInput] =
+    deriveDecoder[BWAInput]
 }
