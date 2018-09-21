@@ -6,7 +6,6 @@ import tasks._
 import java.io.File
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.Exec
 
 class MarkDuplicatesTestSuite
     extends FunSuite
@@ -40,10 +39,7 @@ class MarkDuplicatesTestSuite
       localBam.canRead shouldBe true
       new File(localBam.getParentFile, localBam.getName.dropRight(3) + "stderr").canRead shouldBe true
 
-      // TODO: replace this with htsjdk
-      val (stdout, _, _) =
-        Exec.bash("test")(s"samtools view ${localBam.getAbsolutePath} | wc -l")
-      stdout.mkString.trim.toInt shouldBe 10000
+      recordsInBamFile(localBam) shouldBe 10000
 
     }
   }
@@ -58,7 +54,7 @@ class MarkDuplicatesTestSuite
     val bam = new File(getClass.getResource("/tutorial_8017/papa.bam").getFile)
     val referenceFile = new File(
       getClass
-        .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta.gz")
+        .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta")
         .getFile)
 
     val (testConfig, basePath) = makeTestConfig

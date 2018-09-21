@@ -9,14 +9,11 @@ import scala.concurrent.{ExecutionContext, Future}
 
 case class ReferenceFasta(file: SharedFile) extends WithSharedFiles(file)
 
-case class IndexedReferenceFasta(fasta: SharedFile,
-                                 dict: SharedFile,
-                                 bwaIndex: Set[SharedFile])
+case class IndexedReferenceFasta(fasta: SharedFile, indexFiles: Set[SharedFile])
     extends WithSharedFiles(fasta) {
   def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
-      _ <- dict.file
-      _ <- Future.traverse(bwaIndex)(_.file)
+      _ <- Future.traverse(indexFiles)(_.file)
       fasta <- fasta.file
     } yield fasta
 }

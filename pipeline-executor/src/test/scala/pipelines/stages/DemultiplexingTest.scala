@@ -51,10 +51,11 @@ class DemultiplexingTestSuite
 
       And(
         "captured fastq files should be present for the demultiplexed samples and for the undetermined reads")
-      result.get.fastqs.size shouldBe 4
+      result.get.fastqs.size shouldBe 6
       result.get.fastqs.toList.map(_.sampleId).toSet shouldBe Set(
         "Undetermined",
-        "GIB")
+        "GIB",
+        "sample2")
       result.get.fastqs.toList.map(_.readType).toSet shouldBe Set("R2", "R1")
       result.get.fastqs.toList.map(_.lane).toSet shouldBe Set("L001")
       And("the file history field should be filled in")
@@ -113,6 +114,15 @@ GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,,,L001
 }
 
 trait TestHelpers {
+
+  def recordsInBamFile(file: File) = {
+    import htsjdk.samtools.SamReaderFactory
+    import scala.collection.JavaConverters._
+    val reader = SamReaderFactory.makeDefault.open(file)
+    val length = reader.iterator.asScala.length
+    reader.close
+    length
+  }
 
   def await[T](f: Future[T]) = Await.result(f, atMost = 180 seconds)
 

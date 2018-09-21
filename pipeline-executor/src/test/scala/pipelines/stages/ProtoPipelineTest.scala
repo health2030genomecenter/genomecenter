@@ -92,7 +92,7 @@ class ProtopipelineTestSuite
     }
 
     val referenceFasta = getClass
-      .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta.gz")
+      .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta")
       .getFile
 
     val runId = "whateverRunId"

@@ -97,16 +97,26 @@ object BWAAlignment {
 
           fasta.file.flatMap { localFastaFile =>
             val pathToFasta = localFastaFile.getAbsolutePath
+
             Exec.bash(logDiscriminator = "bwa.index",
                       onError = Exec.ThrowIfNonZero)(
               s"$bwaExecutable index  -a bwtsw $pathToFasta")
 
-            Exec.bash(logDiscriminator = "bwa.fasta.dict",
+            Exec.bash(logDiscriminator = "fasta.dict",
                       onError = Exec.ThrowIfNonZero)(
               s"java -Xmx1G -Dpicard.useLegacyParser=false -jar $picardJar CreateSequenceDictionary --REFERENCE $pathToFasta"
             )
 
-            val dict = new File(pathToFasta.stripSuffix("fasta.gz") + "dict")
+            val fastaIndex = {
+              import htsjdk.samtools.reference.FastaSequenceIndexCreator
+              val file = new File(pathToFasta + ".fai")
+              FastaSequenceIndexCreator
+                .buildFromFasta(localFastaFile.toPath)
+                .write(file.toPath)
+              file
+            }
+
+            val dict = new File(pathToFasta.stripSuffix("fasta") + "dict")
             val bwt = new File(pathToFasta + ".bwt")
             val pac = new File(pathToFasta + ".pac")
             val ann = new File(pathToFasta + ".ann")
@@ -120,8 +130,11 @@ object BWAAlignment {
               ann <- SharedFile(ann, ann.getName)
               amb <- SharedFile(amb, amb.getName)
               sa <- SharedFile(sa, sa.getName)
+              fai <- SharedFile(fastaIndex, fasta.name + ".fai")
+              _ = { println(fai) }
             } yield
-              IndexedReferenceFasta(fasta, dict, Set(bwt, pac, ann, amb, sa))
+              IndexedReferenceFasta(fasta,
+                                    Set(bwt, pac, ann, amb, sa, dict, fai))
           }
 
     }
