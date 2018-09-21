@@ -31,6 +31,7 @@ class BaseQualityRecalibrationTest
               VCF(await(SharedFile(vcf, "some.vcf")),
                   Some(await(SharedFile(vcfIdx, "some.vcf.idx")))))
           )
+
         When("executing the base quality recalibration steps")
         val future =
           for {
@@ -39,14 +40,14 @@ class BaseQualityRecalibrationTest
             recalibratedBam <- BaseQualityScoreRecalibration.applyBQSR(
               ApplyBQSRInput(input.bam, input.reference, table))(
               CPUMemoryRequest(1, 3000))
-          } yield recalibratedBam
-        await(future)
+            filePath <- recalibratedBam.bam.file
+          } yield filePath
 
+        await(future)
       }
 
       Then("a recalibrated bam file should be generated")
-
-      new File(basePath + "/bqsr-apply/some.bqsr.bam").canRead shouldBe true
+      result.get.canRead shouldBe true
 
     }
   }

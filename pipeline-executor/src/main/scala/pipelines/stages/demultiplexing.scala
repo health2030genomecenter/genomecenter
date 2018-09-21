@@ -98,6 +98,7 @@ object Demultiplexing {
             Files.list(outputFolder, "*.fastq.gz")
 
           }(computationEnvironment.components
+            .withChildPrefix(runId)
             .withChildPrefix(laneToProcess))
 
           def extractMetadataFromFilename(fastq: SharedFile) =

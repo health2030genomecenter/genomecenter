@@ -38,7 +38,7 @@ class ProtopipelineTestSuite
       Then(
         "a run and lane specific folder should be created at the root of the storage")
       val demultiplexOutputFolder = new File(
-        basePath.getAbsolutePath + s"/$runId/demultiplex/demultiplex-per-lane/L001")
+        basePath.getAbsolutePath + s"/demultiplex/demultiplex-per-lane/$runId/L001")
       demultiplexOutputFolder.canRead shouldBe true
 
       And("uncaptured output files from bcl2fastq should be present")
@@ -53,14 +53,14 @@ class ProtopipelineTestSuite
 
       And("bwa alignment per lane of the first sample should be present")
       val bwaFolder = new File(
-        basePath.getAbsolutePath + s"/$runId/bwa/bwa-persample/project1/GIB/bwa-perlane")
+        basePath.getAbsolutePath + s"/bwa/bwa-persample/project1/GIB/bwa-perlane")
       And("stderr of alignment is present")
       new File(bwaFolder, "project1.GIB.whateverRunId.L001.stderr").canRead
 
       And("merge and mark duplicate of the first sample should be present")
       val markduplicatesFolder =
         new File(
-          basePath.getAbsolutePath + s"/$runId/bwa/bwa-persample/project1/GIB/merge-markduplicate")
+          basePath.getAbsolutePath + s"/bwa/bwa-persample/project1/GIB/merge-markduplicate")
       new File(markduplicatesFolder, "project1.GIB.whateverRunId.stderr").canRead
       new File(markduplicatesFolder, "project1.GIB.whateverRunId.bam").canRead
       new File(markduplicatesFolder, "project1.GIB.whateverRunId.bai").canRead
@@ -69,7 +69,7 @@ class ProtopipelineTestSuite
       And("merge and mark duplicate of the second sample should be present")
       val markduplicatesFolder2 =
         new File(
-          basePath.getAbsolutePath + s"/$runId/bwa/bwa-persample/project2/sample2/merge-markduplicate")
+          basePath.getAbsolutePath + s"/bwa/bwa-persample/project2/sample2/merge-markduplicate")
 
       new File(markduplicatesFolder2, "project2.sample2.whateverRunId.stderr").canRead
       new File(markduplicatesFolder2, "project2.sample2.whateverRunId.bam").canRead
