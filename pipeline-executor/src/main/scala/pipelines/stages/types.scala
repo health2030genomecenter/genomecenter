@@ -5,11 +5,21 @@ import tasks.circesupport._
 import io.circe._
 import io.circe.generic.semiauto._
 import org.gc.pipelines.model._
+import scala.concurrent.{ExecutionContext, Future}
 
 case class ReferenceFasta(file: SharedFile) extends WithSharedFiles(file)
 
-case class BWAIndexedReferenceFasta(file: SharedFile)
-    extends WithSharedFiles(file)
+case class IndexedReferenceFasta(fasta: SharedFile,
+                                 dict: SharedFile,
+                                 bwaIndex: Set[SharedFile])
+    extends WithSharedFiles(fasta) {
+  def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
+    for {
+      _ <- dict.file
+      _ <- Future.traverse(bwaIndex)(_.file)
+      fasta <- fasta.file
+    } yield fasta
+}
 
 case class FastQWithSampleMetadata(project: Project,
                                    sampleId: SampleId,
@@ -17,14 +27,14 @@ case class FastQWithSampleMetadata(project: Project,
                                    lane: Lane,
                                    readType: ReadType,
                                    fastq: FastQ)
-    extends ResultWithSharedFiles(fastq.file)
+    extends WithSharedFiles(fastq.file)
 
 case class BamWithSampleMetadataPerLane(project: Project,
                                         sampleId: SampleId,
                                         runId: RunId,
                                         lane: Lane,
                                         bam: Bam)
-    extends ResultWithSharedFiles(bam.file)
+    extends WithSharedFiles(bam.file)
 
 case class BamsWithSampleMetadata(project: Project,
                                   sampleId: SampleId,
@@ -35,19 +45,26 @@ case class BamsWithSampleMetadata(project: Project,
 case class BamWithSampleMetadata(project: Project,
                                  sampleId: SampleId,
                                  runId: RunId,
-                                 bam: Bam)
-    extends ResultWithSharedFiles(bam.file)
+                                 bam: CoordinateSortedBam)
+    extends WithSharedFiles(bam.files: _*)
 
 case class FastQ(file: SharedFile) extends ResultWithSharedFiles(file)
 
 case class Bam(file: SharedFile) extends ResultWithSharedFiles(file)
 
-case class Bai(file: SharedFile) extends ResultWithSharedFiles(file)
+case class CoordinateSortedBam(bam: SharedFile, bai: SharedFile)
+    extends WithSharedFiles(bam) {
+  def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
+    for {
+      _ <- bai.file
+      bam <- bam.file
+    } yield bam
+}
 
 case class FastQPerLane(lane: Lane, read1: FastQ, read2: FastQ)
 
 case class BWAAlignedReads(bams: Set[BamWithSampleMetadata])
-    extends WithSharedFiles(bams.map(_.bam.file).toSeq: _*)
+    extends WithSharedFiles(bams.map(_.bam.bam).toSeq: _*)
 
 //
 // Codecs from here on
@@ -74,11 +91,11 @@ object Bam {
     deriveDecoder[Bam]
 }
 
-object Bai {
-  implicit val encoder: Encoder[Bai] =
-    deriveEncoder[Bai]
-  implicit val decoder: Decoder[Bai] =
-    deriveDecoder[Bai]
+object CoordinateSortedBam {
+  implicit val encoder: Encoder[CoordinateSortedBam] =
+    deriveEncoder[CoordinateSortedBam]
+  implicit val decoder: Decoder[CoordinateSortedBam] =
+    deriveDecoder[CoordinateSortedBam]
 }
 
 object BamWithSampleMetadataPerLane {
@@ -123,9 +140,9 @@ object BWAAlignedReads {
     deriveDecoder[BWAAlignedReads]
 }
 
-object BWAIndexedReferenceFasta {
-  implicit val encoder: Encoder[BWAIndexedReferenceFasta] =
-    deriveEncoder[BWAIndexedReferenceFasta]
-  implicit val decoder: Decoder[BWAIndexedReferenceFasta] =
-    deriveDecoder[BWAIndexedReferenceFasta]
+object IndexedReferenceFasta {
+  implicit val encoder: Encoder[IndexedReferenceFasta] =
+    deriveEncoder[IndexedReferenceFasta]
+  implicit val decoder: Decoder[IndexedReferenceFasta] =
+    deriveDecoder[IndexedReferenceFasta]
 }

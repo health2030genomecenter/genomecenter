@@ -29,14 +29,14 @@ class MarkDuplicatesTestSuite
         val future =
           BWAAlignment.mergeAndMarkDuplicate(input)(CPUMemoryRequest(1, 500))
         val bamWithSampleMetadata = await(future)
-        val bamFile = await(bamWithSampleMetadata.bam.file.file)
+        val bamFile = await(bamWithSampleMetadata.bam.bam.file)
         (bamWithSampleMetadata, bamFile)
       }
 
       val (bamWithMetadata, localBam) = result.get
       bamWithMetadata.project shouldBe project
       bamWithMetadata.runId shouldBe runId
-      bamWithMetadata.bam.file.history.get.dependencies.size shouldBe 1
+      bamWithMetadata.bam.bam.history.get.dependencies.size shouldBe 1
       localBam.canRead shouldBe true
       new File(localBam.getParentFile, localBam.getName.dropRight(3) + "stderr").canRead shouldBe true
 

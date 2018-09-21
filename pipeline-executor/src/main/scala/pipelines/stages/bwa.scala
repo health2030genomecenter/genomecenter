@@ -20,19 +20,19 @@ case class PerLaneBWAAlignmentInput(
     sampleId: SampleId,
     runId: RunId,
     lane: Lane,
-    reference: BWAIndexedReferenceFasta
-) extends WithSharedFiles(read1.file, read2.file, reference.file)
+    reference: IndexedReferenceFasta
+) extends WithSharedFiles(read1.file, read2.file, reference.fasta)
 
 case class PerSampleBWAAlignmentInput(
     fastqs: Set[FastQPerLane],
     project: Project,
     sampleId: SampleId,
     runId: RunId,
-    reference: BWAIndexedReferenceFasta
+    reference: IndexedReferenceFasta
 ) extends WithSharedFiles(
       fastqs
         .flatMap(fq => List(fq.read1.file, fq.read2.file))
-        .toSeq :+ reference.file: _*)
+        .toSeq :+ reference.fasta: _*)
 
 case class BWAInput(demultiplexed: DemultiplexedReadData,
                     reference: ReferenceFasta)
@@ -46,9 +46,9 @@ object BWAAlignment {
       .headOption
       .map(_.fastq)
 
-  def groupBySample(demultiplexed: DemultiplexedReadData,
-                    referenceFasta: BWAIndexedReferenceFasta)
-    : Seq[PerSampleBWAAlignmentInput] =
+  def groupBySample(
+      demultiplexed: DemultiplexedReadData,
+      referenceFasta: IndexedReferenceFasta): Seq[PerSampleBWAAlignmentInput] =
     demultiplexed.fastqs
       .groupBy { fq =>
         (fq.project, fq.sampleId, fq.runId)
@@ -88,15 +88,15 @@ object BWAAlignment {
           )
       }
 
-  /* This assumes that ReferenceFasta is on a shared folder */
   val indexReference =
-    AsyncTask[ReferenceFasta, BWAIndexedReferenceFasta]("bwa-index", 1) {
+    AsyncTask[ReferenceFasta, IndexedReferenceFasta]("bwa-index", 1) {
       case ReferenceFasta(fasta) =>
         implicit computationEnvironment =>
           val bwaExecutable = extractBwaExecutable()
           val picardJar = extractPicardJar()
 
-          fasta.file.map { pathToFasta =>
+          fasta.file.flatMap { localFastaFile =>
+            val pathToFasta = localFastaFile.getAbsolutePath
             Exec.bash(logDiscriminator = "bwa.index",
                       onError = Exec.ThrowIfNonZero)(
               s"$bwaExecutable index  -a bwtsw $pathToFasta")
@@ -106,7 +106,22 @@ object BWAAlignment {
               s"java -Xmx1G -Dpicard.useLegacyParser=false -jar $picardJar CreateSequenceDictionary --REFERENCE $pathToFasta"
             )
 
-            BWAIndexedReferenceFasta(fasta)
+            val dict = new File(pathToFasta.stripSuffix("fasta.gz") + "dict")
+            val bwt = new File(pathToFasta + ".bwt")
+            val pac = new File(pathToFasta + ".pac")
+            val ann = new File(pathToFasta + ".ann")
+            val amb = new File(pathToFasta + ".amb")
+            val sa = new File(pathToFasta + ".sa")
+
+            for {
+              dict <- SharedFile(dict, dict.getName)
+              bwt <- SharedFile(bwt, bwt.getName)
+              pac <- SharedFile(pac, pac.getName)
+              ann <- SharedFile(ann, ann.getName)
+              amb <- SharedFile(amb, amb.getName)
+              sa <- SharedFile(sa, sa.getName)
+            } yield
+              IndexedReferenceFasta(fasta, dict, Set(bwt, pac, ann, amb, sa))
           }
 
     }
@@ -240,16 +255,20 @@ object BWAAlignment {
                 _ <- SharedFile(tmpStdErr,
                                 name = nameStub + ".stderr",
                                 deleteFile = true)
-                _ <- SharedFile(expectedBai,
-                                name = nameStub + ".bai",
-                                deleteFile = true)
+                bai <- SharedFile(expectedBai,
+                                  name = nameStub + ".bai",
+                                  deleteFile = true)
                 _ <- SharedFile(tmpMetricsFile,
                                 name = nameStub + ".metrics",
                                 deleteFile = true)
                 bam <- SharedFile(tmpDuplicateMarkedBam,
                                   name = nameStub + ".bam",
                                   deleteFile = true)
-              } yield BamWithSampleMetadata(project, sampleId, runId, Bam(bam))
+              } yield
+                BamWithSampleMetadata(project,
+                                      sampleId,
+                                      runId,
+                                      CoordinateSortedBam(bam, bai))
 
             }
           } yield result
@@ -300,7 +319,7 @@ object BWAAlignment {
           for {
             read1 <- read1.file.file.map(_.getAbsolutePath)
             read2 <- read2.file.file.map(_.getAbsolutePath)
-            reference <- reference.file.file
+            reference <- reference.localFile
             result <- {
 
               val bashScript = s""" \\
