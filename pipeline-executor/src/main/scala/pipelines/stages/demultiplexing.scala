@@ -15,7 +15,11 @@ case class DemultiplexSingleLaneInput(run: RunfolderReadyForProcessing,
                                       lane: Lane)
 
 case class DemultiplexedReadData(fastqs: Set[FastQWithSampleMetadata])
-    extends ResultWithSharedFiles(fastqs.toList.map(_.fastq.file): _*)
+    extends ResultWithSharedFiles(fastqs.toList.map(_.fastq.file): _*) {
+  def withoutUndetermined =
+    DemultiplexedReadData(
+      fastqs.filterNot(_.sampleId == SampleId("Undetermined")))
+}
 
 object Demultiplexing {
 
@@ -34,7 +38,7 @@ object Demultiplexing {
         for {
           demultiplexedLanes <- Future.sequence(lanes.map { lane =>
             perLane(DemultiplexSingleLaneInput(runFolder, lane))(
-              CPUMemoryRequest(12, 40000))
+              CPUMemoryRequest(12, 6000))
           })
         } yield
           DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet)
@@ -84,7 +88,7 @@ object Demultiplexing {
             }
 
             val (_, _, exitCode) =
-              Exec.bash(logDiscriminator = "bcl2fastq")(bashCommand)
+              Exec.bash(logDiscriminator = "bcl2fastq." + runId)(bashCommand)
             if (exitCode != 0) {
               val stdErrContents = fileutils.openSource(stderr)(_.mkString)
               log.error("bcl2fastq failed. stderr follows:\n" + stdErrContents)
@@ -94,7 +98,6 @@ object Demultiplexing {
             Files.list(outputFolder, "*.fastq.gz")
 
           }(computationEnvironment.components
-            .withChildPrefix(runId)
             .withChildPrefix(laneToProcess))
 
           def extractMetadataFromFilename(fastq: SharedFile) =

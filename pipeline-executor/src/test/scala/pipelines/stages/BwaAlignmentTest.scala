@@ -18,6 +18,11 @@ class BwaAlignmentTestSuite
     new Fixture {
 
       val result = withTaskSystem(testConfig) { implicit ts =>
+        val indexedFasta = await(
+          BWAAlignment.indexReference(ReferenceFasta(
+            await(SharedFile(referenceFile, "referenceFasta.fasta.gz"))))(
+            CPUMemoryRequest(1, 500)))
+
         val input =
           PerLaneBWAAlignmentInput(
             read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz"))),
@@ -26,8 +31,7 @@ class BwaAlignmentTestSuite
             sampleId = sampleId,
             runId = runId,
             lane = lane,
-            reference = ReferenceFasta(
-              await(SharedFile(referenceFile, "referenceFasta.fasta.gz")))
+            reference = indexedFasta
           )
 
         val future =
@@ -38,7 +42,6 @@ class BwaAlignmentTestSuite
       }
 
       val (bamWithMetadata, localBam) = result.get
-      println(localBam)
       bamWithMetadata.project shouldBe project
       bamWithMetadata.runId shouldBe runId
       bamWithMetadata.bam.file.history.get.dependencies.size shouldBe 3

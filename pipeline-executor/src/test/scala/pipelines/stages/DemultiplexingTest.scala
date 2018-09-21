@@ -39,7 +39,7 @@ class DemultiplexingTestSuite
       Then(
         "a run and lane specific folder should be created at the root of the storage")
       val outputFolder = new File(
-        basePath.getAbsolutePath + s"/demultiplex/demultiplex-per-lane/$runId/L001")
+        basePath.getAbsolutePath + s"/demultiplex/demultiplex-per-lane/L001")
       outputFolder.canRead shouldBe true
 
       And("uncaptured output files from bcl2fastq should be present")
@@ -122,6 +122,7 @@ trait TestHelpers {
     val config = ConfigFactory.parseString(
       s"""tasks.fileservice.storageURI=${tmp.getAbsolutePath}
       hosts.numCPU=12
+      hosts.RAM=6000
       """
     )
     (config, tmp)

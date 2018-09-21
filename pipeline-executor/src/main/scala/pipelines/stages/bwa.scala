@@ -20,7 +20,7 @@ case class PerLaneBWAAlignmentInput(
     sampleId: SampleId,
     runId: RunId,
     lane: Lane,
-    reference: ReferenceFasta
+    reference: BWAIndexedReferenceFasta
 ) extends WithSharedFiles(read1.file, read2.file, reference.file)
 
 case class PerSampleBWAAlignmentInput(
@@ -28,7 +28,7 @@ case class PerSampleBWAAlignmentInput(
     project: Project,
     sampleId: SampleId,
     runId: RunId,
-    reference: ReferenceFasta
+    reference: BWAIndexedReferenceFasta
 ) extends WithSharedFiles(
       fastqs
         .flatMap(fq => List(fq.read1.file, fq.read2.file))
@@ -36,7 +36,7 @@ case class PerSampleBWAAlignmentInput(
 
 case class BWAInput(demultiplexed: DemultiplexedReadData,
                     reference: ReferenceFasta)
-    extends WithSharedFiles(demultiplexed.files ++ reference.files: _*)
+    extends WithSharedFiles(demultiplexed.files: _*)
 
 object BWAAlignment {
 
@@ -46,9 +46,9 @@ object BWAAlignment {
       .headOption
       .map(_.fastq)
 
-  def groupBySample(
-      demultiplexed: DemultiplexedReadData,
-      referenceFasta: ReferenceFasta): Seq[PerSampleBWAAlignmentInput] =
+  def groupBySample(demultiplexed: DemultiplexedReadData,
+                    referenceFasta: BWAIndexedReferenceFasta)
+    : Seq[PerSampleBWAAlignmentInput] =
     demultiplexed.fastqs
       .groupBy { fq =>
         (fq.project, fq.sampleId, fq.runId)
@@ -88,23 +88,53 @@ object BWAAlignment {
           )
       }
 
+  /* This assumes that ReferenceFasta is on a shared folder */
+  val indexReference =
+    AsyncTask[ReferenceFasta, BWAIndexedReferenceFasta]("bwa-index", 1) {
+      case ReferenceFasta(fasta) =>
+        implicit computationEnvironment =>
+          val bwaExecutable = extractBwaExecutable()
+          val picardJar = extractPicardJar()
+
+          fasta.file.map { pathToFasta =>
+            Exec.bash(logDiscriminator = "bwa.index",
+                      onError = Exec.ThrowIfNonZero)(
+              s"$bwaExecutable index  -a bwtsw $pathToFasta")
+
+            Exec.bash(logDiscriminator = "bwa.fasta.dict",
+                      onError = Exec.ThrowIfNonZero)(
+              s"java -Xmx1G -Dpicard.useLegacyParser=false -jar $picardJar CreateSequenceDictionary --REFERENCE $pathToFasta"
+            )
+
+            BWAIndexedReferenceFasta(fasta)
+          }
+
+    }
+
   val allSamples =
     AsyncTask[BWAInput, BWAAlignedReads]("bwa", 1) {
       case BWAInput(demultiplexedRun, referenceFasta) =>
         implicit computationEnvironment =>
           releaseResources
 
-          val perSample = groupBySample(demultiplexedRun, referenceFasta)
+          for {
+            indexedFastaFuture <- indexReference(referenceFasta)(
+              CPUMemoryRequest(1, 4000))
+            result <- {
+              val perSample =
+                groupBySample(demultiplexedRun, indexedFastaFuture)
 
-          val futureAlignedSamples =
-            perSample.map { sample =>
-              BWAAlignment
-                .alignFastqPerSample(sample)(CPUMemoryRequest(1, 500))
+              val futureAlignedSamples =
+                perSample.map { sample =>
+                  BWAAlignment
+                    .alignFastqPerSample(sample)(CPUMemoryRequest(1, 500))
+                }
+
+              Future
+                .sequence(futureAlignedSamples)
+                .map(alignedSamples => BWAAlignedReads(alignedSamples.toSet))
             }
-
-          Future
-            .sequence(futureAlignedSamples)
-            .map(alignedSamples => BWAAlignedReads(alignedSamples.toSet))
+          } yield result
 
     }
 
@@ -131,7 +161,7 @@ object BWAAlignment {
                                            runId,
                                            lane.lane,
                                            reference))(
-                  CPUMemoryRequest(4, 12000))
+                  CPUMemoryRequest(4, 6000))
 
               for {
                 alignedLanes <- Future.sequence(fastqs.map(alignLane))
@@ -140,7 +170,7 @@ object BWAAlignment {
                                          sampleId,
                                          runId,
                                          alignedLanes.map(_.bam)))(
-                  CPUMemoryRequest(4, 32000))
+                  CPUMemoryRequest(4, 6000))
               } yield merged
           }
     }
@@ -163,13 +193,16 @@ object BWAAlignment {
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
 
+          val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+
           for {
             localBams <- Future.sequence(bams.map(_.file.file))
             result <- {
 
               localBams.foreach { localBam =>
-                Exec.bash("buildbamindex", onError = Exec.ThrowIfNonZero)(
-                  s"""java -Xmx8G -Dpicard.useLegacyParser=false -jar $picardJar BuildBamIndex \\
+                Exec.bash("bwa.buildbamindex." + sampleId,
+                          onError = Exec.ThrowIfNonZero)(
+                  s"""java $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar BuildBamIndex \\
                  --INPUT ${localBam.getAbsolutePath} \\
                  > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)"""
                 )
@@ -180,7 +213,7 @@ object BWAAlignment {
                 .mkString("--INPUT ", "--INPUT ", "")
 
               val bashScript = s"""
-        java -Xmx32G -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
+        java $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
           $inputFlags \\
           --OUTPUT ${tmpDuplicateMarkedBam.getAbsolutePath} \\
           --METRICS_FILE ${tmpMetricsFile.getAbsolutePath} \\
@@ -190,7 +223,7 @@ object BWAAlignment {
           > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
         """
 
-              Exec.bash(logDiscriminator = "markduplicates",
+              Exec.bash(logDiscriminator = "markduplicates." + sampleId,
                         onError = Exec.ThrowIfNonZero)(bashScript)
 
               val expectedBai =
@@ -270,17 +303,8 @@ object BWAAlignment {
             reference <- reference.file.file
             result <- {
 
-              Exec.bash(logDiscriminator = "bwa.index",
-                        onError = Exec.ThrowIfNonZero)(
-                s"$bwaExecutable index -a bwtsw $reference")
-
-              Exec.bash(logDiscriminator = "bwa.fasta.dict",
-                        onError = Exec.ThrowIfNonZero)(
-                s"java -Xmx8G -Dpicard.useLegacyParser=false -jar $picardJar CreateSequenceDictionary --REFERENCE $reference"
-              )
-
               val bashScript = s""" \\
-      java -Xmx8G -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
+      java -Xmx3G -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
         --FASTQ $read1 \\
         --FASTQ2 $read2 \\
         --OUTPUT /dev/stdout \\
@@ -295,14 +319,14 @@ object BWAAlignment {
         --SEQUENCING_CENTER  $sequencingCenter \\
         --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
       \\
-     java -Xmx8G -Dpicard.useLegacyParser=false -jar $picardJar MarkIlluminaAdapters \\
+     java -Xmx4G -Dpicard.useLegacyParser=false -jar $picardJar MarkIlluminaAdapters \\
        --INPUT /dev/stdin \\
        --OUTPUT /dev/stdout \\
        --QUIET true \\
        --METRICS $markAdapterMetricsFileOutput \\
        --TMP_DIR $markAdapterTempFolder 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-     java -Xmx8G -Dpicard.useLegacyParser=false -jar $picardJar SamToFastq \\
+     java -Xmx3G -Dpicard.useLegacyParser=false -jar $picardJar SamToFastq \\
        --INPUT /dev/stdin \\
        --FASTQ /dev/stdout \\
        --QUIET true \\
@@ -314,7 +338,7 @@ object BWAAlignment {
      \\
      $bwaExecutable mem -M -t $bwaNumberOfThreads -p $reference /dev/stdin 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-     java -Xmx16G -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
+     java -Xmx6G -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
        --REFERENCE_SEQUENCE $reference \\
        --UNMAPPED_BAM <(
            java -Xmx8G -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
@@ -346,7 +370,7 @@ object BWAAlignment {
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
       """
 
-              Exec.bash(logDiscriminator = "bwa.pipes",
+              Exec.bash(logDiscriminator = "bwa.pipes." + sampleId,
                         onError = Exec.ThrowIfNonZero)(bashScript)
 
               val nameStub = readGroupName

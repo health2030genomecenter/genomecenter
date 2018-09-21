@@ -34,7 +34,6 @@ class MarkDuplicatesTestSuite
       }
 
       val (bamWithMetadata, localBam) = result.get
-      println(localBam)
       bamWithMetadata.project shouldBe project
       bamWithMetadata.runId shouldBe runId
       bamWithMetadata.bam.file.history.get.dependencies.size shouldBe 1

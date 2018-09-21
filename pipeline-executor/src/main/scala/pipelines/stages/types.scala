@@ -8,6 +8,9 @@ import org.gc.pipelines.model._
 
 case class ReferenceFasta(file: SharedFile) extends WithSharedFiles(file)
 
+case class BWAIndexedReferenceFasta(file: SharedFile)
+    extends WithSharedFiles(file)
+
 case class FastQWithSampleMetadata(project: Project,
                                    sampleId: SampleId,
                                    runId: RunId,
@@ -118,4 +121,11 @@ object BWAAlignedReads {
     deriveEncoder[BWAAlignedReads]
   implicit val decoder: Decoder[BWAAlignedReads] =
     deriveDecoder[BWAAlignedReads]
+}
+
+object BWAIndexedReferenceFasta {
+  implicit val encoder: Encoder[BWAIndexedReferenceFasta] =
+    deriveEncoder[BWAIndexedReferenceFasta]
+  implicit val decoder: Decoder[BWAIndexedReferenceFasta] =
+    deriveDecoder[BWAIndexedReferenceFasta]
 }
