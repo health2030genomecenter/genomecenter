@@ -63,6 +63,17 @@ case class FastQPerLane(lane: Lane, read1: FastQ, read2: FastQ)
 case class BWAAlignedReads(bams: Set[BamWithSampleMetadata])
     extends WithSharedFiles(bams.map(_.bam.bam).toSeq: _*)
 
+case class VCF(vcf: SharedFile, index: Option[SharedFile])
+    extends WithSharedFiles(vcf +: index.toList: _*) {
+  def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
+    for {
+      _ <- Future.traverse(index.toList)(_.file)
+      vcf <- vcf.file
+    } yield vcf
+}
+
+case class BQSRTable(file: SharedFile) extends WithSharedFiles(file)
+
 //
 // Codecs from here on
 //
@@ -142,4 +153,18 @@ object IndexedReferenceFasta {
     deriveEncoder[IndexedReferenceFasta]
   implicit val decoder: Decoder[IndexedReferenceFasta] =
     deriveDecoder[IndexedReferenceFasta]
+}
+
+object VCF {
+  implicit val encoder: Encoder[VCF] =
+    deriveEncoder[VCF]
+  implicit val decoder: Decoder[VCF] =
+    deriveDecoder[VCF]
+}
+
+object BQSRTable {
+  implicit val encoder: Encoder[BQSRTable] =
+    deriveEncoder[BQSRTable]
+  implicit val decoder: Decoder[BQSRTable] =
+    deriveDecoder[BQSRTable]
 }

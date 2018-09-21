@@ -131,7 +131,6 @@ object BWAAlignment {
               amb <- SharedFile(amb, amb.getName)
               sa <- SharedFile(sa, sa.getName)
               fai <- SharedFile(fastaIndex, fasta.name + ".fai")
-              _ = { println(fai) }
             } yield
               IndexedReferenceFasta(fasta,
                                     Set(bwt, pac, ann, amb, sa, dict, fai))
