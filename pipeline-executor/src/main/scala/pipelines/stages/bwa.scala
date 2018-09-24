@@ -35,7 +35,7 @@ case class PerSampleBWAAlignmentInput(
         .toSeq :+ reference.fasta: _*)
 
 case class BWAInput(demultiplexed: DemultiplexedReadData,
-                    reference: ReferenceFasta)
+                    reference: IndexedReferenceFasta)
     extends WithSharedFiles(demultiplexed.files: _*)
 
 object BWAAlignment {
@@ -140,16 +140,14 @@ object BWAAlignment {
 
   val allSamples =
     AsyncTask[BWAInput, BWAAlignedReads]("bwa", 1) {
-      case BWAInput(demultiplexedRun, referenceFasta) =>
+      case BWAInput(demultiplexedRun, indexedReference) =>
         implicit computationEnvironment =>
           releaseResources
 
           for {
-            indexedFastaFuture <- indexReference(referenceFasta)(
-              CPUMemoryRequest(1, 4000))
             result <- {
               val perSample =
-                groupBySample(demultiplexedRun, indexedFastaFuture)
+                groupBySample(demultiplexedRun, indexedReference)
 
               val futureAlignedSamples =
                 perSample.map { sample =>

@@ -9,6 +9,13 @@ import fileutils.TempFile
 import org.gc.pipelines.util.{Exec, GATK}
 import java.io.File
 
+case class BQSRInput(samples: Set[BamWithSampleMetadata],
+                     reference: IndexedReferenceFasta,
+                     knownSites: Set[VCF])
+    extends WithSharedFiles(
+      samples.flatMap(_.files).toSeq ++ reference.files ++ knownSites.toSeq
+        .flatMap(_.files): _*)
+
 case class TrainBQSRInput(bam: CoordinateSortedBam,
                           reference: IndexedReferenceFasta,
                           knownSites: Set[VCF])
@@ -21,6 +28,30 @@ case class ApplyBQSRInput(bam: CoordinateSortedBam,
     extends WithSharedFiles(bam.files ++ reference.files ++ bqsrTable.files: _*)
 
 object BaseQualityScoreRecalibration {
+
+  val allSamples = AsyncTask[BQSRInput, RecalibratedReads]("bqsr", 1) {
+    case BQSRInput(samples, reference, knownSites) =>
+      implicit computationEnvironment =>
+        releaseResources
+        val recalibratedSamplesFuture = samples.toSeq.map { sample =>
+          computationEnvironment.withFilePrefix(Seq(sample.project)) {
+            implicit computationEnvironment =>
+              for {
+                table <- trainBQSR(
+                  TrainBQSRInput(sample.bam, reference, knownSites))(
+                  CPUMemoryRequest(1, 1000))
+                recalibrated <- applyBQSR(
+                  ApplyBQSRInput(sample.bam, reference, table))(
+                  CPUMemoryRequest(1, 1000))
+              } yield sample.copy(bam = recalibrated)
+          }
+        }
+
+        Future
+          .sequence(recalibratedSamplesFuture)
+          .map(samples => RecalibratedReads(samples.toSet))
+
+  }
 
   val trainBQSR = AsyncTask[TrainBQSRInput, BQSRTable]("bqsr-train", 1) {
     case TrainBQSRInput(bam, reference, knownSites) =>
@@ -145,4 +176,11 @@ object ApplyBQSRInput {
     deriveEncoder[ApplyBQSRInput]
   implicit val decoder: Decoder[ApplyBQSRInput] =
     deriveDecoder[ApplyBQSRInput]
+}
+
+object BQSRInput {
+  implicit val encoder: Encoder[BQSRInput] =
+    deriveEncoder[BQSRInput]
+  implicit val decoder: Decoder[BQSRInput] =
+    deriveDecoder[BQSRInput]
 }

@@ -66,15 +66,14 @@ class ProtopipelineTestSuite
       new File(markduplicatesFolder, "project1.GIB.whateverRunId.bai").canRead
       new File(markduplicatesFolder, "project1.GIB.whateverRunId.metrics").canRead
 
-      And("merge and mark duplicate of the second sample should be present")
-      val markduplicatesFolder2 =
+      And("recalibrated bam files should be present")
+      val bqsrApplyFolderForProject1 =
         new File(
-          basePath.getAbsolutePath + s"/bwa/bwa-persample/project2/sample2/merge-markduplicate")
+          basePath.getAbsolutePath + s"/bqsr/project1/bqsr-apply")
 
-      new File(markduplicatesFolder2, "project2.sample2.whateverRunId.stderr").canRead
-      new File(markduplicatesFolder2, "project2.sample2.whateverRunId.bam").canRead
-      new File(markduplicatesFolder2, "project2.sample2.whateverRunId.bai").canRead
-      new File(markduplicatesFolder2, "project2.sample2.whateverRunId.metrics").canRead
+      new File(bqsrApplyFolderForProject1, "project1.GIB.whateverRunId.bqsr.apply.stderr").canRead
+      new File(bqsrApplyFolderForProject1, "project1.GIB.whateverRunId.bqsr.bai").canRead
+      new File(bqsrApplyFolderForProject1, "project1.GIB.whateverRunId.bqsr.bai").canRead
 
     }
   }
@@ -94,6 +93,11 @@ class ProtopipelineTestSuite
     val referenceFasta = getClass
       .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta")
       .getFile
+
+    val knownSitesVCF = new File(
+      getClass
+        .getResource("/example.vcf")
+        .getFile)
 
     val runId = "whateverRunId"
     val sampleSheet = SampleSheet(
@@ -121,6 +125,7 @@ ReverseComplement,0,,,,,,,,,
 bcl2fastqArguments,["--tiles","s_1_1101","--use-bases-mask","y75n,i6n*,n10,y75n"]
 automatic
 referenceFasta,$referenceFasta
+bqsr.knownSites,["$knownSitesVCF"]
 [Data],,,,,,,,,,
 Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description,Lane
 GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,project1,,L001
