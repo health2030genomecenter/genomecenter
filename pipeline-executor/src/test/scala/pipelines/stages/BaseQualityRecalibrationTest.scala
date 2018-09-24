@@ -17,11 +17,7 @@ class BaseQualityRecalibrationTest
 
       Given("a bam file and a reference")
       val result = withTaskSystem(testConfig) { implicit ts =>
-        val indexedFasta = await(
-          BWAAlignment.indexReference(ReferenceFasta(
-            await(SharedFile(referenceFile, "referenceFasta.fasta"))))(
-            CPUMemoryRequest(1, 500)))
-
+        val indexedFasta = fetchIndexedReference(referenceFile)
         val input =
           TrainBQSRInput(
             bam = CoordinateSortedBam(await(SharedFile(bam, "some.bam")),

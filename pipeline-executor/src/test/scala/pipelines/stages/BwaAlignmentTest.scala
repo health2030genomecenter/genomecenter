@@ -17,10 +17,7 @@ class BwaAlignmentTestSuite
     new Fixture {
 
       val result = withTaskSystem(testConfig) { implicit ts =>
-        val indexedFasta = await(
-          BWAAlignment.indexReference(ReferenceFasta(
-            await(SharedFile(referenceFile, "referenceFasta.fasta"))))(
-            CPUMemoryRequest(1, 500)))
+        val indexedFasta = fetchIndexedReference(referenceFile)
 
         val input =
           PerLaneBWAAlignmentInput(
