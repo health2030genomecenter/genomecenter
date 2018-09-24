@@ -15,4 +15,7 @@ RUN \
   rpm --checksig sbt-$SBT_VERSION.rpm && \
   rpm -i sbt-$SBT_VERSION.rpm && \
   rm sbt-$SBT_VERSION.rpm && \
-  sbt sbtVersion
+  mkdir -p src/main/scala/ && \
+  touch src/main/scala/triggerCompilation.scala && \
+  sbt 'set scalaVersion := "2.12.6"' 'compile' && \
+  rm -R src 
