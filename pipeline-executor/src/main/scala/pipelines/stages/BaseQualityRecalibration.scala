@@ -38,18 +38,31 @@ object BaseQualityScoreRecalibration {
             val knownSitesArguments = knownSites
               .map(_.getAbsolutePath)
               .mkString(" --known-sites ", " --known-sites ", "")
+            val tmpStdOut = TempFile.createTempFile(".stdout")
+            val tmpStdErr = TempFile.createTempFile(".stderr")
             val bashScript = s""" \\
               java $maxHeap ${GATK.javaArguments} -jar $gatkJar  BaseRecalibrator \\
                 -R ${reference.getAbsolutePath} \\
                 -I ${localBam.getAbsolutePath} \\
                 -O ${output.getAbsolutePath} \\
                 --use-original-qualities \\
-                $knownSitesArguments """
+                $knownSitesArguments \\
+                > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)"""
 
             Exec.bash(logDiscriminator = "bqsr.train",
                       onError = Exec.ThrowIfNonZero)(bashScript)
-
-            SharedFile(output, bam.bam.name + ".bqsr.tab").map(BQSRTable(_))
+            for {
+              _ <- SharedFile(tmpStdOut,
+                              name = bam.bam.name + ".bqsr.train.stdout",
+                              deleteFile = true)
+              _ <- SharedFile(tmpStdErr,
+                              name = bam.bam.name + ".bqsr.train.stderr",
+                              deleteFile = true)
+              table <- SharedFile(output,
+                                  bam.bam.name + ".bqsr.tab",
+                                  deleteFile = true)
+                .map(BQSRTable(_))
+            } yield table
 
           }
         } yield result
@@ -71,6 +84,8 @@ object BaseQualityScoreRecalibration {
               val expectedBai =
                 new File(outputBam.getAbsolutePath.stripSuffix("bam") + "bai")
               val gatkJar: String = extractGatkJar()
+              val tmpStdOut = TempFile.createTempFile(".stdout")
+              val tmpStdErr = TempFile.createTempFile(".stderr")
               val bashScript = s""" \\
               java $maxHeap ${GATK.javaArguments} -jar $gatkJar ApplyBQSR \\
                 -R ${reference.getAbsolutePath} \\
@@ -81,7 +96,8 @@ object BaseQualityScoreRecalibration {
                 --create-output-bam-index \\
                 --create-output-bam-md5 \\
                 --emit-original-quals \\
-                -bqsr ${bqsrTable.getAbsolutePath}
+                -bqsr ${bqsrTable.getAbsolutePath} \\
+                > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
                 """
 
               Exec.bash(logDiscriminator = "bqsr.apply",
@@ -89,8 +105,18 @@ object BaseQualityScoreRecalibration {
 
               val outputFileNameRoot = bam.bam.name.stripSuffix("bam")
               for {
-                bai <- SharedFile(expectedBai, outputFileNameRoot + "bqsr.bai")
-                bam <- SharedFile(outputBam, outputFileNameRoot + "bqsr.bam")
+                _ <- SharedFile(tmpStdOut,
+                                name = outputFileNameRoot + "bqsr.apply.stdout",
+                                deleteFile = true)
+                _ <- SharedFile(tmpStdErr,
+                                name = outputFileNameRoot + "bqsr.apply.stderr",
+                                deleteFile = true)
+                bai <- SharedFile(expectedBai,
+                                  outputFileNameRoot + "bqsr.bai",
+                                  deleteFile = true)
+                bam <- SharedFile(outputBam,
+                                  outputFileNameRoot + "bqsr.bam",
+                                  deleteFile = true)
               } yield {
                 CoordinateSortedBam(bam, bai)
               }

@@ -44,6 +44,8 @@ class BaseQualityRecalibrationTest
 
       Then("a recalibrated bam file should be generated")
       result.get.canRead shouldBe true
+      And("the stdout should be saved")
+      new File(basePath.getAbsolutePath + "/bqsr-apply/some.bqsr.apply.stdout").canRead shouldBe true
 
     }
   }
