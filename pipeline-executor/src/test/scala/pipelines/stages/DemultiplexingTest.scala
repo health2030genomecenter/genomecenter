@@ -115,6 +115,36 @@ GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,,,L001
 
 trait TestHelpers {
 
+  def fetchIndexedReference(fasta: File)(implicit tsc: TaskSystemComponents) = {
+    val liftedFasta = await(SharedFile(fasta, "referenceFasta.fasta"))
+    val indexFiles = List(
+      await(
+        SharedFile(
+          new File(fasta.getAbsolutePath.stripSuffix("fasta") + "dict"),
+          "referenceFasta.dict")),
+      await(
+        SharedFile(new File(fasta.getAbsolutePath + ".amb"),
+                   "referenceFasta.fasta.amb")),
+      await(
+        SharedFile(new File(fasta.getAbsolutePath + ".ann"),
+                   "referenceFasta.fasta.ann")),
+      await(
+        SharedFile(new File(fasta.getAbsolutePath + ".bwt"),
+                   "referenceFasta.fasta.bwt")),
+      await(
+        SharedFile(new File(fasta.getAbsolutePath + ".fai"),
+                   "referenceFasta.fasta.fai")),
+      await(
+        SharedFile(new File(fasta.getAbsolutePath + ".pac"),
+                   "referenceFasta.fasta.pac")),
+      await(
+        SharedFile(new File(fasta.getAbsolutePath + ".sa"),
+                   "referenceFasta.fasta.sa"))
+    )
+    IndexedReferenceFasta(liftedFasta, indexFiles.toSet)
+
+  }
+
   def recordsInBamFile(file: File) = {
     import htsjdk.samtools.SamReaderFactory
     import scala.collection.JavaConverters._
