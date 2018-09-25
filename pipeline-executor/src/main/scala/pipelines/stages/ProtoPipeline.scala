@@ -21,26 +21,40 @@ class ProtoPipeline(implicit EC: ExecutionContext) extends Pipeline {
   def execute(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents) = {
 
+    val sampleSheet = r.sampleSheet.parsed
+
     for {
+      reference <- ProtoPipeline.fetchReference(sampleSheet)
+      knownSites <- ProtoPipeline.fetchKnownSitesFiles(sampleSheet)
+
       demultiplexed <- Demultiplexing.allLanes(r)(CPUMemoryRequest(1, 500))
-      processedSamples <- ProtoPipeline.allSamples(PerSamplePipelineInput(
-        r.sampleSheet,
-        ProtoPipeline.groupBySample(demultiplexed.withoutUndetermined).toSet))(
-        CPUMemoryRequest(1, 500))
+      processedSamples <- ProtoPipeline.allSamples(
+        PerSamplePipelineInput(
+          ProtoPipeline
+            .groupBySample(demultiplexed.withoutUndetermined)
+            .toSet,
+          reference,
+          knownSites.toSet
+        ))(CPUMemoryRequest(1, 500))
     } yield true
 
   }
 
 }
 
-case class PerSamplePipelineInput(sampleSheet: SampleSheet,
-                                  demultiplexed: Set[PerSampleFastQ])
-    extends WithSharedFiles(demultiplexed.toSeq.flatMap(_.files): _*)
+case class PerSamplePipelineInput(demultiplexed: Set[PerSampleFastQ],
+                                  reference: ReferenceFasta,
+                                  knownSites: Set[VCF])
+    extends WithSharedFiles(
+      demultiplexed.toSeq.flatMap(_.files) ++ reference.files ++ knownSites
+        .flatMap(_.files): _*)
 
-case class SingleSamplePipelineInput(sampleSheet: SampleSheet,
-                                     demultiplexed: PerSampleFastQ,
+case class SingleSamplePipelineInput(demultiplexed: PerSampleFastQ,
+                                     knownSites: Set[VCF],
                                      indexedReference: IndexedReferenceFasta)
-    extends WithSharedFiles(demultiplexed.files ++ indexedReference.files: _*)
+    extends WithSharedFiles(
+      demultiplexed.files ++ indexedReference.files ++ knownSites.flatMap(
+        _.files): _*)
 
 case class PerSamplePipelineResult(samples: Set[BamWithSampleMetadata])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
@@ -124,12 +138,11 @@ object ProtoPipeline {
     AsyncTask[SingleSamplePipelineInput, BamWithSampleMetadata](
       "__persample-single",
       1) {
-      case SingleSamplePipelineInput(rawSampleSheet,
-                                     demultiplexed,
+      case SingleSamplePipelineInput(demultiplexed,
+                                     knownSites,
                                      indexedReference) =>
         implicit computationEnvironment =>
           releaseResources
-          val sampleSheet = rawSampleSheet.parsed
           computationEnvironment.withFilePrefix(
             Seq(demultiplexed.project, demultiplexed.runId)) {
             implicit computationEnvironment =>
@@ -143,7 +156,6 @@ object ProtoPipeline {
                                                demultiplexed.runId,
                                                indexedReference))(
                     CPUMemoryRequest(1, 500))
-                knownSites <- fetchKnownSitesFiles(sampleSheet)
                 table <- BaseQualityScoreRecalibration.trainBQSR(
                   TrainBQSRInput(alignedSample.bam,
                                  indexedReference,
@@ -160,22 +172,19 @@ object ProtoPipeline {
     AsyncTask[PerSamplePipelineInput, PerSamplePipelineResult](
       "__persample-allsamples",
       1) {
-      case PerSamplePipelineInput(rawSampleSheet, demultiplexed) =>
+      case PerSamplePipelineInput(demultiplexed, referenceFasta, knownSites) =>
         implicit computationEnvironment =>
           releaseResources
           computationEnvironment.withFilePrefix(Seq("projects")) {
             implicit computationEnvironment =>
-              val sampleSheet = rawSampleSheet.parsed
-
               for {
-                referenceFasta <- fetchReference(sampleSheet)
                 indexedFasta <- BWAAlignment.indexReference(referenceFasta)(
                   CPUMemoryRequest(1, 4000))
                 processedSamples <- Future
                   .traverse(demultiplexed.toSeq) { perSampleFastQs =>
                     ProtoPipeline.singleSample(
-                      SingleSamplePipelineInput(rawSampleSheet,
-                                                perSampleFastQs,
+                      SingleSamplePipelineInput(perSampleFastQs,
+                                                knownSites,
                                                 indexedFasta))(
                       CPUMemoryRequest(1, 500))
                   }
