@@ -21,11 +21,18 @@ class PipelinesApplication(
   private val previousUnfinishedRuns =
     Source.fromFuture(pipelineState.incompleteRuns).mapConcat(identity)
 
-  private val futureRuns = eventSource.events.mapAsync(1) { run =>
-    for {
-      _ <- pipelineState.registerNewRun(run)
-    } yield run
-  }
+  private val futureRuns =
+    eventSource.events
+      .mapAsync(1) { run =>
+        pipelineState.completed(run).map(completed => (completed, run))
+      }
+      .filter { case (completed, _) => !completed }
+      .map(_._2)
+      .mapAsync(1) { run =>
+        for {
+          _ <- pipelineState.registerNewRun(run)
+        } yield run
+      }
 
   private val (processingFinishedListener,
                _processingFinishedSource,

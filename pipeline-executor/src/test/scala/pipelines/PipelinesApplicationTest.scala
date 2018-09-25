@@ -40,7 +40,7 @@ class PipelinesApplicationTest
   tasks.cache.enabled = false
     """)
     val numberOfRuns = 3
-    val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns)
+    val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns, false)
     val pipelineState = new InMemoryPipelineState
 
     val app = new PipelinesApplication(eventSource,
@@ -58,13 +58,38 @@ class PipelinesApplicationTest
   }
 
   test(
+    "pipelines application should not react if the same RunfolderReady event is received multiple times") {
+    implicit val materializer = ActorMaterializer()
+    val config = ConfigFactory.parseString("""
+  tasks.cache.enabled = false
+    """)
+    val numberOfRuns = 3
+    val eventSource =
+      new FakeSequencingCompleteEventSource(numberOfRuns, uniform = true)
+    val pipelineState = new InMemoryPipelineState
+
+    val app = new PipelinesApplication(eventSource,
+                                       pipelineState,
+                                       config,
+                                       implicitly[ActorSystem],
+                                       List(TestPipeline))
+
+    val processedRuns = Await.result(app.processingFinishedSource
+                                       .runWith(Sink.seq),
+                                     atMost = 15 seconds)
+
+    processedRuns.count(_.success) shouldBe 1
+
+  }
+
+  test(
     "pipelines application should respect the pipeline's `canProcess` method") {
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
   tasks.cache.enabled = false
     """)
     val numberOfRuns = 3
-    val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns)
+    val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns, false)
     val pipelineState = new InMemoryPipelineState
 
     val app = new PipelinesApplication(eventSource,
@@ -87,7 +112,7 @@ class PipelinesApplicationTest
   tasks.cache.enabled = false
     """)
     val numberOfRuns = 3
-    val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns)
+    val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns, false)
     val pipelineState = new InMemoryPipelineState
 
     val app = new PipelinesApplication(eventSource,
@@ -106,7 +131,7 @@ class PipelinesApplicationTest
 
 }
 
-class FakeSequencingCompleteEventSource(take: Int)
+class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
     extends SequencingCompleteEventSource
     with StrictLogging {
   def events =
@@ -116,6 +141,13 @@ class FakeSequencingCompleteEventSource(take: Int)
         2 seconds,
         RunfolderReadyForProcessing("fake", SampleSheet("fake"), "fakePath"))
       .take(take.toLong)
+      .zipWithIndex
+      .map {
+        case (run, idx) =>
+          if (uniform) run
+          else
+            run.copy(runId = run.runId + idx)
+      }
 }
 
 object TestPipeline extends Pipeline {
