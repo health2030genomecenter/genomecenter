@@ -9,13 +9,6 @@ import fileutils.TempFile
 import org.gc.pipelines.util.{Exec, GATK}
 import java.io.File
 
-case class BQSRInput(samples: Set[BamWithSampleMetadata],
-                     reference: IndexedReferenceFasta,
-                     knownSites: Set[VCF])
-    extends WithSharedFiles(
-      samples.flatMap(_.files).toSeq ++ reference.files ++ knownSites.toSeq
-        .flatMap(_.files): _*)
-
 case class TrainBQSRInput(bam: CoordinateSortedBam,
                           reference: IndexedReferenceFasta,
                           knownSites: Set[VCF])
@@ -29,31 +22,7 @@ case class ApplyBQSRInput(bam: CoordinateSortedBam,
 
 object BaseQualityScoreRecalibration {
 
-  val allSamples = AsyncTask[BQSRInput, RecalibratedReads]("bqsr", 1) {
-    case BQSRInput(samples, reference, knownSites) =>
-      implicit computationEnvironment =>
-        releaseResources
-        val recalibratedSamplesFuture = samples.toSeq.map { sample =>
-          computationEnvironment.withFilePrefix(Seq(sample.project)) {
-            implicit computationEnvironment =>
-              for {
-                table <- trainBQSR(
-                  TrainBQSRInput(sample.bam, reference, knownSites))(
-                  CPUMemoryRequest(1, 1000))
-                recalibrated <- applyBQSR(
-                  ApplyBQSRInput(sample.bam, reference, table))(
-                  CPUMemoryRequest(1, 1000))
-              } yield sample.copy(bam = recalibrated)
-          }
-        }
-
-        Future
-          .sequence(recalibratedSamplesFuture)
-          .map(samples => RecalibratedReads(samples.toSet))
-
-  }
-
-  val trainBQSR = AsyncTask[TrainBQSRInput, BQSRTable]("bqsr-train", 1) {
+  val trainBQSR = AsyncTask[TrainBQSRInput, BQSRTable]("__bqsr-train", 1) {
     case TrainBQSRInput(bam, reference, knownSites) =>
       implicit computationEnvironment =>
         val maxHeap = s"-Xmx${resourceAllocated.memory}m"
@@ -100,7 +69,7 @@ object BaseQualityScoreRecalibration {
   }
 
   val applyBQSR =
-    AsyncTask[ApplyBQSRInput, CoordinateSortedBam]("bqsr-apply", 1) {
+    AsyncTask[ApplyBQSRInput, CoordinateSortedBam]("__bqsr-apply", 1) {
       case ApplyBQSRInput(bam, reference, bqsrTable) =>
         implicit computationEnvironment =>
           val maxHeap = s"-Xmx${resourceAllocated.memory}m"
@@ -145,11 +114,13 @@ object BaseQualityScoreRecalibration {
                 bai <- SharedFile(expectedBai,
                                   outputFileNameRoot + "bqsr.bai",
                                   deleteFile = true)
-                bam <- SharedFile(outputBam,
-                                  outputFileNameRoot + "bqsr.bam",
-                                  deleteFile = true)
+                recalibrated <- SharedFile(outputBam,
+                                           outputFileNameRoot + "bqsr.bam",
+                                           deleteFile = true)
+                _ <- bam.bam.delete
+                _ <- bam.bai.delete
               } yield {
-                CoordinateSortedBam(bam, bai)
+                CoordinateSortedBam(recalibrated, bai)
               }
 
             }
@@ -176,11 +147,4 @@ object ApplyBQSRInput {
     deriveEncoder[ApplyBQSRInput]
   implicit val decoder: Decoder[ApplyBQSRInput] =
     deriveDecoder[ApplyBQSRInput]
-}
-
-object BQSRInput {
-  implicit val encoder: Encoder[BQSRInput] =
-    deriveEncoder[BQSRInput]
-  implicit val decoder: Decoder[BQSRInput] =
-    deriveDecoder[BQSRInput]
 }

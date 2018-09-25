@@ -34,62 +34,10 @@ case class PerSampleBWAAlignmentInput(
         .flatMap(fq => List(fq.read1.file, fq.read2.file))
         .toSeq :+ reference.fasta: _*)
 
-case class BWAInput(demultiplexed: DemultiplexedReadData,
-                    reference: IndexedReferenceFasta)
-    extends WithSharedFiles(demultiplexed.files: _*)
-
 object BWAAlignment {
 
-  def selectReadType(fqs: Seq[FastQWithSampleMetadata], readType: ReadType) =
-    fqs
-      .filter(_.readType == readType)
-      .headOption
-      .map(_.fastq)
-
-  def groupBySample(
-      demultiplexed: DemultiplexedReadData,
-      referenceFasta: IndexedReferenceFasta): Seq[PerSampleBWAAlignmentInput] =
-    demultiplexed.fastqs
-      .groupBy { fq =>
-        (fq.project, fq.sampleId, fq.runId)
-      }
-      .toSeq
-      .map {
-        case ((project, sampleId, runId), perSampleFastQs) =>
-          val perLaneFastQs =
-            perSampleFastQs
-              .groupBy(_.lane)
-              .toSeq
-              .map(_._2)
-              .map { (fqsInLane: Set[FastQWithSampleMetadata]) =>
-                val maybeRead1 =
-                  selectReadType(fqsInLane.toSeq, ReadType("R1"))
-                val maybeRead2 =
-                  selectReadType(fqsInLane.toSeq, ReadType("R2"))
-
-                val lane = {
-                  val distinctLanesInGroup = fqsInLane.map(_.lane)
-                  assert(distinctLanesInGroup.size == 1) // due to groupBy
-                  distinctLanesInGroup.head
-                }
-
-                for {
-                  read1 <- maybeRead1
-                  read2 <- maybeRead2
-                } yield FastQPerLane(lane, read1, read2)
-              }
-              .flatten
-          PerSampleBWAAlignmentInput(
-            perLaneFastQs.toSet,
-            project,
-            sampleId,
-            runId,
-            referenceFasta
-          )
-      }
-
   val indexReference =
-    AsyncTask[ReferenceFasta, IndexedReferenceFasta]("bwa-index", 1) {
+    AsyncTask[ReferenceFasta, IndexedReferenceFasta]("__bwa-index", 1) {
       case ReferenceFasta(fasta) =>
         implicit computationEnvironment =>
           val bwaExecutable = extractBwaExecutable()
@@ -138,71 +86,42 @@ object BWAAlignment {
 
     }
 
-  val allSamples =
-    AsyncTask[BWAInput, BWAAlignedReads]("bwa", 1) {
-      case BWAInput(demultiplexedRun, indexedReference) =>
-        implicit computationEnvironment =>
-          releaseResources
-
-          for {
-            result <- {
-              val perSample =
-                groupBySample(demultiplexedRun, indexedReference)
-
-              val futureAlignedSamples =
-                perSample.map { sample =>
-                  BWAAlignment
-                    .alignFastqPerSample(sample)(CPUMemoryRequest(1, 500))
-                }
-
-              Future
-                .sequence(futureAlignedSamples)
-                .map(alignedSamples => BWAAlignedReads(alignedSamples.toSet))
-            }
-          } yield result
-
-    }
-
   val alignFastqPerSample =
     AsyncTask[PerSampleBWAAlignmentInput, BamWithSampleMetadata](
-      "bwa-persample",
+      "__bwa-persample",
       1) {
       case PerSampleBWAAlignmentInput(fastqs,
                                       project,
                                       sampleId,
                                       runId,
                                       reference) =>
-        ce =>
-          ce.withFilePrefix(Seq(project, sampleId)) {
-            implicit computationEnvironment =>
-              releaseResources
+        implicit computationEnvironment =>
+          releaseResources
 
-              def alignLane(lane: FastQPerLane) =
-                alignSingleLane(
-                  PerLaneBWAAlignmentInput(lane.read1,
-                                           lane.read2,
-                                           project,
-                                           sampleId,
-                                           runId,
-                                           lane.lane,
-                                           reference))(
-                  CPUMemoryRequest(4, 6000))
+          def alignLane(lane: FastQPerLane) =
+            alignSingleLane(
+              PerLaneBWAAlignmentInput(lane.read1,
+                                       lane.read2,
+                                       project,
+                                       sampleId,
+                                       runId,
+                                       lane.lane,
+                                       reference))(CPUMemoryRequest(4, 6000))
 
-              for {
-                alignedLanes <- Future.sequence(fastqs.map(alignLane))
-                merged <- mergeAndMarkDuplicate(
-                  BamsWithSampleMetadata(project,
-                                         sampleId,
-                                         runId,
-                                         alignedLanes.map(_.bam)))(
-                  CPUMemoryRequest(4, 6000))
-              } yield merged
-          }
+          for {
+            alignedLanes <- Future.sequence(fastqs.map(alignLane))
+            merged <- mergeAndMarkDuplicate(
+              BamsWithSampleMetadata(project,
+                                     sampleId,
+                                     runId,
+                                     alignedLanes.map(_.bam)))(
+              CPUMemoryRequest(4, 6000))
+          } yield merged
     }
 
   val mergeAndMarkDuplicate =
     AsyncTask[BamsWithSampleMetadata, BamWithSampleMetadata](
-      "merge-markduplicate",
+      "__merge-markduplicate",
       1) {
       case BamsWithSampleMetadata(project, sampleId, runId, bams) =>
         implicit computationEnvironment =>
@@ -274,6 +193,7 @@ object BWAAlignment {
                 bam <- SharedFile(tmpDuplicateMarkedBam,
                                   name = nameStub + ".bam",
                                   deleteFile = true)
+                _ <- Future.traverse(bams)(_.file.delete)
               } yield
                 BamWithSampleMetadata(project,
                                       sampleId,
@@ -287,7 +207,7 @@ object BWAAlignment {
 
   val alignSingleLane =
     AsyncTask[PerLaneBWAAlignmentInput, BamWithSampleMetadataPerLane](
-      "bwa-perlane",
+      "__bwa-perlane",
       1) {
       case PerLaneBWAAlignmentInput(read1,
                                     read2,
@@ -387,7 +307,7 @@ object BWAAlignment {
          ) \\
        --ALIGNED_BAM /dev/stdin \\
        --OUTPUT ${tmpCleanBam.getAbsolutePath} \\
-       --CREATE_INDEX true \\
+       --CREATE_INDEX false \\
        --ADD_MATE_CIGAR true \\
        --CLIP_ADAPTERS false \\
        --CLIP_OVERLAPPING_READS true \\
@@ -450,11 +370,4 @@ object PerSampleBWAAlignmentInput {
     deriveEncoder[PerSampleBWAAlignmentInput]
   implicit val decoder: Decoder[PerSampleBWAAlignmentInput] =
     deriveDecoder[PerSampleBWAAlignmentInput]
-}
-
-object BWAInput {
-  implicit val encoder: Encoder[BWAInput] =
-    deriveEncoder[BWAInput]
-  implicit val decoder: Decoder[BWAInput] =
-    deriveDecoder[BWAInput]
 }

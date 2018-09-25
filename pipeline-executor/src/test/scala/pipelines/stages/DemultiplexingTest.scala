@@ -163,6 +163,8 @@ trait TestHelpers {
       s"""tasks.fileservice.storageURI=${tmp.getAbsolutePath}
       hosts.numCPU=12
       hosts.RAM=6000
+      tasks.createFilePrefixForTaskId = false
+      tasks.fileservice.allowDeletion = true
       """
     )
     (config, tmp)

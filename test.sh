@@ -10,6 +10,6 @@ docker cp . $NAME:/opt/
 
 docker cp $GC_TESTFOLDER $NAME:/opt/testdata
 
-docker exec -it $NAME /bin/bash -c "cd /opt && GC_TESTFOLDER=/opt/testdata/ sbt 'test' ; bash"
+docker exec -it $NAME /bin/bash -c "cd /opt && GC_TESTFOLDER=/opt/testdata/ sbt -Dsbt.io.jdktimestamps=true 'testOnly *ProtopipelineTestSuite' ; bash"
 
 docker rm -f -v $NAME

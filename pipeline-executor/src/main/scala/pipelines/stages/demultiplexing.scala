@@ -24,25 +24,26 @@ case class DemultiplexedReadData(fastqs: Set[FastQWithSampleMetadata])
 object Demultiplexing {
 
   val allLanes =
-    AsyncTask[RunfolderReadyForProcessing, DemultiplexedReadData]("demultiplex",
-                                                                  1) {
-      runFolder => implicit computationEnvironment =>
-        releaseResources
+    AsyncTask[RunfolderReadyForProcessing, DemultiplexedReadData](
+      "__demultiplex",
+      1) { runFolder => implicit computationEnvironment =>
+      releaseResources
+      computationEnvironment.withFilePrefix(Seq("demultiplex")) {
+        implicit computationEnvironment =>
+          val lanes: Seq[Lane] = runFolder.sampleSheet.parsed.lanes
 
-        val lanes: Seq[Lane] = runFolder.sampleSheet.parsed.lanes
+          if (lanes.isEmpty) {
+            log.error("No lanes in the sample sheet!")
+          }
 
-        if (lanes.isEmpty) {
-          log.error("No lanes in the sample sheet!")
-        }
-
-        for {
-          demultiplexedLanes <- Future.sequence(lanes.map { lane =>
-            perLane(DemultiplexSingleLaneInput(runFolder, lane))(
-              CPUMemoryRequest(12, 6000))
-          })
-        } yield
-          DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet)
-
+          for {
+            demultiplexedLanes <- Future.sequence(lanes.map { lane =>
+              perLane(DemultiplexSingleLaneInput(runFolder, lane))(
+                CPUMemoryRequest(12, 6000))
+            })
+          } yield
+            DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet)
+      }
     }
 
   val fastqFileNameRegex =
@@ -50,7 +51,7 @@ object Demultiplexing {
 
   val perLane =
     AsyncTask[DemultiplexSingleLaneInput, DemultiplexedReadData](
-      "demultiplex-per-lane",
+      "__demultiplex-per-lane",
       1) {
       case DemultiplexSingleLaneInput(
           RunfolderReadyForProcessing(runId, sampleSheet, runFolderPath),

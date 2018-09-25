@@ -37,8 +37,8 @@ class ProtopipelineTestSuite
 
       Then(
         "a run and lane specific folder should be created at the root of the storage")
-      val demultiplexOutputFolder = new File(
-        basePath.getAbsolutePath + s"/demultiplex/demultiplex-per-lane/$runId/L001")
+      val demultiplexOutputFolder =
+        new File(basePath.getAbsolutePath + s"/demultiplex/$runId/L001")
       demultiplexOutputFolder.canRead shouldBe true
 
       And("uncaptured output files from bcl2fastq should be present")
@@ -51,29 +51,37 @@ class ProtopipelineTestSuite
       And("stderr file should be present")
       new File(demultiplexOutputFolder, "stderr").canRead shouldBe true
 
-      And("bwa alignment per lane of the first sample should be present")
+      And("bwa alignment per lane of the first sample should not be present")
       val bwaFolder = new File(
-        basePath.getAbsolutePath + s"/bwa/bwa-persample/project1/GIB/bwa-perlane")
+        basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
       And("stderr of alignment is present")
-      new File(bwaFolder, "project1.GIB.whateverRunId.L001.stderr").canRead
+      new File(bwaFolder, "project1.GIB.whateverRunId.L001.stderr").canRead shouldBe true
+      And("bam file of alignment should be already deleted")
+      new File(bwaFolder, "project1.GIB.whateverRunId.L001.bam").canRead shouldBe false
 
       And("merge and mark duplicate of the first sample should be present")
       val markduplicatesFolder =
         new File(
-          basePath.getAbsolutePath + s"/bwa/bwa-persample/project1/GIB/merge-markduplicate")
-      new File(markduplicatesFolder, "project1.GIB.whateverRunId.stderr").canRead
-      new File(markduplicatesFolder, "project1.GIB.whateverRunId.bam").canRead
-      new File(markduplicatesFolder, "project1.GIB.whateverRunId.bai").canRead
-      new File(markduplicatesFolder, "project1.GIB.whateverRunId.metrics").canRead
+          basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
+      new File(markduplicatesFolder, "project1.GIB.whateverRunId.stderr").canRead shouldBe true
+      new File(markduplicatesFolder, "project1.GIB.whateverRunId.metrics").canRead shouldBe true
+      And(
+        "merged and duplicated marked bam and bai file should be already deleted")
+      new File(markduplicatesFolder, "project1.GIB.whateverRunId.bam").canRead shouldBe false
+      new File(markduplicatesFolder, "project1.GIB.whateverRunId.bai").canRead shouldBe false
 
       And("recalibrated bam files should be present")
       val bqsrApplyFolderForProject1 =
         new File(
-          basePath.getAbsolutePath + s"/bqsr/project1/bqsr-apply")
+          basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
 
-      new File(bqsrApplyFolderForProject1, "project1.GIB.whateverRunId.bqsr.apply.stderr").canRead
-      new File(bqsrApplyFolderForProject1, "project1.GIB.whateverRunId.bqsr.bai").canRead
-      new File(bqsrApplyFolderForProject1, "project1.GIB.whateverRunId.bqsr.bai").canRead
+      new File(
+        bqsrApplyFolderForProject1,
+        "project1.GIB.whateverRunId.bqsr.apply.stderr").canRead shouldBe true
+      new File(bqsrApplyFolderForProject1,
+               "project1.GIB.whateverRunId.bqsr.bai").canRead shouldBe true
+      new File(bqsrApplyFolderForProject1,
+               "project1.GIB.whateverRunId.bqsr.bam").canRead shouldBe true
 
     }
   }

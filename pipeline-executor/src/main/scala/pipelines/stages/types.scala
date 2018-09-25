@@ -26,6 +26,16 @@ case class FastQWithSampleMetadata(project: Project,
                                    fastq: FastQ)
     extends WithSharedFiles(fastq.file)
 
+case class PerSampleFastQ(
+    fastqs: Set[FastQPerLane],
+    project: Project,
+    sampleId: SampleId,
+    runId: RunId
+) extends WithSharedFiles(
+      fastqs
+        .flatMap(fq => List(fq.read1.file, fq.read2.file))
+        .toSeq: _*)
+
 case class BamWithSampleMetadataPerLane(project: Project,
                                         sampleId: SampleId,
                                         runId: RunId,
@@ -177,4 +187,11 @@ object RecalibratedReads {
     deriveEncoder[RecalibratedReads]
   implicit val decoder: Decoder[RecalibratedReads] =
     deriveDecoder[RecalibratedReads]
+}
+
+object PerSampleFastQ {
+  implicit val encoder: Encoder[PerSampleFastQ] =
+    deriveEncoder[PerSampleFastQ]
+  implicit val decoder: Decoder[PerSampleFastQ] =
+    deriveDecoder[PerSampleFastQ]
 }
