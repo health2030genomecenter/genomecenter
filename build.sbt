@@ -32,8 +32,8 @@ lazy val pipelineExecutor = project
   .settings(
     name := "pipeline-executor",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.20-SNAPSHOT",
-      "io.github.pityka" %% "fileutils" % "1.2.2-SNAPSHOT",
+      "io.github.pityka" %% "tasks-core" % "0.0.20",
+      "io.github.pityka" %% "fileutils" % "1.2.2",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
@@ -49,6 +49,7 @@ lazy val pipelineExecutor = project
     }
   )
   .dependsOn(tasksSlurm)
+  .enablePlugins(JavaServerAppPackaging)
 
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
