@@ -39,7 +39,7 @@ class DemultiplexingTestSuite
       Then(
         "a run and lane specific folder should be created at the root of the storage")
       val outputFolder = new File(
-        basePath.getAbsolutePath + s"/demultiplex/demultiplex-per-lane/$runId/L001")
+        basePath.getAbsolutePath + s"/demultiplex/$runId/L001")
       outputFolder.canRead shouldBe true
 
       And("uncaptured output files from bcl2fastq should be present")
