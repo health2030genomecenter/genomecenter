@@ -3,7 +3,6 @@ package org.gc.pipelines.application
 import akka.stream.scaladsl.Source
 import tasks._
 import com.typesafe.scalalogging.StrictLogging
-import com.typesafe.config.Config
 import akka.actor.ActorSystem
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -12,8 +11,8 @@ import org.gc.pipelines.util.ActorSource
 class PipelinesApplication(
     eventSource: SequencingCompleteEventSource,
     pipelineState: PipelineState,
-    config: Config,
     actorSystem: ActorSystem,
+    taskSystem: TaskSystem,
     pipelines: Seq[Pipeline]
 )(implicit EC: ExecutionContext)
     extends StrictLogging {
@@ -41,7 +40,6 @@ class PipelinesApplication(
 
   val processingFinishedSource = _processingFinishedSource
 
-  private val taskSystem = defaultTaskSystem(Some(config))
   implicit val taskSystemComponents = taskSystem.components
   implicit val materializer = taskSystemComponents.actorMaterializer
 

@@ -43,10 +43,12 @@ class PipelinesApplicationTest
     val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns, false)
     val pipelineState = new InMemoryPipelineState
 
+    val taskSystem = defaultTaskSystem(Some(config))
+
     val app = new PipelinesApplication(eventSource,
                                        pipelineState,
-                                       config,
                                        implicitly[ActorSystem],
+                                       taskSystem,
                                        List(TestPipeline))
 
     val processedRuns = Await.result(app.processingFinishedSource
@@ -67,11 +69,12 @@ class PipelinesApplicationTest
     val eventSource =
       new FakeSequencingCompleteEventSource(numberOfRuns, uniform = true)
     val pipelineState = new InMemoryPipelineState
+    val taskSystem = defaultTaskSystem(Some(config))
 
     val app = new PipelinesApplication(eventSource,
                                        pipelineState,
-                                       config,
                                        implicitly[ActorSystem],
+                                       taskSystem,
                                        List(TestPipeline))
 
     val processedRuns = Await.result(app.processingFinishedSource
@@ -91,11 +94,12 @@ class PipelinesApplicationTest
     val numberOfRuns = 3
     val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns, false)
     val pipelineState = new InMemoryPipelineState
+    val taskSystem = defaultTaskSystem(Some(config))
 
     val app = new PipelinesApplication(eventSource,
                                        pipelineState,
-                                       config,
                                        implicitly[ActorSystem],
+                                       taskSystem,
                                        List(TestPipelineWhichNeverRuns))
 
     val processedRuns = Await.result(app.processingFinishedSource
@@ -114,11 +118,12 @@ class PipelinesApplicationTest
     val numberOfRuns = 3
     val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns, false)
     val pipelineState = new InMemoryPipelineState
+    val taskSystem = defaultTaskSystem(Some(config))
 
     val app = new PipelinesApplication(eventSource,
                                        pipelineState,
-                                       config,
                                        implicitly[ActorSystem],
+                                       taskSystem,
                                        List(TestPipelineWhichFails))
 
     val processedRuns = Await.result(app.processingFinishedSource

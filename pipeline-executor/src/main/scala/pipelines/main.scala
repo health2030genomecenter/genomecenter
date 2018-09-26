@@ -13,25 +13,32 @@ object Main extends App with StrictLogging {
 
   val config = ConfigFactory.load
 
-  val eventSource =
-    PipelineConfiguration.eventSource
+  private val taskSystem = defaultTaskSystem(Some(config))
 
-  val pipelineState = PipelineConfiguration.pipelineState
+  if (taskSystem.hostConfig.isApp) {
 
-  val actorSystem = ActorSystem("Main")
+    val eventSource =
+      PipelineConfiguration.eventSource
 
-  val pipeline = {
+    val pipelineState = PipelineConfiguration.pipelineState
+
+    val actorSystem = ActorSystem("Main")
+
+    val pipeline = {
+      import scala.concurrent.ExecutionContext.Implicits.global
+      new ProtoPipeline
+    }
+
     import scala.concurrent.ExecutionContext.Implicits.global
-    new ProtoPipeline
-  }
 
-  import scala.concurrent.ExecutionContext.Implicits.global
-  val app =
     new PipelinesApplication(eventSource,
                              pipelineState,
-                             config,
                              actorSystem,
+                             taskSystem,
                              List(pipeline))
+  } else {
+    logger.info("Worker started.")
+  }
 
   logger.info("Main thread will stop.")
 }
