@@ -20,68 +20,91 @@ class ProtopipelineTestSuite
     new Fixture {
 
       Given("a runfolder and a reference file")
-      When("the pipeline")
-      val result = withTaskSystem(testConfig) { implicit ts =>
+      When("the pipeline executes a run ")
+      withTaskSystem(testConfig) { implicit ts =>
         import scala.concurrent.ExecutionContext.Implicits.global
         val run =
           RunfolderReadyForProcessing(runId = runId,
                                       sampleSheet = sampleSheet,
                                       runFolderPath = runFolderPath)
-        val future = new ProtoPipeline().execute(run)
+        val pipeline = new ProtoPipeline()
+        val future = pipeline.execute(run)
         import scala.concurrent.duration._
-        scala.concurrent.Await.result(future, atMost = 400000 seconds)
+        val result =
+          scala.concurrent.Await.result(future, atMost = 400000 seconds)
+
+        result shouldBe true
+
+        Then(
+          "a run and lane specific folder should be created at the root of the storage")
+        val demultiplexOutputFolder =
+          new File(basePath.getAbsolutePath + s"/demultiplex/$runId/L001")
+        demultiplexOutputFolder.canRead shouldBe true
+
+        And("uncaptured output files from bcl2fastq should be present")
+        val statsFolder =
+          new File(demultiplexOutputFolder.getAbsolutePath + "/Stats")
+        demultiplexOutputFolder.canRead shouldBe true
+        val demultiplexStatFile =
+          new File(statsFolder.getAbsolutePath + "/DemuxSummaryF1L1.txt")
+        demultiplexStatFile.canRead shouldBe true
+        And("stderr file should be present")
+        new File(demultiplexOutputFolder, "stderr").canRead shouldBe true
+
+        And("bwa alignment per lane of the first sample should not be present")
+        val bwaFolder = new File(
+          basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
+        And("stderr of alignment is present")
+        new File(bwaFolder, "project1.GIB.whateverRunId.L001.bam.stderr").canRead shouldBe true
+        And("bam file of alignment should be already deleted")
+        new File(bwaFolder, "project1.GIB.whateverRunId.L001.bam").canRead shouldBe false
+
+        And("merge and mark duplicate of the first sample should be present")
+        val markduplicatesFolder =
+          new File(
+            basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
+        new File(markduplicatesFolder, "project1.GIB.whateverRunId.bam.stderr").canRead shouldBe true
+        new File(
+          markduplicatesFolder,
+          "project1.GIB.whateverRunId.markDuplicateMetrics").canRead shouldBe true
+        And(
+          "merged and duplicated marked bam and bai file should be already deleted")
+        new File(markduplicatesFolder, "project1.GIB.whateverRunId.bam").canRead shouldBe false
+        new File(markduplicatesFolder, "project1.GIB.whateverRunId.bai").canRead shouldBe false
+
+        And("recalibrated bam files should be present")
+        val bqsrApplyFolderForProject1 =
+          new File(
+            basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
+
+        new File(
+          bqsrApplyFolderForProject1,
+          "project1.GIB.whateverRunId.bqsr.apply.stderr").canRead shouldBe true
+        new File(bqsrApplyFolderForProject1,
+                 "project1.GIB.whateverRunId.bqsr.bai").canRead shouldBe true
+        val project1RecalibratedBam =
+          new File(bqsrApplyFolderForProject1,
+                   "project1.GIB.whateverRunId.bqsr.bam")
+        project1RecalibratedBam.canRead shouldBe true
+        val project1Timestamp = project1RecalibratedBam.lastModified
+
+        And("project3 should not be demultiplexed")
+        val project3Folder =
+          new File(basePath.getAbsolutePath + s"/projects/project3/")
+        project3Folder.canRead shouldBe false
+
+        When("executing the same runfolder with a different sample sheet")
+
+        scala.concurrent.Await.result(
+          pipeline.execute(run.copy(sampleSheet = sampleSheet2)),
+          atMost = 400000 seconds)
+
+        Then("project3 should be demultiplexed")
+        project3Folder.canRead shouldBe true
+        And("project1 alignment should not reexecute")
+        project1RecalibratedBam.lastModified shouldBe project1Timestamp
 
       }
-
-      result.get shouldBe true
-
-      Then(
-        "a run and lane specific folder should be created at the root of the storage")
-      val demultiplexOutputFolder =
-        new File(basePath.getAbsolutePath + s"/demultiplex/$runId/L001")
-      demultiplexOutputFolder.canRead shouldBe true
-
-      And("uncaptured output files from bcl2fastq should be present")
-      val statsFolder =
-        new File(demultiplexOutputFolder.getAbsolutePath + "/Stats")
-      demultiplexOutputFolder.canRead shouldBe true
-      val demultiplexStatFile =
-        new File(statsFolder.getAbsolutePath + "/DemuxSummaryF1L1.txt")
-      demultiplexStatFile.canRead shouldBe true
-      And("stderr file should be present")
-      new File(demultiplexOutputFolder, "stderr").canRead shouldBe true
-
-      And("bwa alignment per lane of the first sample should not be present")
-      val bwaFolder = new File(
-        basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
-      And("stderr of alignment is present")
-      new File(bwaFolder, "project1.GIB.whateverRunId.L001.stderr").canRead shouldBe true
-      And("bam file of alignment should be already deleted")
-      new File(bwaFolder, "project1.GIB.whateverRunId.L001.bam").canRead shouldBe false
-
-      And("merge and mark duplicate of the first sample should be present")
-      val markduplicatesFolder =
-        new File(
-          basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
-      new File(markduplicatesFolder, "project1.GIB.whateverRunId.stderr").canRead shouldBe true
-      new File(markduplicatesFolder, "project1.GIB.whateverRunId.metrics").canRead shouldBe true
-      And(
-        "merged and duplicated marked bam and bai file should be already deleted")
-      new File(markduplicatesFolder, "project1.GIB.whateverRunId.bam").canRead shouldBe false
-      new File(markduplicatesFolder, "project1.GIB.whateverRunId.bai").canRead shouldBe false
-
-      And("recalibrated bam files should be present")
-      val bqsrApplyFolderForProject1 =
-        new File(
-          basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
-
-      new File(
-        bqsrApplyFolderForProject1,
-        "project1.GIB.whateverRunId.bqsr.apply.stderr").canRead shouldBe true
-      new File(bqsrApplyFolderForProject1,
-               "project1.GIB.whateverRunId.bqsr.bai").canRead shouldBe true
-      new File(bqsrApplyFolderForProject1,
-               "project1.GIB.whateverRunId.bqsr.bam").canRead shouldBe true
 
     }
   }
@@ -138,6 +161,39 @@ bqsr.knownSites,["$knownSitesVCF"]
 Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description,Lane
 GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,project1,,L001
 sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project2,,L001
+      """
+    )
+
+    val sampleSheet2 = SampleSheet(
+      s"""[Header],,,,,,,,,,
+IEMFileVersion,5,,,,,,,,,
+Investigator Name,GC,,,,,,,,,
+Experiment Name,Training_Miseq_22062018,,,,,,,,,
+Date,22/06/2018,,,,,,,,,
+Workflow,GenerateFASTQ,,,,,,,,,
+Application,FASTQ Only,,,,,,,,,
+Instrument Type,MiSeq,,,,,,,,,
+Assay,TruSeq DNA PCR-Free,,,,,,,,,
+Index Adapters,IDT-ILMN TruSeq DNA UD Indexes (24 Indexes),,,,,,,,,
+Description,,,,,,,,,,
+Chemistry,Amplicon,,,,,,,,,
+,,,,,,,,,,
+[Reads],,,,,,,,,,
+76,,,,,,,,,,
+76,,,,,,,,,,
+,,,,,,,,,,
+[Settings],,,,,,,,,,
+ReverseComplement,0,,,,,,,,,
+,,,,,,,,,,
+[GenomeCenter]
+bcl2fastqArguments,["--tiles","s_1_1101","--use-bases-mask","y75n,i6n*,n10,y75n"]
+automatic
+referenceFasta,$referenceFasta
+bqsr.knownSites,["$knownSitesVCF"]
+[Data],,,,,,,,,,
+Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description,Lane
+GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,project1,,L001
+sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,L001
       """
     )
     val runFolderPath = extractRunFolderTestData

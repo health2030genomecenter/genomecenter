@@ -179,16 +179,16 @@ object BWAAlignment {
 
               for {
                 _ <- SharedFile(tmpStdOut,
-                                name = nameStub + ".stdout",
+                                name = nameStub + ".bam.stdout",
                                 deleteFile = true)
                 _ <- SharedFile(tmpStdErr,
-                                name = nameStub + ".stderr",
+                                name = nameStub + ".bam.stderr",
                                 deleteFile = true)
                 bai <- SharedFile(expectedBai,
                                   name = nameStub + ".bai",
                                   deleteFile = true)
                 _ <- SharedFile(tmpMetricsFile,
-                                name = nameStub + ".metrics",
+                                name = nameStub + ".markDuplicateMetrics",
                                 deleteFile = true)
                 bam <- SharedFile(tmpDuplicateMarkedBam,
                                   name = nameStub + ".bam",
@@ -325,8 +325,8 @@ object BWAAlignment {
               val nameStub = readGroupName
 
               for {
-                _ <- SharedFile(tmpStdOut, name = nameStub + ".stdout")
-                _ <- SharedFile(tmpStdErr, name = nameStub + ".stderr")
+                _ <- SharedFile(tmpStdOut, name = nameStub + ".bam.stdout")
+                _ <- SharedFile(tmpStdErr, name = nameStub + ".bam.stderr")
                 bam <- SharedFile(tmpCleanBam, name = nameStub + ".bam")
               } yield
                 BamWithSampleMetadataPerLane(project,

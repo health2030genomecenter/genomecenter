@@ -142,6 +142,7 @@ object ProtoPipeline {
                                      knownSites,
                                      indexedReference) =>
         implicit computationEnvironment =>
+          log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
           computationEnvironment.withFilePrefix(
             Seq(demultiplexed.project, demultiplexed.runId)) {

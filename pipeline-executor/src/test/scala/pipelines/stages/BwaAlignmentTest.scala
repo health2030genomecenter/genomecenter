@@ -34,15 +34,15 @@ class BwaAlignmentTestSuite
           BWAAlignment.alignSingleLane(input)(CPUMemoryRequest(1, 500))
         val bamWithSampleMetadata = await(future)
         val bamFile = await(bamWithSampleMetadata.bam.file.file)
+        await(bamWithSampleMetadata.bam.file.history).context.get.dependencies.size shouldBe 3
         (bamWithSampleMetadata, bamFile)
       }
 
       val (bamWithMetadata, localBam) = result.get
       bamWithMetadata.project shouldBe project
       bamWithMetadata.runId shouldBe runId
-      bamWithMetadata.bam.file.history.get.dependencies.size shouldBe 3
       localBam.canRead shouldBe true
-      new File(localBam.getParentFile, localBam.getName.dropRight(3) + "stderr").canRead shouldBe true
+      new File(localBam.getParentFile, localBam.getName + ".stderr").canRead shouldBe true
 
       recordsInBamFile(localBam) shouldBe 10000
 

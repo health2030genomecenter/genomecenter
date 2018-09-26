@@ -58,10 +58,6 @@ class DemultiplexingTestSuite
         "sample2")
       result.get.fastqs.toList.map(_.readType).toSet shouldBe Set("R2", "R1")
       result.get.fastqs.toList.map(_.lane).toSet shouldBe Set("L001")
-      And("the file history field should be filled in")
-      result.get.fastqs.toList
-        .map(_.fastq.file.history)
-        .forall(_.isDefined) shouldBe true
 
     }
   }
