@@ -5,7 +5,7 @@ import tasks._
 import tasks.circesupport._
 import org.gc.pipelines.application.{Pipeline, RunfolderReadyForProcessing}
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.parseAsStringList
+import org.gc.pipelines.util.{parseAsStringList, ResourceConfig}
 import java.io.File
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -27,7 +27,7 @@ class ProtoPipeline(implicit EC: ExecutionContext) extends Pipeline {
       reference <- ProtoPipeline.fetchReference(sampleSheet)
       knownSites <- ProtoPipeline.fetchKnownSitesFiles(sampleSheet)
 
-      demultiplexed <- Demultiplexing.allLanes(r)(CPUMemoryRequest(1, 500))
+      demultiplexed <- Demultiplexing.allLanes(r)(ResourceConfig.minimal)
       processedSamples <- ProtoPipeline.allSamples(
         PerSamplePipelineInput(
           ProtoPipeline
@@ -35,7 +35,7 @@ class ProtoPipeline(implicit EC: ExecutionContext) extends Pipeline {
             .toSet,
           reference,
           knownSites.toSet
-        ))(CPUMemoryRequest(1, 500))
+        ))(ResourceConfig.minimal)
     } yield true
 
   }
@@ -156,14 +156,14 @@ object ProtoPipeline {
                                                demultiplexed.sampleId,
                                                demultiplexed.runId,
                                                indexedReference))(
-                    CPUMemoryRequest(1, 500))
+                    ResourceConfig.minimal)
                 table <- BaseQualityScoreRecalibration.trainBQSR(
                   TrainBQSRInput(alignedSample.bam,
                                  indexedReference,
-                                 knownSites.toSet))(CPUMemoryRequest(1, 1000))
+                                 knownSites.toSet))(ResourceConfig.trainBqsr)
                 recalibrated <- BaseQualityScoreRecalibration.applyBQSR(
                   ApplyBQSRInput(alignedSample.bam, indexedReference, table))(
-                  CPUMemoryRequest(1, 1000))
+                  ResourceConfig.applyBqsr)
               } yield alignedSample.copy(bam = recalibrated)
           }
 
@@ -180,14 +180,14 @@ object ProtoPipeline {
             implicit computationEnvironment =>
               for {
                 indexedFasta <- BWAAlignment.indexReference(referenceFasta)(
-                  CPUMemoryRequest(1, 4000))
+                  ResourceConfig.indexReference)
                 processedSamples <- Future
                   .traverse(demultiplexed.toSeq) { perSampleFastQs =>
                     ProtoPipeline.singleSample(
                       SingleSamplePipelineInput(perSampleFastQs,
                                                 knownSites,
                                                 indexedFasta))(
-                      CPUMemoryRequest(1, 500))
+                      ResourceConfig.minimal)
                   }
               } yield PerSamplePipelineResult(processedSamples.toSet)
           }

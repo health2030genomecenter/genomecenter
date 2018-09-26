@@ -2,7 +2,7 @@ package org.gc.pipelines.stages
 
 import org.gc.pipelines.application.RunfolderReadyForProcessing
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Exec, Files}
+import org.gc.pipelines.util.{Exec, Files, ResourceConfig}
 
 import scala.concurrent.Future
 import tasks._
@@ -39,7 +39,7 @@ object Demultiplexing {
           for {
             demultiplexedLanes <- Future.sequence(lanes.map { lane =>
               perLane(DemultiplexSingleLaneInput(runFolder, lane))(
-                CPUMemoryRequest(12, 6000))
+                ResourceConfig.bcl2fastq)
             })
           } yield
             DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet)

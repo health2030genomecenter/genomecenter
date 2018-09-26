@@ -1,7 +1,7 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.Exec
+import org.gc.pipelines.util.{Exec, ResourceConfig}
 import org.gc.pipelines.util
 
 import io.circe.{Decoder, Encoder}
@@ -106,7 +106,7 @@ object BWAAlignment {
                                        sampleId,
                                        runId,
                                        lane.lane,
-                                       reference))(CPUMemoryRequest(4, 6000))
+                                       reference))(ResourceConfig.bwa)
 
           for {
             alignedLanes <- Future.sequence(fastqs.map(alignLane))
@@ -115,7 +115,7 @@ object BWAAlignment {
                                      sampleId,
                                      runId,
                                      alignedLanes.map(_.bam)))(
-              CPUMemoryRequest(4, 6000))
+              ResourceConfig.picardMergeAndMarkDuplicates)
           } yield merged
     }
 

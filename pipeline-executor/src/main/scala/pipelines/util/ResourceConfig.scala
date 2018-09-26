@@ -1,0 +1,33 @@
+package org.gc.pipelines.util
+
+import com.typesafe.config.ConfigFactory
+import tasks._
+
+object ResourceConfig {
+  val config = ConfigFactory.load.getConfig("gc.resourceRequests")
+
+  private def parse(path: String)(implicit tsc: TaskSystemComponents) = {
+    val subtree = config.getConfig(path)
+    CPUMemoryRequest(subtree.getInt("cpu"), subtree.getInt("ram"))
+  }
+
+  def bcl2fastq(implicit tsc: TaskSystemComponents) = parse("bcl2fastq")
+
+  def bwa(implicit tsc: TaskSystemComponents) = parse("bwa")
+
+  def picardMergeAndMarkDuplicates(implicit tsc: TaskSystemComponents) =
+    parse("picardMergeAndMarkDuplicates")
+
+  def indexReference(implicit tsc: TaskSystemComponents) =
+    parse("indexReference")
+
+  def trainBqsr(implicit tsc: TaskSystemComponents) =
+    parse("trainBqsr")
+
+  def applyBqsr(implicit tsc: TaskSystemComponents) =
+    parse("applyBqsr")
+
+  def minimal(implicit tsc: TaskSystemComponents) =
+    parse("minimal")
+
+}
