@@ -1,13 +1,13 @@
 lazy val commonSettings = Seq(
   scalaVersion := "2.12.6",
-  version := "0.0.0",
   parallelExecution in Test := false,
   scalacOptions ++= scalacOptionList,
   scalacOptions in (Compile, console) := scalacOptions.value filterNot (_ == "-Ywarn-unused:imports")
 ) ++ Seq(
   organization := "org.gc",
   fork := true,
-  cancelable in Global := true
+  cancelable in Global := true,
+  git.useGitDescribe := true
 )
 
 resolvers += Resolver.jcenterRepo
@@ -25,6 +25,7 @@ lazy val tasksSlurm = project
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.11" % "test"
     )
   )
+  .enablePlugins(GitVersioning)
 
 lazy val pipelineExecutor = project
   .in(file("pipeline-executor"))
@@ -52,6 +53,7 @@ lazy val pipelineExecutor = project
   )
   .dependsOn(tasksSlurm)
   .enablePlugins(JavaServerAppPackaging)
+  .enablePlugins(GitVersioning)
 
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
@@ -59,6 +61,7 @@ lazy val root = (project in file("."))
     publishArtifact := false
   )
   .aggregate(tasksSlurm, pipelineExecutor)
+  .enablePlugins(GitVersioning)
 
 scalafmtOnCompile in ThisBuild := true
 
