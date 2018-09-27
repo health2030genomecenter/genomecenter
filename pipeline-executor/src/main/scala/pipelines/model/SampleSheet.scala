@@ -21,6 +21,9 @@ object SampleSheet extends StrictLogging {
                         data: Seq[Seq[String]],
                         genomeCenterMetadata: Map[String, String]) {
 
+    override def toString =
+      s"SampleSheet.ParsedData(header=$header, genomeCenter=$genomeCenterMetadata dataHeader=$dataHeader, data = $data)"
+
     private def positive(integer: Int) =
       if (integer >= 0) Some(integer) else None
     private def cell(line: Seq[String], idx: Int) =
@@ -145,10 +148,10 @@ object SampleSheet extends StrictLogging {
         .toMap
 
     ParsedData(
-      header = header,
+      header = header.filterNot(_._1.isEmpty),
       dataHeader = dataHeader,
       data = dataContentLines,
-      genomeCenterMetadata = genomeCenterMetadata
+      genomeCenterMetadata = genomeCenterMetadata.filterNot(_._1.isEmpty)
     )
 
   }
