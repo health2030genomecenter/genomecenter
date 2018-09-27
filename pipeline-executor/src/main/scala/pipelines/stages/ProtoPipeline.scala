@@ -9,8 +9,12 @@ import org.gc.pipelines.util.{parseAsStringList, ResourceConfig}
 import java.io.File
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+import com.typesafe.scalalogging.StrictLogging
+import scala.util.{Success, Failure}
 
-class ProtoPipeline(implicit EC: ExecutionContext) extends Pipeline {
+class ProtoPipeline(implicit EC: ExecutionContext)
+    extends Pipeline
+    with StrictLogging {
   def canProcess(r: RunfolderReadyForProcessing) = {
     val sampleSheet = r.sampleSheet.parsed
     sampleSheet.genomeCenterMetadata.contains("automatic") &&
@@ -22,6 +26,8 @@ class ProtoPipeline(implicit EC: ExecutionContext) extends Pipeline {
       implicit tsc: TaskSystemComponents) = {
 
     val sampleSheet = r.sampleSheet.parsed
+
+    logger.debug(s"${r.runId} Parsed sample sheet as $sampleSheet")
 
     for {
       reference <- ProtoPipeline.fetchReference(sampleSheet)
@@ -59,7 +65,7 @@ case class SingleSamplePipelineInput(demultiplexed: PerSampleFastQ,
 case class PerSamplePipelineResult(samples: Set[BamWithSampleMetadata])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
-object ProtoPipeline {
+object ProtoPipeline extends StrictLogging {
 
   private def selectReadType(fqs: Seq[FastQWithSampleMetadata],
                              readType: ReadType) =
@@ -112,7 +118,14 @@ object ProtoPipeline {
       ec: ExecutionContext) = {
     val file = new File(sampleSheet.genomeCenterMetadata("referenceFasta"))
     val fileName = file.getName
-    SharedFile(file, fileName).map(ReferenceFasta(_))
+    logger.debug(s"Fetching reference $file")
+    SharedFile(file, fileName).map(ReferenceFasta(_)).andThen {
+      case Success(_) =>
+        logger.debug(s"Fetched reference")
+      case Failure(e) =>
+        logger.error(s"Failed to fetch reference $file", e)
+
+    }
   }
 
   private def fetchKnownSitesFiles(sampleSheet: SampleSheet.ParsedData)(
@@ -126,12 +139,18 @@ object ProtoPipeline {
     }
     val vcfFilesFuture = fileListWithIndices.map {
       case (vcf, vcfIdx) =>
+        logger.debug(s"Fetching known sites vcf $vcf with its index $vcfIdx")
         for {
           vcf <- SharedFile(vcf, vcf.getName)
           vcfIdx <- SharedFile(vcfIdx, vcfIdx.getName)
         } yield VCF(vcf, Some(vcfIdx))
     }
-    Future.sequence(vcfFilesFuture)
+    Future.sequence(vcfFilesFuture).andThen {
+      case Success(_) =>
+        logger.debug(s"Fetched known sites vcfs")
+      case Failure(e) =>
+        logger.error("Failed to fetch known sites files", e)
+    }
   }
 
   val singleSample =

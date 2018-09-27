@@ -23,13 +23,16 @@ class PipelinesApplication(
   private val futureRuns =
     eventSource.events
       .mapAsync(1) { run =>
-        logger.info(s"Got $run")
+        logger.info(s"Got run ${run.runId}")
         pipelineState.completed(run).map(completed => (completed, run))
       }
       .filter {
         case (completed, run) =>
           if (completed) {
-            logger.info(s"Dropping $run because it is already completed.")
+            logger.info(
+              s"Dropping ${run.runId} because it is already completed.")
+          } else {
+            logger.debug(s"New run received ${run.runId}")
           }
           !completed
       }
@@ -52,18 +55,19 @@ class PipelinesApplication(
 
   (previousUnfinishedRuns ++ futureRuns)
     .mapAsync(1) { run =>
+      logger.debug(s"Looking for suitable pipeline for ${run.runId}")
       pipelines.find(_.canProcess(run)) match {
         case Some(pipeline) =>
-          logger.info(s"Found suitable pipeline for $run")
+          logger.info(s"Found suitable pipeline for ${run.runId}")
           for {
             success <- pipeline.execute(run).recover {
               case error =>
-                logger.error(s"$pipeline failed on $run", error)
+                logger.error(s"$pipeline failed on ${run.runId}", error)
                 false
             }
           } yield (run, success)
         case None =>
-          logger.info(s"No pipeline to execute $run")
+          logger.info(s"No pipeline to execute ${run.runId}")
           Future.successful((run, false))
 
       }
@@ -81,11 +85,14 @@ class PipelinesApplication(
     .runForeach {
       case (run, success) =>
         val saved =
-          if (success) pipelineState.processingFinished(run)
-          else Future.successful(())
+          if (success) {
+            logger.info(s"Run ${run.runId} completed successfully.")
+            pipelineState.processingFinished(run)
+          } else
+            Future.successful(())
         saved.foreach { _ =>
           processingFinishedListener ! ProcessingFinished(run, success)
-          logger.info(s"Run $run finished.")
+          logger.debug(s"Run ${run.runId} finished (with or without error).")
         }
     }
 

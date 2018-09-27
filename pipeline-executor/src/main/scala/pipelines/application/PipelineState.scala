@@ -1,6 +1,7 @@
 package org.gc.pipelines.application
 
 import scala.concurrent.Future
+import com.typesafe.scalalogging.StrictLogging
 
 trait PipelineState {
   def processingFinished(r: RunfolderReadyForProcessing): Future[Unit]
@@ -9,20 +10,27 @@ trait PipelineState {
   def registerNewRun(r: RunfolderReadyForProcessing): Future[Unit]
 }
 
-class InMemoryPipelineState extends PipelineState {
+class InMemoryPipelineState extends PipelineState with StrictLogging {
   private var incomplete = List[RunfolderReadyForProcessing]()
   private var completed = List[RunfolderReadyForProcessing]()
-  def incompleteRuns = Future.successful(incomplete)
+  def incompleteRuns = {
+    logger.info(s"Querying incomplete runs (${incomplete.size})")
+    Future.successful(incomplete)
+  }
   def registerNewRun(r: RunfolderReadyForProcessing) = synchronized {
+    logger.info(s"Registering run ${r.runId}")
     incomplete = r :: incomplete
     Future.successful(())
   }
   def processingFinished(r: RunfolderReadyForProcessing) = synchronized {
+    logger.info(s"Saving finished run ${r.runId}")
     incomplete = incomplete.filterNot(_ == r)
     completed = r :: completed
     Future.successful(())
   }
-  def completed(r: RunfolderReadyForProcessing) =
+  def completed(r: RunfolderReadyForProcessing) = {
+    logger.info(s"Querying run's ${r.runId} completion")
     Future.successful(completed.contains(r))
+  }
 
 }
