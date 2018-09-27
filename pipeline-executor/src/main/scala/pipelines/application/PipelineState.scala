@@ -14,7 +14,7 @@ class InMemoryPipelineState extends PipelineState with StrictLogging {
   private var incomplete = List[RunfolderReadyForProcessing]()
   private var completed = List[RunfolderReadyForProcessing]()
   def incompleteRuns = {
-    logger.info(s"Querying incomplete runs (${incomplete.size})")
+    logger.debug(s"Querying incomplete runs (${incomplete.size})")
     Future.successful(incomplete)
   }
   def registerNewRun(r: RunfolderReadyForProcessing) = synchronized {
@@ -29,7 +29,7 @@ class InMemoryPipelineState extends PipelineState with StrictLogging {
     Future.successful(())
   }
   def completed(r: RunfolderReadyForProcessing) = {
-    logger.info(s"Querying run's ${r.runId} completion")
+    logger.debug(s"Querying run's ${r.runId} completion")
     Future.successful(completed.contains(r))
   }
 
