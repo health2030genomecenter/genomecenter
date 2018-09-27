@@ -47,13 +47,6 @@ case class FolderWatcherEventSource(folderWhereRunFoldersArePlaced: String,
     with StrictLogging {
   private val fs = FileSystems.getDefault
 
-  private def readFolder(runFolder: File): RunfolderReadyForProcessing = {
-    val sampleSheet = SampleSheet(
-      openSource(new File(runFolder, sampleSheetFileName))(_.mkString))
-    val runId = runFolder.getAbsoluteFile.getName
-    RunfolderReadyForProcessing(runId, sampleSheet, runFolder.getAbsolutePath)
-  }
-
   def events: Source[RunfolderReadyForProcessing, _] =
     DirectoryChangesSource(fs.getPath(folderWhereRunFoldersArePlaced),
                            pollInterval = 1 second,
@@ -73,7 +66,7 @@ case class FolderWatcherEventSource(folderWhereRunFoldersArePlaced: String,
         case (fileInRunFolder, DirectoryChange.Creation)
             if fileInRunFolder.getFileName.toString == fileSignalingCompletion =>
           val runFolder = fileInRunFolder.toFile.getParentFile
-          readFolder(runFolder)
+          RunfolderReadyForProcessing.readFolder(runFolder, sampleSheetFileName)
       }
 
 }
@@ -83,4 +76,12 @@ object RunfolderReadyForProcessing {
     deriveEncoder[RunfolderReadyForProcessing]
   implicit val decoder: Decoder[RunfolderReadyForProcessing] =
     deriveDecoder[RunfolderReadyForProcessing]
+
+  def readFolder(runFolder: File,
+                 sampleSheetFileName: String): RunfolderReadyForProcessing = {
+    val sampleSheet = SampleSheet(
+      openSource(new File(runFolder, sampleSheetFileName))(_.mkString))
+    val runId = runFolder.getAbsoluteFile.getName
+    RunfolderReadyForProcessing(runId, sampleSheet, runFolder.getAbsolutePath)
+  }
 }

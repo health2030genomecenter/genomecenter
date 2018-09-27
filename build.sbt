@@ -34,12 +34,14 @@ lazy val pipelineExecutor = project
     libraryDependencies ++= Seq(
       "io.github.pityka" %% "tasks-core" % "0.0.20",
       "io.github.pityka" %% "fileutils" % "1.2.2",
-      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.11",
       "com.typesafe.akka" %% "akka-testkit" % "2.5.11" % "test",
+      "com.typesafe.akka" %% "akka-http-testkit" % "10.1.5" % "test",
       "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.20",
+      "de.heikoseeberger" %% "akka-http-circe" % "1.22.0",
       "com.github.samtools" % "htsjdk" % "2.16.1"
     ),
     unmanagedClasspath in Test += {

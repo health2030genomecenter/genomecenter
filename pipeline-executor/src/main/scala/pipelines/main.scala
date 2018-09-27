@@ -3,6 +3,7 @@ package org.gc.pipelines
 import com.typesafe.scalalogging.StrictLogging
 import com.typesafe.config.ConfigFactory
 import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import tasks._
 
 import org.gc.pipelines.application._
@@ -17,19 +18,17 @@ object Main extends App with StrictLogging {
 
   if (taskSystem.hostConfig.isApp) {
 
+    implicit val actorSystem = ActorSystem("Main")
+    implicit val materializer = ActorMaterializer()
+    import scala.concurrent.ExecutionContext.Implicits.global
     val eventSource =
-      PipelineConfiguration.eventSource
+      CompositeSequencingCompleteEventSource(PipelineConfiguration.eventSource,
+                                             new HttpServer)
 
     val pipelineState = PipelineConfiguration.pipelineState
 
-    val actorSystem = ActorSystem("Main")
-
-    val pipeline = {
-      import scala.concurrent.ExecutionContext.Implicits.global
+    val pipeline =
       new ProtoPipeline
-    }
-
-    import scala.concurrent.ExecutionContext.Implicits.global
 
     new PipelinesApplication(eventSource,
                              pipelineState,
