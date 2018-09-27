@@ -25,7 +25,6 @@ lazy val tasksSlurm = project
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.11" % "test"
     )
   )
-  .enablePlugins(GitVersioning)
 
 lazy val pipelineExecutor = project
   .in(file("pipeline-executor"))
@@ -53,7 +52,6 @@ lazy val pipelineExecutor = project
   )
   .dependsOn(tasksSlurm)
   .enablePlugins(JavaServerAppPackaging)
-  .enablePlugins(GitVersioning)
 
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
