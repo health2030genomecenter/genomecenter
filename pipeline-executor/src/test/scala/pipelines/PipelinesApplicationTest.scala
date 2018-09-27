@@ -53,7 +53,7 @@ class PipelinesApplicationTest
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .runWith(Sink.seq),
-                                     atMost = 15 seconds)
+                                     atMost = 25 seconds)
 
     processedRuns.count(_.success) shouldBe numberOfRuns
 
