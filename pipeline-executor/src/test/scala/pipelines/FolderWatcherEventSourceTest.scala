@@ -41,13 +41,15 @@ class FolderWatcherEventSourceTest
     val sampleSheetFileContent = "blabla"
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)
+    val sampleSheetFilePath =
+      new File(runFolder, sampleSheetFileName).getAbsolutePath
 
     Given("a folder watch event source")
     val source =
       FolderWatcherEventSource(folderWhereRunFoldersArePlaced =
                                  watchedFolder.getAbsolutePath,
                                fileSignalingCompletion = fileNameToWatch,
-                               sampleSheetFileName = sampleSheetFileName).events
+                               sampleSheetFilePath = sampleSheetFilePath).events
 
     val probe = TestProbe()
     source.to(Sink.actorRef(probe.ref, "completed")).run()

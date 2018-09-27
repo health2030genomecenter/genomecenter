@@ -42,7 +42,7 @@ case class CompositeSequencingCompleteEventSource(
   */
 case class FolderWatcherEventSource(folderWhereRunFoldersArePlaced: String,
                                     fileSignalingCompletion: String,
-                                    sampleSheetFileName: String)
+                                    sampleSheetFilePath: String)
     extends SequencingCompleteEventSource
     with StrictLogging {
   private val fs = FileSystems.getDefault
@@ -66,7 +66,7 @@ case class FolderWatcherEventSource(folderWhereRunFoldersArePlaced: String,
         case (fileInRunFolder, DirectoryChange.Creation)
             if fileInRunFolder.getFileName.toString == fileSignalingCompletion =>
           val runFolder = fileInRunFolder.toFile.getParentFile
-          RunfolderReadyForProcessing.readFolder(runFolder, sampleSheetFileName)
+          RunfolderReadyForProcessing.readFolder(runFolder, sampleSheetFilePath)
       }
 
 }
@@ -78,9 +78,9 @@ object RunfolderReadyForProcessing {
     deriveDecoder[RunfolderReadyForProcessing]
 
   def readFolder(runFolder: File,
-                 sampleSheetFileName: String): RunfolderReadyForProcessing = {
+                 sampleSheetFilePath: String): RunfolderReadyForProcessing = {
     val sampleSheet = SampleSheet(
-      openSource(new File(runFolder, sampleSheetFileName))(_.mkString))
+      openSource(new File(sampleSheetFilePath))(_.mkString))
     val runId = runFolder.getAbsoluteFile.getName
     RunfolderReadyForProcessing(runId, sampleSheet, runFolder.getAbsolutePath)
   }
