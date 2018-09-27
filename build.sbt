@@ -52,6 +52,11 @@ lazy val pipelineExecutor = project
   )
   .dependsOn(tasksSlurm)
   .enablePlugins(JavaServerAppPackaging)
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    buildInfoKeys := Seq[BuildInfoKey](version),
+    buildInfoPackage := "org.gc.buildinfo"
+  )
 
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
