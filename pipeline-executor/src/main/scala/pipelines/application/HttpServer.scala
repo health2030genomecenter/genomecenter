@@ -7,6 +7,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import java.io.File
 
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -20,7 +21,7 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
 
   val events = source
 
-  case class RunfolderDTO(path: String, sampleSheetFilePath: String)
+  case class RunfolderDTO(path: String, sampleSheetFolderPath: String)
   object RunfolderDTO {
     implicit val encoder: Encoder[RunfolderDTO] =
       deriveEncoder[RunfolderDTO]
@@ -32,13 +33,13 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
     post {
       path("runfolder") {
         entity(as[RunfolderDTO]) {
-          case RunfolderDTO(runFolderPath, sampleSheetFilePath) =>
+          case RunfolderDTO(runFolderPath, sampleSheetFolderPath) =>
             logger.info(s"Got $runFolderPath")
             val runFolder = new java.io.File(runFolderPath)
             if (runFolder.canRead) {
               sourceActor ! RunfolderReadyForProcessing.readFolder(
                 runFolder,
-                sampleSheetFilePath)
+                new File(sampleSheetFolderPath))
               complete(akka.http.scaladsl.model.StatusCodes.OK)
             } else complete(akka.http.scaladsl.model.StatusCodes.BadRequest)
         }

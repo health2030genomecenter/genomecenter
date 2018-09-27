@@ -45,12 +45,10 @@ class HttpEventSourceTest
     }
 
     val fileNameToWatch = "something"
-    val sampleSheetFileName = "samplesheetfilename"
+    val sampleSheetFileName = "sampleSheet-runid"
     val sampleSheetFileContent = "blabla"
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)
-    val sampleSheetFilePath =
-      new File(runFolder, sampleSheetFileName).getAbsolutePath
 
     Given("a folder watch event source")
     val server = new HttpServer
@@ -78,7 +76,7 @@ class HttpEventSourceTest
       uri = Uri("/runfolder"),
       entity = HttpEntity(
         ContentTypes.`application/json`,
-        s"""{"path":"$runFolder","sampleSheetFilePath":"$sampleSheetFilePath" } """)
+        s"""{"path":"$runFolder","sampleSheetFolderPath":"$runFolder" } """)
     )
     request ~> server.route ~> check {
       status shouldEqual StatusCodes.OK
