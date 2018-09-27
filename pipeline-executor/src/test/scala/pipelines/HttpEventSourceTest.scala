@@ -82,7 +82,7 @@ class HttpEventSourceTest
     )
     request ~> server.route ~> check {
       status shouldEqual StatusCodes.OK
-      Then("the source shold emit")
+      Then("the source should emit")
       probe.expectMsg(
         RunfolderReadyForProcessing(runId,
                                     SampleSheet(sampleSheetFileContent),

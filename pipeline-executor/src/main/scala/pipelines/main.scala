@@ -21,9 +21,7 @@ object Main extends App with StrictLogging {
     implicit val actorSystem = ActorSystem("Main")
     implicit val materializer = ActorMaterializer()
     import scala.concurrent.ExecutionContext.Implicits.global
-    val eventSource =
-      CompositeSequencingCompleteEventSource(PipelineConfiguration.eventSource,
-                                             new HttpServer)
+    val eventSource = new HttpServer
 
     val pipelineState = PipelineConfiguration.pipelineState
 

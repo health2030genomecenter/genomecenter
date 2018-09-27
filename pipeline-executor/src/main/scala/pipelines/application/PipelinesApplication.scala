@@ -23,9 +23,16 @@ class PipelinesApplication(
   private val futureRuns =
     eventSource.events
       .mapAsync(1) { run =>
+        logger.info(s"Got $run")
         pipelineState.completed(run).map(completed => (completed, run))
       }
-      .filter { case (completed, _) => !completed }
+      .filter {
+        case (completed, run) =>
+          if (completed) {
+            logger.info(s"Dropping $run because it is already completed.")
+          }
+          !completed
+      }
       .map(_._2)
       .mapAsync(1) { run =>
         for {
