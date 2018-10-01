@@ -41,7 +41,8 @@ object BaseQualityScoreRecalibration {
             val tmpStdOut = TempFile.createTempFile(".stdout")
             val tmpStdErr = TempFile.createTempFile(".stderr")
             val bashScript = s""" \\
-              java $maxHeap ${GATK.javaArguments} -jar $gatkJar  BaseRecalibrator \\
+              java $maxHeap ${GATK
+              .javaArguments(compressionLevel = 1)} -jar $gatkJar  BaseRecalibrator \\
                 -R ${reference.getAbsolutePath} \\
                 -I ${localBam.getAbsolutePath} \\
                 -O ${output.getAbsolutePath} \\
@@ -87,7 +88,7 @@ object BaseQualityScoreRecalibration {
               val tmpStdOut = TempFile.createTempFile(".stdout")
               val tmpStdErr = TempFile.createTempFile(".stderr")
               val bashScript = s""" \\
-              java $maxHeap ${GATK.javaArguments} -jar $gatkJar ApplyBQSR \\
+              java $maxHeap ${GATK.javaArguments(compressionLevel = 5)} -jar $gatkJar ApplyBQSR \\
                 -R ${reference.getAbsolutePath} \\
                 -I ${localBam.getAbsolutePath} \\
                 -O ${outputBam.getAbsolutePath} \\
@@ -95,7 +96,6 @@ object BaseQualityScoreRecalibration {
                 --add-output-sam-program-record \\
                 --create-output-bam-index \\
                 --create-output-bam-md5 \\
-                --emit-original-quals \\
                 -bqsr ${bqsrTable.getAbsolutePath} \\
                 > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
                 """
