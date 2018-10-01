@@ -18,11 +18,11 @@ lazy val tasksSlurm = project
   .settings(
     name := "tasks-slurm",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.20-SNAPSHOT",
+      "io.github.pityka" %% "tasks-core" % "0.0.21-SNAPSHOT",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
-      "com.typesafe.akka" %% "akka-slf4j" % "2.5.11" % "test"
+      "com.typesafe.akka" %% "akka-slf4j" % "2.5.16" % "test"
     )
   )
 
@@ -32,13 +32,13 @@ lazy val pipelineExecutor = project
   .settings(
     name := "pipeline-executor",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.20",
+      "io.github.pityka" %% "tasks-core" % "0.0.21-SNAPSHOT",
       "io.github.pityka" %% "fileutils" % "1.2.2",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
-      "com.typesafe.akka" %% "akka-slf4j" % "2.5.11",
-      "com.typesafe.akka" %% "akka-testkit" % "2.5.11" % "test",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.5.16",
+      "com.typesafe.akka" %% "akka-testkit" % "2.5.16" % "test",
       "com.typesafe.akka" %% "akka-http-testkit" % "10.1.5" % "test",
       "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.20",
       "de.heikoseeberger" %% "akka-http-circe" % "1.22.0",
@@ -56,6 +56,9 @@ lazy val pipelineExecutor = project
   .settings(
     buildInfoKeys := Seq[BuildInfoKey](version),
     buildInfoPackage := "org.gc.buildinfo"
+  )
+  .settings(
+    scriptClasspath := scriptClasspath.value :+ "../resources/"
   )
 
 lazy val root = (project in file("."))
