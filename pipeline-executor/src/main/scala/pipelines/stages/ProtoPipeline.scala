@@ -163,12 +163,20 @@ object ProtoPipeline extends StrictLogging {
         implicit computationEnvironment =>
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
-          computationEnvironment.withFilePrefix(
-            Seq(demultiplexed.project, demultiplexed.runId)) {
-            implicit computationEnvironment =>
-              for {
 
-                alignedSample <- BWAAlignment
+          def intoIntermediateFolder[T] =
+            appendToFilePrefix[T](
+              Seq(demultiplexed.project, demultiplexed.runId, "intermediate"))
+
+          def intoFinalFolder[T] =
+            appendToFilePrefix[T](
+              Seq(demultiplexed.project, demultiplexed.runId))
+
+          for {
+
+            alignedSample <- intoIntermediateFolder {
+              implicit computationEnvironment =>
+                BWAAlignment
                   .alignFastqPerSample(
                     PerSampleBWAAlignmentInput(demultiplexed.fastqs,
                                                demultiplexed.project,
@@ -176,15 +184,19 @@ object ProtoPipeline extends StrictLogging {
                                                demultiplexed.runId,
                                                indexedReference))(
                     ResourceConfig.minimal)
-                table <- BaseQualityScoreRecalibration.trainBQSR(
-                  TrainBQSRInput(alignedSample.bam,
-                                 indexedReference,
-                                 knownSites.toSet))(ResourceConfig.trainBqsr)
-                recalibrated <- BaseQualityScoreRecalibration.applyBQSR(
-                  ApplyBQSRInput(alignedSample.bam, indexedReference, table))(
-                  ResourceConfig.applyBqsr)
-              } yield alignedSample.copy(bam = recalibrated)
-          }
+            }
+            table <- intoIntermediateFolder { implicit computationEnvironment =>
+              BaseQualityScoreRecalibration.trainBQSR(
+                TrainBQSRInput(alignedSample.bam,
+                               indexedReference,
+                               knownSites.toSet))(ResourceConfig.trainBqsr)
+            }
+            recalibrated <- intoFinalFolder { implicit computationEnvironment =>
+              BaseQualityScoreRecalibration.applyBQSR(
+                ApplyBQSRInput(alignedSample.bam, indexedReference, table))(
+                ResourceConfig.applyBqsr)
+            }
+          } yield alignedSample.copy(bam = recalibrated)
 
     }
 

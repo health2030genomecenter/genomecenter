@@ -53,7 +53,7 @@ class ProtopipelineTestSuite
 
         And("bwa alignment per lane of the first sample should not be present")
         val bwaFolder = new File(
-          basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
+          basePath.getAbsolutePath + s"/projects/project1/whateverRunId/intermediate/")
         And("stderr of alignment is present")
         new File(bwaFolder, "project1.GIB.whateverRunId.L001.bam.stderr").canRead shouldBe true
         And("bam file of alignment should be already deleted")
@@ -62,7 +62,7 @@ class ProtopipelineTestSuite
         And("merge and mark duplicate of the first sample should be present")
         val markduplicatesFolder =
           new File(
-            basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
+            basePath.getAbsolutePath + s"/projects/project1/whateverRunId/intermediate/")
         new File(markduplicatesFolder, "project1.GIB.whateverRunId.bam.stderr").canRead shouldBe true
         new File(
           markduplicatesFolder,
