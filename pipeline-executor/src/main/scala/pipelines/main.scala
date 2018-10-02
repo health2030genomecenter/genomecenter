@@ -16,9 +16,11 @@ object Main extends App with StrictLogging {
     val fromClassPath = ConfigFactory.load
     val version = org.gc.buildinfo.BuildInfo.version
     logger.info("Version: " + version)
-    val withVersion = ConfigFactory.parseString(s"tasks.codeVersion = $version")
+    val withVersion =
+      ConfigFactory.parseString(s"tasks.codeVersion = $version ")
     withVersion.withFallback(fromClassPath)
   }
+  logger.debug("Full config tree: \n" + config.root.render)
 
   private val taskSystem = defaultTaskSystem(Some(config))
 

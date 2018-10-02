@@ -4,6 +4,7 @@ import java.net.InetSocketAddress
 import scala.util._
 import scala.sys.process._
 
+import tasks.deploy._
 import tasks.elastic._
 import tasks.shared._
 import tasks.util._
@@ -45,17 +46,23 @@ class SlurmCreateNode(masterAddress: InetSocketAddress,
                                   codeAddress.address.getHostName,
                                   codeAddress.address.getPort,
                                   "/"),
-      slaveHostname = Some("0.0.0.0"),
+      slaveHostname = None,
       background = false
     )
 
-    val _ = script
+    val allocateFullNodeConfigValue =
+      config.raw.getInt("tasks.slurm.allocateFullNode")
+    val allocateFullNode = allocateFullNodeConfigValue > 0
+    val memory = if (allocateFullNode) 0 else requestSize.memory
+    val mincpu =
+      if (allocateFullNodeConfigValue <= 0) requestSize.cpu._1
+      else allocateFullNodeConfigValue
 
     val sbatchCommand = Seq(
       "sbatch",
       s"--wrap=$script",
-      s"--mem=${requestSize.memory}",
-      s"--mincpus=${requestSize.cpu._1}",
+      s"--mem=${memory}",
+      s"--mincpus=${mincpu}",
       "--error=slurm-%j.err",
       "--output=slurm-%j.out") ++ additionalSbatchArguments
 
@@ -99,10 +106,31 @@ object SlurmSupport extends ElasticSupportFromConfig {
   implicit val fqcn = ElasticSupportFqcn("org.gc.slurmsupport.SlurmSupport")
   def apply(implicit config: TasksConfig) = SimpleElasticSupport(
     fqcn = fqcn,
-    hostConfig = None,
+    hostConfig = Some(new SlurmMasterSlave),
     reaperFactory = None,
     shutdown = SlurmShutdown,
     createNodeFactory = new SlurmCreateNodeFactory,
     getNodeName = SlurmGetNodeName
   )
 }
+
+trait SlurmHostConfiguration extends HostConfigurationFromConfig {
+
+  implicit def config: TasksConfig
+
+  private lazy val myhostname =
+    Option(System.getenv("HOSTNAME")).getOrElse(config.hostName)
+
+  override lazy val myAddress = new InetSocketAddress(myhostname, myPort)
+
+  override lazy val availableMemory = Option(
+    System.getenv("SLURM_MEM_PER_NODE")).map(_.toInt).getOrElse(config.hostRAM)
+
+  override lazy val availableCPU = Option(System.getenv("SLURM_CPUS_ON_NODE"))
+    .map(_.toInt)
+    .getOrElse(config.hostNumCPU)
+
+}
+
+class SlurmMasterSlave(implicit val config: TasksConfig)
+    extends SlurmHostConfiguration
