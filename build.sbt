@@ -33,6 +33,8 @@ lazy val pipelineExecutor = project
     name := "pipeline-executor",
     libraryDependencies ++= Seq(
       "io.github.pityka" %% "tasks-core" % "0.0.21-SNAPSHOT",
+      "io.github.pityka" %% "tasks-collection" % "0.0.21-SNAPSHOT",
+      "io.github.pityka" %% "tasks-ui-backend" % "0.0.21-SNAPSHOT",
       "io.github.pityka" %% "fileutils" % "1.2.2",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",

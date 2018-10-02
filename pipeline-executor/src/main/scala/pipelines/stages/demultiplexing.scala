@@ -6,6 +6,7 @@ import org.gc.pipelines.util.{Exec, Files, ResourceConfig}
 
 import scala.concurrent.Future
 import tasks._
+import tasks.collection._
 import tasks.circesupport._
 import io.circe._
 import io.circe.generic.semiauto._
@@ -14,11 +15,14 @@ import java.io.File
 case class DemultiplexSingleLaneInput(run: RunfolderReadyForProcessing,
                                       lane: Lane)
 
-case class DemultiplexedReadData(fastqs: Set[FastQWithSampleMetadata])
-    extends ResultWithSharedFiles(fastqs.toList.map(_.fastq.file): _*) {
+case class DemultiplexedReadData(fastqs: Set[FastQWithSampleMetadata],
+                                 stats: EValue[DemultiplexingStats.Root])
+    extends ResultWithSharedFiles(
+      fastqs.toList.map(_.fastq.file) ++ stats.files: _*) {
   def withoutUndetermined =
     DemultiplexedReadData(
-      fastqs.filterNot(_.sampleId == SampleId("Undetermined")))
+      fastqs.filterNot(_.sampleId == SampleId("Undetermined")),
+      stats)
 }
 
 object Demultiplexing {
@@ -36,13 +40,33 @@ object Demultiplexing {
             log.error("No lanes in the sample sheet!")
           }
 
+          def intoRunIdFolder[T] = appendToFilePrefix[T](Seq(runFolder.runId))
+
           for {
             demultiplexedLanes <- Future.sequence(lanes.map { lane =>
               perLane(DemultiplexSingleLaneInput(runFolder, lane))(
                 ResourceConfig.bcl2fastq)
             })
+            perLaneStats <- Future.traverse(demultiplexedLanes)(_.stats.get)
+            mergedStats = perLaneStats
+              .reduce { (x, y) =>
+                val merged = (x ++ y)
+                merged match {
+                  case Left(error) =>
+                    log.error(x.toString)
+                    log.error(y.toString)
+                    throw new RuntimeException(s"Can't merge because $error")
+                  case Right(merged) => merged
+                }
+              }
+
+            mergedStatsInFile <- intoRunIdFolder {
+              implicit computationEnvironment =>
+                EValue.apply(mergedStats, runFolder.runId + ".Stats.json")
+            }
           } yield
-            DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet)
+            DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet,
+                                  mergedStatsInFile)
       }
     }
 
@@ -72,7 +96,7 @@ object Demultiplexing {
             Nil
           } else List("--tiles", "s_" + laneNumber)
 
-          val fastQFilesF = SharedFile.fromFolder { outputFolder =>
+          val fastQAndStatFilesF = SharedFile.fromFolder { outputFolder =>
             val stdout = new File(outputFolder, "stdout").getAbsolutePath
             val stderr = new File(outputFolder, "stderr").getAbsolutePath
             val bashCommand = {
@@ -96,7 +120,10 @@ object Demultiplexing {
               throw new RuntimeException("bcl2fastq exited with code != 0")
             }
 
-            Files.list(outputFolder, "*.fastq.gz")
+            val statsFile =
+              new File(new File(outputFolder, "Stats"), "Stats.json")
+
+            Files.list(outputFolder, "*.fastq.gz") :+ statsFile
 
           }(computationEnvironment.components
             .withChildPrefix(runId)
@@ -123,13 +150,17 @@ object Demultiplexing {
             }
 
           for {
-            fastQFiles <- fastQFilesF
+            fastQAndStatFiles <- fastQAndStatFilesF
           } yield {
+            val fastQFiles = fastQAndStatFiles.dropRight(1)
+            val statsFile = fastQAndStatFiles.last
+
             DemultiplexedReadData(
               fastQFiles
                 .map(extractMetadataFromFilename)
                 .collect { case Some(tuple) => tuple }
-                .toSet
+                .toSet,
+              EValue(statsFile)
             )
           }
 
@@ -145,6 +176,7 @@ object DemultiplexSingleLaneInput {
 }
 
 object DemultiplexedReadData {
+  import io.circe.generic.auto._
   implicit val encoder: Encoder[DemultiplexedReadData] =
     deriveEncoder[DemultiplexedReadData]
   implicit val decoder: Decoder[DemultiplexedReadData] =

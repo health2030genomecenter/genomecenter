@@ -51,6 +51,10 @@ class ProtopipelineTestSuite
         And("stderr file should be present")
         new File(demultiplexOutputFolder, "stderr").canRead shouldBe true
 
+        And("stats files should be merged")
+        new File(
+          basePath.getAbsolutePath + s"/demultiplex/$runId/$runId.Stats.json").canRead shouldBe true
+
         And("bwa alignment per lane of the first sample should not be present")
         val bwaFolder = new File(
           basePath.getAbsolutePath + s"/projects/project1/whateverRunId/intermediate/")
