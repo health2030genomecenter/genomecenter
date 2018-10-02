@@ -37,9 +37,24 @@ class SlurmCreateNode(masterAddress: InetSocketAddress,
 
   def requestOneNewJobFromJobScheduler(requestSize: CPUMemoryRequest)
     : Try[Tuple2[PendingJobId, CPUMemoryAvailable]] = {
+
+    val allocateFullNodeConfigValue: Seq[Int] =
+      config.raw
+        .getIntList("tasks.slurm.allocateFullNode")
+        .asScala
+        .toList
+        .map(_.toInt)
+    val allocateFullNode = allocateFullNodeConfigValue.nonEmpty
+    val memory =
+      if (allocateFullNode) allocateFullNodeConfigValue(1)
+      else requestSize.memory
+    val mincpu =
+      if (allocateFullNode) allocateFullNodeConfigValue(0)
+      else requestSize.cpu._1
+
     val script = Deployment.script(
-      memory = requestSize.memory,
-      cpu = requestSize.cpu._1,
+      memory = memory,
+      cpu = mincpu,
       elasticSupport = elasticSupport,
       masterAddress = masterAddress,
       download = new java.net.URL("http",
@@ -49,14 +64,6 @@ class SlurmCreateNode(masterAddress: InetSocketAddress,
       slaveHostname = None,
       background = false
     )
-
-    val allocateFullNodeConfigValue =
-      config.raw.getInt("tasks.slurm.allocateFullNode")
-    val allocateFullNode = allocateFullNodeConfigValue > 0
-    val memory = if (allocateFullNode) 0 else requestSize.memory
-    val mincpu =
-      if (allocateFullNodeConfigValue <= 0) requestSize.cpu._1
-      else allocateFullNodeConfigValue
 
     val sbatchCommand = Seq(
       "sbatch",
