@@ -22,7 +22,12 @@ class DemultiplexingTestSuite
 
   test("demultiplexing stats should deserialize") {
 
-    io.circe.parser.decode[DemultiplexingStats.Root](statsFileContent).right.get
+    val rawStats = io.circe.parser
+      .decode[DemultiplexingStats.Root](statsFileContent)
+      .right
+      .get
+    val summaryStat = DemultiplexingSummary.fromStats(rawStats, Map())
+    println(DemultiplexingSummary.renderAsTable(summaryStat))
   }
 
   test("Demultiplexing stage should demultiplex a simple run") {

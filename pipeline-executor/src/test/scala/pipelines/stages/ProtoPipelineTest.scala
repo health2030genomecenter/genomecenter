@@ -55,6 +55,16 @@ class ProtopipelineTestSuite
         new File(
           basePath.getAbsolutePath + s"/demultiplex/$runId/$runId.Stats.json").canRead shouldBe true
 
+        And("human readable table should be generated")
+        new File(
+          basePath.getAbsolutePath + s"/demultiplex/$runId/$runId.stats.table").canRead shouldBe true
+
+        And("fastp report files are generated")
+        new File(
+          basePath.getAbsolutePath + s"/demultiplex/$runId/L001/project1.GIB.whateverRunId.L001.fastp.json").canRead shouldBe true
+        new File(
+          basePath.getAbsolutePath + s"/demultiplex/$runId/L001/project1.GIB.whateverRunId.L001.fastp.html").canRead shouldBe true
+
         And("bwa alignment per lane of the first sample should not be present")
         val bwaFolder = new File(
           basePath.getAbsolutePath + s"/projects/project1/whateverRunId/intermediate/")

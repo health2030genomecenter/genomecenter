@@ -27,14 +27,21 @@ case class FastQWithSampleMetadata(project: Project,
     extends WithSharedFiles(fastq.file)
 
 case class PerSampleFastQ(
-    fastqs: Set[FastQPerLane],
+    lanes: Set[FastQPerLane],
     project: Project,
     sampleId: SampleId,
     runId: RunId
 ) extends WithSharedFiles(
-      fastqs
+      lanes
         .flatMap(fq => List(fq.read1.file, fq.read2.file))
         .toSeq: _*)
+
+case class FastQPerLaneWithMetadata(
+    lane: FastQPerLane,
+    project: Project,
+    sampleId: SampleId,
+    runId: RunId
+) extends WithSharedFiles(lane.read1.file, lane.read2.file)
 
 case class BamWithSampleMetadataPerLane(project: Project,
                                         sampleId: SampleId,
@@ -194,4 +201,11 @@ object PerSampleFastQ {
     deriveEncoder[PerSampleFastQ]
   implicit val decoder: Decoder[PerSampleFastQ] =
     deriveDecoder[PerSampleFastQ]
+}
+
+object FastQPerLaneWithMetadata {
+  implicit val encoder: Encoder[FastQPerLaneWithMetadata] =
+    deriveEncoder[FastQPerLaneWithMetadata]
+  implicit val decoder: Decoder[FastQPerLaneWithMetadata] =
+    deriveDecoder[FastQPerLaneWithMetadata]
 }

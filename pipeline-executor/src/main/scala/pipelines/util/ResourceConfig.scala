@@ -13,6 +13,8 @@ object ResourceConfig {
 
   def bcl2fastq(implicit tsc: TaskSystemComponents) = parse("bcl2fastq")
 
+  def fastp(implicit tsc: TaskSystemComponents) = parse("fastp")
+
   def bwa(implicit tsc: TaskSystemComponents) = parse("bwa")
 
   def picardMergeAndMarkDuplicates(implicit tsc: TaskSystemComponents) =

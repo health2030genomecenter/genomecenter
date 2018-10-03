@@ -34,16 +34,36 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       knownSites <- ProtoPipeline.fetchKnownSitesFiles(sampleSheet)
 
       demultiplexed <- Demultiplexing.allLanes(r)(ResourceConfig.minimal)
-      processedSamples <- ProtoPipeline.allSamples(
+      perSampleFastQs = ProtoPipeline
+        .groupBySample(demultiplexed.withoutUndetermined)
+      fastpReports = startFastpReports(perSampleFastQs)
+      _ <- ProtoPipeline.allSamples(
         PerSamplePipelineInput(
-          ProtoPipeline
-            .groupBySample(demultiplexed.withoutUndetermined)
-            .toSet,
+          perSampleFastQs.toSet,
           reference,
           knownSites.toSet
         ))(ResourceConfig.minimal)
+      _ <- fastpReports
     } yield true
 
+  }
+
+  def startFastpReports(perSampleFastQs: Seq[PerSampleFastQ])(
+      implicit tsc: TaskSystemComponents) = {
+    val fastqsPerLanePerSample = for {
+      sample <- perSampleFastQs
+      lane <- sample.lanes
+    } yield
+      FastQPerLaneWithMetadata(lane,
+                               sample.project,
+                               sample.sampleId,
+                               sample.runId)
+
+    Future.traverse(fastqsPerLanePerSample)(fq =>
+      tsc.withFilePrefix(Seq("demultiplex", fq.runId, fq.lane.lane)) {
+        implicit tsc =>
+          Fastp.report(fq)(ResourceConfig.fastp)
+    })
   }
 
 }
@@ -178,7 +198,7 @@ object ProtoPipeline extends StrictLogging {
               implicit computationEnvironment =>
                 BWAAlignment
                   .alignFastqPerSample(
-                    PerSampleBWAAlignmentInput(demultiplexed.fastqs,
+                    PerSampleBWAAlignmentInput(demultiplexed.lanes,
                                                demultiplexed.project,
                                                demultiplexed.sampleId,
                                                demultiplexed.runId,

@@ -11,6 +11,9 @@ import tasks.circesupport._
 import io.circe._
 import io.circe.generic.semiauto._
 
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
+
 import java.io.File
 case class DemultiplexSingleLaneInput(run: RunfolderReadyForProcessing,
                                       lane: Lane)
@@ -26,6 +29,12 @@ case class DemultiplexedReadData(fastqs: Set[FastQWithSampleMetadata],
 }
 
 object Demultiplexing {
+
+  def sampleToProjectMap(metadata: Seq[DemultiplexedReadData]) =
+    (for {
+      lanes <- metadata
+      sample <- lanes.fastqs
+    } yield (sample.sampleId -> sample.project)).toMap
 
   val allLanes =
     AsyncTask[RunfolderReadyForProcessing, DemultiplexedReadData](
@@ -62,7 +71,21 @@ object Demultiplexing {
 
             mergedStatsInFile <- intoRunIdFolder {
               implicit computationEnvironment =>
-                EValue.apply(mergedStats, runFolder.runId + ".Stats.json")
+                for {
+                  _ <- {
+                    val tableAsString =
+                      DemultiplexingSummary.renderAsTable(
+                        DemultiplexingSummary.fromStats(
+                          mergedStats,
+                          sampleToProjectMap(demultiplexedLanes)))
+                    SharedFile(Source.single(
+                                 ByteString(tableAsString.getBytes("UTF-8"))),
+                               name = runFolder.runId + ".stats.table")
+                  }
+                  mergedStatsEValue <- EValue.apply(
+                    mergedStats,
+                    runFolder.runId + ".Stats.json")
+                } yield mergedStatsEValue
             }
           } yield
             DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet,
