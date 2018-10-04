@@ -109,6 +109,9 @@ class ProtopipelineTestSuite
           qcFolder,
           "project1.GIB.whateverRunId.bqsr.bam.alignment_summary_metrics").canRead shouldBe true
 
+        And("hybridization selection metrics should be present")
+        new File(qcFolder, "project1.GIB.whateverRunId.bqsr.bam.hsMetrics").canRead shouldBe true
+
         And("project3 should not be demultiplexed")
         val project3Folder =
           new File(basePath.getAbsolutePath + s"/projects/project3/")
@@ -146,6 +149,10 @@ class ProtopipelineTestSuite
       .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta")
       .getFile
 
+    val targetIntervals = getClass
+      .getResource("/tutorial_8017/capture.bed")
+      .getFile
+
     val knownSitesVCF = new File(
       getClass
         .getResource("/example.vcf")
@@ -177,6 +184,7 @@ ReverseComplement,0,,,,,,,,,
 bcl2fastqArguments,["--tiles","s_1_1101","--use-bases-mask","y75n,i6n*,n10,y75n"]
 automatic
 referenceFasta,$referenceFasta
+targetIntervals,$targetIntervals
 bqsr.knownSites,["$knownSitesVCF"]
 [Data],,,,,,,,,,
 Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description,Lane
@@ -210,6 +218,7 @@ ReverseComplement,0,,,,,,,,,
 bcl2fastqArguments,["--tiles","s_1_1101","--use-bases-mask","y75n,i6n*,n10,y75n"]
 automatic
 referenceFasta,$referenceFasta
+targetIntervals,$targetIntervals
 bqsr.knownSites,["$knownSitesVCF"]
 [Data],,,,,,,,,,
 Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description,Lane

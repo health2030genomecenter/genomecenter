@@ -94,6 +94,8 @@ case class VCF(vcf: SharedFile, index: Option[SharedFile])
 
 case class BQSRTable(file: SharedFile) extends WithSharedFiles(file)
 
+case class BedFile(file: SharedFile) extends WithSharedFiles(file)
+
 //
 // Codecs from here on
 //
@@ -208,4 +210,11 @@ object FastQPerLaneWithMetadata {
     deriveEncoder[FastQPerLaneWithMetadata]
   implicit val decoder: Decoder[FastQPerLaneWithMetadata] =
     deriveDecoder[FastQPerLaneWithMetadata]
+}
+
+object BedFile {
+  implicit val encoder: Encoder[BedFile] =
+    deriveEncoder[BedFile]
+  implicit val decoder: Decoder[BedFile] =
+    deriveDecoder[BedFile]
 }

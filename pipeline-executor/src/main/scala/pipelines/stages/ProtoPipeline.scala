@@ -32,18 +32,26 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     for {
       reference <- ProtoPipeline.fetchReference(sampleSheet)
       knownSites <- ProtoPipeline.fetchKnownSitesFiles(sampleSheet)
+      selectionTargetIntervals <- ProtoPipeline.fetchTargetIntervals(
+        sampleSheet)
 
       demultiplexed <- Demultiplexing.allLanes(r)(ResourceConfig.minimal)
+
       perSampleFastQs = ProtoPipeline
         .groupBySample(demultiplexed.withoutUndetermined)
+
       fastpReports = startFastpReports(perSampleFastQs)
+
       _ <- ProtoPipeline.allSamples(
         PerSamplePipelineInput(
           perSampleFastQs.toSet,
           reference,
-          knownSites.toSet
+          knownSites.toSet,
+          selectionTargetIntervals
         ))(ResourceConfig.minimal)
+
       _ <- fastpReports
+
     } yield true
 
   }
@@ -70,24 +78,30 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
 case class PerSamplePipelineInput(demultiplexed: Set[PerSampleFastQ],
                                   reference: ReferenceFasta,
-                                  knownSites: Set[VCF])
+                                  knownSites: Set[VCF],
+                                  selectionTargetIntervals: BedFile)
     extends WithSharedFiles(
       demultiplexed.toSeq.flatMap(_.files) ++ reference.files ++ knownSites
-        .flatMap(_.files): _*)
+        .flatMap(_.files) ++ selectionTargetIntervals.files: _*)
 
 case class SingleSamplePipelineInput(demultiplexed: PerSampleFastQ,
                                      knownSites: Set[VCF],
-                                     indexedReference: IndexedReferenceFasta)
+                                     indexedReference: IndexedReferenceFasta,
+                                     selectionTargetIntervals: BedFile)
     extends WithSharedFiles(
       demultiplexed.files ++ indexedReference.files ++ knownSites.flatMap(
-        _.files): _*)
+        _.files) ++ selectionTargetIntervals.files: _*)
 
-case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
-                                      project: Project,
-                                      sampleId: SampleId,
-                                      runId: RunId,
-                                      alignmentQC: AlignmentQCResult)
-    extends WithSharedFiles(bam.files ++ alignmentQC.files: _*)
+case class SingleSamplePipelineResult(
+    bam: CoordinateSortedBam,
+    project: Project,
+    sampleId: SampleId,
+    runId: RunId,
+    alignmentQC: AlignmentQCResult,
+    targetSelectionQC: Option[SelectionQCResult])
+    extends WithSharedFiles(
+      bam.files ++ alignmentQC.files ++ targetSelectionQC.toSeq
+        .flatMap(_.files): _*)
 
 case class PerSamplePipelineResult(samples: Set[SingleSamplePipelineResult])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
@@ -155,6 +169,20 @@ object ProtoPipeline extends StrictLogging {
     }
   }
 
+  private def fetchTargetIntervals(sampleSheet: SampleSheet.ParsedData)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) = {
+    val file = new File(sampleSheet.genomeCenterMetadata("targetIntervals"))
+    val fileName = file.getName
+    logger.debug(s"Fetching target interval file $file")
+    SharedFile(file, fileName).map(BedFile(_)).andThen {
+      case Success(_) =>
+        logger.debug(s"Fetched target intervals (capture kit definition)")
+      case Failure(e) =>
+        logger.error(s"Failed to target intervals $file", e)
+
+    }
+  }
   private def fetchKnownSitesFiles(sampleSheet: SampleSheet.ParsedData)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) = {
@@ -186,7 +214,8 @@ object ProtoPipeline extends StrictLogging {
       1) {
       case SingleSamplePipelineInput(demultiplexed,
                                      knownSites,
-                                     indexedReference) =>
+                                     indexedReference,
+                                     selectionTargetIntervals) =>
         implicit computationEnvironment =>
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
@@ -232,13 +261,22 @@ object ProtoPipeline extends StrictLogging {
                 AlignmentQCInput(recalibrated, indexedReference))(
                 ResourceConfig.minimal)
             }
+            targetSelectionQC <- intoQCFolder {
+              implicit computationEnvironment =>
+                AlignmentQC.hybridizationSelection(
+                  SelectionQCInput(recalibrated,
+                                   indexedReference,
+                                   selectionTargetIntervals))(
+                  ResourceConfig.minimal)
+            }
           } yield
             SingleSamplePipelineResult(
               bam = recalibrated,
               project = demultiplexed.project,
               runId = demultiplexed.runId,
               sampleId = demultiplexed.sampleId,
-              alignmentQC = alignmentQC
+              alignmentQC = alignmentQC,
+              targetSelectionQC = Some(targetSelectionQC)
             )
 
     }
@@ -247,7 +285,10 @@ object ProtoPipeline extends StrictLogging {
     AsyncTask[PerSamplePipelineInput, PerSamplePipelineResult](
       "__persample-allsamples",
       1) {
-      case PerSamplePipelineInput(demultiplexed, referenceFasta, knownSites) =>
+      case PerSamplePipelineInput(demultiplexed,
+                                  referenceFasta,
+                                  knownSites,
+                                  selectionTargetIntervals) =>
         implicit computationEnvironment =>
           releaseResources
           computationEnvironment.withFilePrefix(Seq("projects")) {
@@ -260,7 +301,8 @@ object ProtoPipeline extends StrictLogging {
                     ProtoPipeline.singleSample(
                       SingleSamplePipelineInput(perSampleFastQs,
                                                 knownSites,
-                                                indexedFasta))(
+                                                indexedFasta,
+                                                selectionTargetIntervals))(
                       ResourceConfig.minimal)
                   }
               } yield PerSamplePipelineResult(processedSamples.toSet)
