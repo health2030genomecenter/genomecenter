@@ -102,6 +102,13 @@ class ProtopipelineTestSuite
         project1RecalibratedBam.canRead shouldBe true
         val project1Timestamp = project1RecalibratedBam.lastModified
 
+        And("alignment summary metrics should be present")
+        val qcFolder = new File(
+          basePath.getAbsolutePath + s"/projects/project1/whateverRunId/QC")
+        new File(
+          qcFolder,
+          "project1.GIB.whateverRunId.bqsr.bam.alignment_summary_metrics").canRead shouldBe true
+
         And("project3 should not be demultiplexed")
         val project3Folder =
           new File(basePath.getAbsolutePath + s"/projects/project3/")

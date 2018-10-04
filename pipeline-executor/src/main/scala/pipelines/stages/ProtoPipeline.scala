@@ -82,7 +82,14 @@ case class SingleSamplePipelineInput(demultiplexed: PerSampleFastQ,
       demultiplexed.files ++ indexedReference.files ++ knownSites.flatMap(
         _.files): _*)
 
-case class PerSamplePipelineResult(samples: Set[BamWithSampleMetadata])
+case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
+                                      project: Project,
+                                      sampleId: SampleId,
+                                      runId: RunId,
+                                      alignmentQC: AlignmentQCResult)
+    extends WithSharedFiles(bam.files ++ alignmentQC.files: _*)
+
+case class PerSamplePipelineResult(samples: Set[SingleSamplePipelineResult])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object ProtoPipeline extends StrictLogging {
@@ -174,7 +181,7 @@ object ProtoPipeline extends StrictLogging {
   }
 
   val singleSample =
-    AsyncTask[SingleSamplePipelineInput, BamWithSampleMetadata](
+    AsyncTask[SingleSamplePipelineInput, SingleSamplePipelineResult](
       "__persample-single",
       1) {
       case SingleSamplePipelineInput(demultiplexed,
@@ -191,6 +198,10 @@ object ProtoPipeline extends StrictLogging {
           def intoFinalFolder[T] =
             appendToFilePrefix[T](
               Seq(demultiplexed.project, demultiplexed.runId))
+
+          def intoQCFolder[T] =
+            appendToFilePrefix[T](
+              Seq(demultiplexed.project, demultiplexed.runId, "QC"))
 
           for {
 
@@ -216,7 +227,19 @@ object ProtoPipeline extends StrictLogging {
                 ApplyBQSRInput(alignedSample.bam, indexedReference, table))(
                 ResourceConfig.applyBqsr)
             }
-          } yield alignedSample.copy(bam = recalibrated)
+            alignmentQC <- intoQCFolder { implicit computationEnvironment =>
+              AlignmentQC.general(
+                AlignmentQCInput(recalibrated, indexedReference))(
+                ResourceConfig.minimal)
+            }
+          } yield
+            SingleSamplePipelineResult(
+              bam = recalibrated,
+              project = demultiplexed.project,
+              runId = demultiplexed.runId,
+              sampleId = demultiplexed.sampleId,
+              alignmentQC = alignmentQC
+            )
 
     }
 
@@ -266,4 +289,11 @@ object PerSamplePipelineResult {
     deriveEncoder[PerSamplePipelineResult]
   implicit val decoder: Decoder[PerSamplePipelineResult] =
     deriveDecoder[PerSamplePipelineResult]
+}
+
+object SingleSamplePipelineResult {
+  implicit val encoder: Encoder[SingleSamplePipelineResult] =
+    deriveEncoder[SingleSamplePipelineResult]
+  implicit val decoder: Decoder[SingleSamplePipelineResult] =
+    deriveDecoder[SingleSamplePipelineResult]
 }
