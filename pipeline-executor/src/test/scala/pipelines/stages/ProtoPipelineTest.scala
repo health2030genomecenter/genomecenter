@@ -188,16 +188,10 @@ Chemistry,Amplicon,,,,,,,,,
 [Settings],,,,,,,,,,
 ReverseComplement,0,,,,,,,,,
 ,,,,,,,,,,
-[GenomeCenter]
-bcl2fastqArguments,["--tiles","s_1_1101","--use-bases-mask","y75n,i6n*,n10,y75n"]
-automatic
-referenceFasta,$referenceFasta
-targetIntervals,$targetIntervals
-bqsr.knownSites,["$knownSitesVCF"]
 [Data],,,,,,,,,,
 Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description,Lane
-GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,project1,,L001
-sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project2,,L001
+GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,project1,,001
+sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project2,,001
       """
     )
 
@@ -224,8 +218,8 @@ ReverseComplement,0,,,,,,,,,
 ,,,,,,,,,,
 [Data],,,,,,,,,,
 Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description,Lane
-GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,project1,,L001
-sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,L001
+GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,project1,,001
+sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       """
     )
     val sampleSheetFile =

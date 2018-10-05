@@ -5,7 +5,7 @@ import org.scalatest._
 class SampleSheetTest extends FunSuite with Matchers {
 
   test(
-    "Sample sheet should be parsed correctly, including the [GenomeCenter] section") {
+    "Sample sheet should be parsed correctly") {
     new Fixture {
       val parsed = SampleSheet(exampleSampleSheetContent).parsed
       parsed.runId shouldBe None

@@ -111,11 +111,9 @@ Chemistry,Amplicon,,,,,,,,,
 [Settings],,,,,,,,,,
 ReverseComplement,0,,,,,,,,,
 ,,,,,,,,,,
-[GenomeCenter]
-bcl2fastqArguments,["--tiles","s_1_1101","--use-bases-mask","y75n,i6n*,n10,y75n"]
 [Data],,,,,,,,,,
 Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description,Lane
-GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,,,L001
+GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,,,001
       """
     )
     val sampleSheetFile =
