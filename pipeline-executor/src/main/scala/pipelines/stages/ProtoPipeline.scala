@@ -56,26 +56,32 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           selectionTargetIntervals
         ))(ResourceConfig.minimal)
 
-      sampleQCs = extractQCFiles(perSampleResults)
+      fastpReports <- fastpReports
+
+      sampleQCs = extractQCFiles(perSampleResults, fastpReports)
 
       _ <- inRunQCFolder { implicit tsc =>
         AlignmentQC.runQCTable(RunQCTableInput(RunId(r.runId), sampleQCs))(
           ResourceConfig.minimal)
       }
 
-      _ <- fastpReports
-
     } yield true
 
   }
 
-  def extractQCFiles(
-      sampleResults: PerSamplePipelineResult): Seq[SampleMetrics] =
+  def extractQCFiles(sampleResults: PerSamplePipelineResult,
+                     fastpReports: Seq[FastpReport]): Seq[SampleMetrics] =
     sampleResults.samples.toSeq.map { sample =>
+      val fastpReportsOfSample = fastpReports.filter { fp =>
+        fp.sampleId == sample.sampleId &&
+        fp.project == sample.project &&
+        fp.runId == sample.runId
+      }
       SampleMetrics(
         sample.alignmentQC.alignmentSummary,
         sample.targetSelectionQC.hsMetrics,
         sample.duplicationQC.markDuplicateMetrics,
+        fastpReportsOfSample,
         sample.project,
         sample.sampleId,
         sample.runId
@@ -83,7 +89,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     }
 
   def startFastpReports(perSampleFastQs: Seq[PerSampleFastQ])(
-      implicit tsc: TaskSystemComponents) = {
+      implicit tsc: TaskSystemComponents): Future[Seq[FastpReport]] = {
     val fastqsPerLanePerSample = for {
       sample <- perSampleFastQs
       lane <- sample.lanes
