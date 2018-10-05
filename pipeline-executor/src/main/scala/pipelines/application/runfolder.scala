@@ -8,14 +8,22 @@ import io.circe._
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import java.nio.file.FileSystems
 import java.io.File
-import fileutils.openSource
 import com.typesafe.scalalogging.StrictLogging
+import com.typesafe.config.ConfigFactory
+import scala.collection.JavaConverters._
 
-import org.gc.pipelines.model.SampleSheet
+case class RunConfiguration(
+    automatic: Boolean,
+    sampleSheet: String,
+    referenceFasta: String,
+    targetIntervals: String,
+    bqsrKnownSites: Set[String],
+    extraBcl2FastqArguments: Seq[String]
+)
 
 case class RunfolderReadyForProcessing(runId: String,
-                                       sampleSheet: SampleSheet,
-                                       runFolderPath: String)
+                                       runFolderPath: String,
+                                       runConfiguration: RunConfiguration)
 
 case class ProcessingFinished(run: RunfolderReadyForProcessing,
                               success: Boolean)
@@ -47,7 +55,7 @@ case class CompositeSequencingCompleteEventSource(
   */
 case class FolderWatcherEventSource(folderWhereRunFoldersArePlaced: String,
                                     fileSignalingCompletion: String,
-                                    sampleSheetFolder: File)
+                                    configFileFolder: File)
     extends SequencingCompleteEventSource
     with StrictLogging {
   private val fs = FileSystems.getDefault
@@ -71,7 +79,15 @@ case class FolderWatcherEventSource(folderWhereRunFoldersArePlaced: String,
         case (fileInRunFolder, DirectoryChange.Creation)
             if fileInRunFolder.getFileName.toString == fileSignalingCompletion =>
           val runFolder = fileInRunFolder.toFile.getParentFile
-          RunfolderReadyForProcessing.readFolder(runFolder, sampleSheetFolder)
+          val parsedRunFolder =
+            RunfolderReadyForProcessing.readFolder(runFolder, configFileFolder)
+          parsedRunFolder.left.foreach { error =>
+            logger.info(s"$runFolder failed to parse due to error $error.")
+          }
+          parsedRunFolder
+      }
+      .collect {
+        case Right(runFolderReady) => runFolderReady
       }
 
 }
@@ -82,21 +98,56 @@ object RunfolderReadyForProcessing {
   implicit val decoder: Decoder[RunfolderReadyForProcessing] =
     deriveDecoder[RunfolderReadyForProcessing]
 
-  def readFolder(runFolder: File,
-                 sampleSheetFolder: File): RunfolderReadyForProcessing = {
-
-    val runId = runFolder.getAbsoluteFile.getName
-    val sampleSheetFile = new File(sampleSheetFolder, "sampleSheet-" + runId)
-    val sampleSheet = SampleSheet(openSource(sampleSheetFile)(_.mkString))
-    RunfolderReadyForProcessing(runId, sampleSheet, runFolder.getAbsolutePath)
-  }
-
-  def readFolderWithSampleSheet(
+  def readFolder(
       runFolder: File,
-      sampleSheetFile: File): RunfolderReadyForProcessing = {
+      configFileFolder: File): Either[String, RunfolderReadyForProcessing] = {
 
     val runId = runFolder.getAbsoluteFile.getName
-    val sampleSheet = SampleSheet(openSource(sampleSheetFile)(_.mkString))
-    RunfolderReadyForProcessing(runId, sampleSheet, runFolder.getAbsolutePath)
+    val runConfigurationFile = new File(configFileFolder, "config-" + runId)
+    RunConfiguration(runConfigurationFile).map(
+      runConfiguration =>
+        RunfolderReadyForProcessing(runId,
+                                    runFolder.getAbsolutePath,
+                                    runConfiguration))
   }
+
+  def readFolderWithConfigFile(runFolder: File, runConfigurationFile: File)
+    : Either[String, RunfolderReadyForProcessing] = {
+
+    val runId = runFolder.getAbsoluteFile.getName
+    RunConfiguration(runConfigurationFile).map(
+      runConfiguration =>
+        RunfolderReadyForProcessing(runId,
+                                    runFolder.getAbsolutePath,
+                                    runConfiguration))
+  }
+}
+
+object RunConfiguration {
+  implicit val encoder: Encoder[RunConfiguration] =
+    deriveEncoder[RunConfiguration]
+  implicit val decoder: Decoder[RunConfiguration] =
+    deriveDecoder[RunConfiguration]
+
+  def apply(content: String): Either[String, RunConfiguration] =
+    scala.util
+      .Try {
+        val config = ConfigFactory.parseString(content)
+        RunConfiguration(
+          automatic = config.getBoolean("automatic"),
+          referenceFasta = config.getString("referenceFasta"),
+          targetIntervals = config.getString("targetIntervals"),
+          bqsrKnownSites = config.getStringList("bqsr.knownSites").asScala.toSet,
+          extraBcl2FastqArguments =
+            config.getStringList("extraBcl2FastqArguments").asScala,
+          sampleSheet = config.getString("sampleSheet")
+        )
+      }
+      .toEither
+      .left
+      .map(_.toString)
+
+  def apply(file: File): Either[String, RunConfiguration] =
+    apply(fileutils.openSource(file)(_.mkString))
+
 }

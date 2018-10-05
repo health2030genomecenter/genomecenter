@@ -12,7 +12,6 @@ import akka.stream.ActorMaterializer
 import akka.testkit.{TestKit, TestProbe}
 
 import org.gc.pipelines.application._
-import org.gc.pipelines.model.SampleSheet
 import fileutils._
 
 class FolderWatcherEventSourceTest
@@ -36,9 +35,19 @@ class FolderWatcherEventSourceTest
       tmpFile
     }
 
+    // config.getBoolean("automatic"),
+    //       referenceFasta = config.getString("referenceFasta"),
+    //       targetIntervals = config.getString("targetIntervals"),
+    //       bqsrKnownSites = config.getStringList("bqsr.knownSites").asScala.toSet,
+    //       extraBcl2FastqArguments =
+    //         config.getStringList("extraBcl2FastqArguments").asScala,
+    //       sampleSheet = config.getString("sampleSheet")
+
     val fileNameToWatch = "something"
-    val sampleSheetFileName = "sampleSheet-runid"
-    val sampleSheetFileContent = "blabla"
+    val configurationFile = "config-runid"
+    val configurationFileContent =
+      "automatic=true\nsampleSheet=b\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\nextraBcl2FastqArguments=[]"
+    val runConfiguration = RunConfiguration(configurationFileContent)
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)
 
@@ -47,15 +56,15 @@ class FolderWatcherEventSourceTest
       FolderWatcherEventSource(folderWhereRunFoldersArePlaced =
                                  watchedFolder.getAbsolutePath,
                                fileSignalingCompletion = fileNameToWatch,
-                               sampleSheetFolder = runFolder).events
+                               configFileFolder = runFolder).events
 
     val probe = TestProbe()
     source.to(Sink.actorRef(probe.ref, "completed")).run()
     When("a run folder is created")
     runFolder.mkdir
-    And("a sample sheet is created")
-    openFileWriter(new File(runFolder, sampleSheetFileName)) { writer =>
-      writer.write(sampleSheetFileContent)
+    And("a config file is created")
+    openFileWriter(new File(runFolder, configurationFile)) { writer =>
+      writer.write(configurationFileContent)
     }
     Then("the source should not emit")
     probe.expectNoMessage(3 seconds)
@@ -65,8 +74,8 @@ class FolderWatcherEventSourceTest
     Then("the source should emit and the sample sheet should be read")
     probe.expectMsg(
       RunfolderReadyForProcessing(runId,
-                                  SampleSheet(sampleSheetFileContent),
-                                  runFolder.getAbsolutePath))
+                                  runFolder.getAbsolutePath,
+                                  runConfiguration.right.get))
     When("the watched file is deleted")
     watchedFile.delete
     Then("the source should not emit")

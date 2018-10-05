@@ -7,6 +7,16 @@ import io.circe.generic.semiauto._
 import org.gc.pipelines.model._
 import scala.concurrent.{ExecutionContext, Future}
 
+case class SampleSheetFile(file: SharedFile) extends WithSharedFiles {
+  def parse(implicit tsc: TaskSystemComponents, ec: ExecutionContext) = {
+    implicit val mat = tsc.actorMaterializer
+    file.source
+      .runFold(akka.util.ByteString.empty)(_ ++ _)
+      .map(_.utf8String)
+      .map(SampleSheet(_).parsed)
+  }
+}
+
 case class ReferenceFasta(file: SharedFile) extends WithSharedFiles(file)
 
 case class IndexedReferenceFasta(fasta: SharedFile, indexFiles: Set[SharedFile])
@@ -217,4 +227,11 @@ object BedFile {
     deriveEncoder[BedFile]
   implicit val decoder: Decoder[BedFile] =
     deriveDecoder[BedFile]
+}
+
+object SampleSheetFile {
+  implicit val encoder: Encoder[SampleSheetFile] =
+    deriveEncoder[SampleSheetFile]
+  implicit val decoder: Decoder[SampleSheetFile] =
+    deriveDecoder[SampleSheetFile]
 }

@@ -8,7 +8,10 @@ import java.io.File
 
 import org.gc.pipelines.util.Exec
 import org.gc.pipelines.model._
-import org.gc.pipelines.application.RunfolderReadyForProcessing
+import org.gc.pipelines.application.{
+  RunfolderReadyForProcessing,
+  RunConfiguration
+}
 
 class ProtopipelineTestSuite
     extends FunSuite
@@ -25,8 +28,8 @@ class ProtopipelineTestSuite
         import scala.concurrent.ExecutionContext.Implicits.global
         val run =
           RunfolderReadyForProcessing(runId = runId,
-                                      sampleSheet = sampleSheet,
-                                      runFolderPath = runFolderPath)
+                                      runFolderPath = runFolderPath,
+                                      runConfiguration = runConfiguration)
         val pipeline = new ProtoPipeline()
         val future = pipeline.execute(run)
         import scala.concurrent.duration._
@@ -123,7 +126,9 @@ class ProtopipelineTestSuite
         When("executing the same runfolder with a different sample sheet")
 
         scala.concurrent.Await.result(
-          pipeline.execute(run.copy(sampleSheet = sampleSheet2)),
+          pipeline.execute(
+            run.copy(runConfiguration = run.runConfiguration.copy(
+              sampleSheet = sampleSheetFile2.getAbsolutePath))),
           atMost = 400000 seconds)
 
         Then("project3 should be demultiplexed")
@@ -217,19 +222,28 @@ Chemistry,Amplicon,,,,,,,,,
 [Settings],,,,,,,,,,
 ReverseComplement,0,,,,,,,,,
 ,,,,,,,,,,
-[GenomeCenter]
-bcl2fastqArguments,["--tiles","s_1_1101","--use-bases-mask","y75n,i6n*,n10,y75n"]
-automatic
-referenceFasta,$referenceFasta
-targetIntervals,$targetIntervals
-bqsr.knownSites,["$knownSitesVCF"]
 [Data],,,,,,,,,,
 Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project,Description,Lane
 GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,project1,,L001
 sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,L001
       """
     )
+    val sampleSheetFile =
+      fileutils.openFileWriter(_.write(sampleSheet.sampleSheetContent))._1
+
+    val sampleSheetFile2 =
+      fileutils.openFileWriter(_.write(sampleSheet2.sampleSheetContent))._1
     val runFolderPath = extractRunFolderTestData
+
+    val runConfiguration = RunConfiguration(
+      automatic = true,
+      sampleSheet = sampleSheetFile.getAbsolutePath,
+      referenceFasta = referenceFasta,
+      targetIntervals = targetIntervals,
+      bqsrKnownSites = Set(knownSitesVCF.getAbsolutePath),
+      extraBcl2FastqArguments =
+        Seq("--tiles", "s_1_1101", "--use-bases-mask", "y75n,i6n*,n10,y75n")
+    )
 
     val (testConfig, basePath) = makeTestConfig
   }

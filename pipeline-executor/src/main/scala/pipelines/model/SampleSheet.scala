@@ -18,11 +18,10 @@ object SampleSheet extends StrictLogging {
 
   case class ParsedData(header: Map[String, Option[String]],
                         dataHeader: Seq[String],
-                        data: Seq[Seq[String]],
-                        genomeCenterMetadata: Map[String, String]) {
+                        data: Seq[Seq[String]]) {
 
     override def toString =
-      s"SampleSheet.ParsedData(header=$header, genomeCenter=$genomeCenterMetadata dataHeader=$dataHeader, data = $data)"
+      s"SampleSheet.ParsedData(header=$header, dataHeader=$dataHeader, data = $data)"
 
     private def positive(integer: Int) =
       if (integer >= 0) Some(integer) else None
@@ -81,33 +80,6 @@ object SampleSheet extends StrictLogging {
     def getProjectBySampleId(id: SampleId): Option[Project] =
       poolingLayout.find(_.sample == id).map(_.project)
 
-    val extraBcl2FastqCliArguments: Seq[String] =
-      genomeCenterMetadata
-        .get("bcl2fastqArguments")
-        .toList
-        .flatMap { value =>
-          io.circe.parser.parse(value) match {
-            case Left(failure) =>
-              logger.error(
-                "Failed to parse bcl2fastqArguments line of [GenomeCenter] section",
-                failure)
-              Nil
-            case Right(json) =>
-              json.asArray match {
-                case None =>
-                  logger.error(
-                    s"""bcl2fastqArguments must be a json array of strings e.g. ["one","two"]. got $json """)
-                  Nil
-                case Some(array) =>
-                  if (array.forall(_.isString)) array.flatMap(_.asString.toList)
-                  else {
-                    logger.error(
-                      s"""bcl2fastqArguments must be a json array of strings e.g. ["one","two"]. got $json """)
-                    Nil
-                  }
-              }
-          }
-        }
   }
 
   def parseSampleSheet(sheet: SampleSheet): ParsedData = {
@@ -126,10 +98,6 @@ object SampleSheet extends StrictLogging {
         case Seq(key, rest @ _*) => Some((key, rest.headOption))
       }
 
-    def getFirstKeyAndRestOfLine(line: String) = line.split(',').toSeq match {
-      case Seq(key, rest @ _*) => Some((key, rest.mkString(",")))
-      case Seq()               => None
-    }
     val header = getSectionLines("Header")
       .map(getFirstKeyValuePair)
       .collect {
@@ -141,17 +109,10 @@ object SampleSheet extends StrictLogging {
     val dataHeader = dataLines.head.split(',').toList
     val dataContentLines = dataLines.drop(1).map(_.split(',').toSeq)
 
-    val genomeCenterMetadata =
-      getSectionLines("GenomeCenter")
-        .map(getFirstKeyAndRestOfLine)
-        .collect { case Some(pair) => pair }
-        .toMap
-
     ParsedData(
       header = header.filterNot(_._1.isEmpty),
       dataHeader = dataHeader,
-      data = dataContentLines,
-      genomeCenterMetadata = genomeCenterMetadata.filterNot(_._1.isEmpty)
+      data = dataContentLines
     )
 
   }

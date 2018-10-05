@@ -21,9 +21,7 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
 
   val events = source
 
-  case class RunfolderDTO(path: String,
-                          sampleSheetFolderPath: String,
-                          sampleSheetFilePath: Option[String])
+  case class RunfolderDTO(path: String, configurationFilePath: String)
   object RunfolderDTO {
     implicit val encoder: Encoder[RunfolderDTO] =
       deriveEncoder[RunfolderDTO]
@@ -35,25 +33,23 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
     post {
       path("runfolder") {
         entity(as[RunfolderDTO]) {
-          case RunfolderDTO(runFolderPath,
-                            sampleSheetFolderPath,
-                            maybeSampleSheet) =>
+          case dto @ RunfolderDTO(runFolderPath, configurationFile) =>
             logger.info(s"Got $runFolderPath")
             val runFolder = new java.io.File(runFolderPath)
             if (runFolder.canRead) {
-              val runFolderReadyEvent = maybeSampleSheet match {
-                case None =>
-                  RunfolderReadyForProcessing.readFolder(
-                    runFolder,
-                    new File(sampleSheetFolderPath)
-                  )
-                case Some(sampleSheet) =>
-                  RunfolderReadyForProcessing.readFolderWithSampleSheet(
-                    runFolder,
-                    new File(sampleSheet),
-                  )
+              val maybeRunFolderReadyEvent =
+                RunfolderReadyForProcessing.readFolderWithConfigFile(
+                  runFolder,
+                  new File(configurationFile)
+                )
+
+              maybeRunFolderReadyEvent match {
+                case Left(error) =>
+                  logger.info(s"$dto failed to parse due to error $error.")
+                case Right(runFolderReadyEvent) =>
+                  sourceActor ! runFolderReadyEvent
               }
-              sourceActor ! runFolderReadyEvent
+
               complete(akka.http.scaladsl.model.StatusCodes.OK)
             } else complete(akka.http.scaladsl.model.StatusCodes.BadRequest)
         }

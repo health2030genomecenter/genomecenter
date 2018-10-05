@@ -20,7 +20,6 @@ import akka.http.scaladsl.model.{
 }
 
 import org.gc.pipelines.application._
-import org.gc.pipelines.model.SampleSheet
 import fileutils._
 
 class HttpEventSourceTest
@@ -45,8 +44,11 @@ class HttpEventSourceTest
     }
 
     val fileNameToWatch = "something"
-    val sampleSheetFileName = "sampleSheet-runid"
-    val sampleSheetFileContent = "blabla"
+    val runConfigurationFileName = "config-runid"
+    val runConfigurationFileContent =
+      "automatic=true\nsampleSheet=b\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\nextraBcl2FastqArguments=[]"
+
+    val runConfiguration = RunConfiguration(runConfigurationFileContent)
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)
 
@@ -60,8 +62,8 @@ class HttpEventSourceTest
     When("a run folder is created")
     runFolder.mkdir
     And("a sample sheet is created")
-    openFileWriter(new File(runFolder, sampleSheetFileName)) { writer =>
-      writer.write(sampleSheetFileContent)
+    openFileWriter(new File(runFolder, runConfigurationFileName)) { writer =>
+      writer.write(runConfigurationFileContent)
     }
     Then("the source should not emit")
     probe.expectNoMessage(3 seconds)
@@ -76,15 +78,15 @@ class HttpEventSourceTest
       uri = Uri("/runfolder"),
       entity = HttpEntity(
         ContentTypes.`application/json`,
-        s"""{"path":"$runFolder","sampleSheetFolderPath":"$runFolder" } """)
+        s"""{"path":"$runFolder","configurationFilePath":"$runFolder/config-runid" } """)
     )
     request ~> server.route ~> check {
       status shouldEqual StatusCodes.OK
       Then("the source should emit")
       probe.expectMsg(
         RunfolderReadyForProcessing(runId,
-                                    SampleSheet(sampleSheetFileContent),
-                                    runFolder.getAbsolutePath))
+                                    runFolder.getAbsolutePath,
+                                    runConfiguration.right.get))
       When("the watched file is deleted")
       watchedFile.delete
       Then("the source should not emit")

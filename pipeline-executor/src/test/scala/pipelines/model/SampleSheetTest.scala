@@ -21,13 +21,6 @@ class SampleSheetTest extends FunSuite with Matchers {
                               Some(Index("TATAGCCT")))
       )
 
-      parsed.genomeCenterMetadata shouldBe Map(
-        "customKey" -> "customValue",
-        "bcl2fastqArguments" -> """["--flag","stuff,with,comma"]""")
-
-      parsed.extraBcl2FastqCliArguments shouldBe Seq("--flag",
-                                                     "stuff,with,comma")
-
     }
 
   }

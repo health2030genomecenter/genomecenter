@@ -3,9 +3,13 @@ package org.gc.pipelines.stages
 import scala.concurrent.{ExecutionContext, Future}
 import tasks._
 import tasks.circesupport._
-import org.gc.pipelines.application.{Pipeline, RunfolderReadyForProcessing}
+import org.gc.pipelines.application.{
+  Pipeline,
+  RunfolderReadyForProcessing,
+  RunConfiguration
+}
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{parseAsStringList, ResourceConfig}
+import org.gc.pipelines.util.ResourceConfig
 import java.io.File
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -16,29 +20,28 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     extends Pipeline
     with StrictLogging {
   def canProcess(r: RunfolderReadyForProcessing) = {
-    val sampleSheet = r.sampleSheet.parsed
-    sampleSheet.genomeCenterMetadata.contains("automatic") &&
-    sampleSheet.genomeCenterMetadata.contains("referenceFasta") &&
-    sampleSheet.runId.isDefined
+    r.runConfiguration.automatic
   }
 
   def execute(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents) = {
 
-    val sampleSheet = r.sampleSheet.parsed
-
-    logger.debug(s"${r.runId} Parsed sample sheet as $sampleSheet")
-
     def inRunQCFolder[T](f: TaskSystemComponents => T) =
       tsc.withFilePrefix(Seq("runQC"))(f)
 
     for {
-      reference <- ProtoPipeline.fetchReference(sampleSheet)
-      knownSites <- ProtoPipeline.fetchKnownSitesFiles(sampleSheet)
+      reference <- ProtoPipeline.fetchReference(r.runConfiguration)
+      knownSites <- ProtoPipeline.fetchKnownSitesFiles(r.runConfiguration)
+      sampleSheet <- ProtoPipeline.fetchSampleSheet(r.runConfiguration)
       selectionTargetIntervals <- ProtoPipeline.fetchTargetIntervals(
-        sampleSheet)
+        r.runConfiguration)
 
-      demultiplexed <- Demultiplexing.allLanes(r)(ResourceConfig.minimal)
+      demultiplexed <- Demultiplexing.allLanes(
+        DemultiplexingInput(RunId(r.runId),
+                            r.runFolderPath,
+                            sampleSheet,
+                            r.runConfiguration.extraBcl2FastqArguments))(
+        ResourceConfig.minimal)
 
       perSampleFastQs = ProtoPipeline
         .groupBySample(demultiplexed.withoutUndetermined)
@@ -176,40 +179,61 @@ object ProtoPipeline extends StrictLogging {
           )
       }
 
-  private def fetchReference(sampleSheet: SampleSheet.ParsedData)(
+  private def fetchReference(runConfiguration: RunConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) = {
-    val file = new File(sampleSheet.genomeCenterMetadata("referenceFasta"))
-    val fileName = file.getName
-    logger.debug(s"Fetching reference $file")
-    SharedFile(file, fileName).map(ReferenceFasta(_)).andThen {
-      case Success(_) =>
-        logger.debug(s"Fetched reference")
-      case Failure(e) =>
-        logger.error(s"Failed to fetch reference $file", e)
+    tsc.withFilePrefix(Seq("references")) { implicit tsc =>
+      val file = new File(runConfiguration.referenceFasta)
+      val fileName = file.getName
+      logger.debug(s"Fetching reference $file")
+      SharedFile(file, fileName).map(ReferenceFasta(_)).andThen {
+        case Success(_) =>
+          logger.debug(s"Fetched reference")
+        case Failure(e) =>
+          logger.error(s"Failed to fetch reference $file", e)
 
+      }
     }
   }
 
-  private def fetchTargetIntervals(sampleSheet: SampleSheet.ParsedData)(
+  private def fetchSampleSheet(runConfiguration: RunConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) = {
-    val file = new File(sampleSheet.genomeCenterMetadata("targetIntervals"))
-    val fileName = file.getName
-    logger.debug(s"Fetching target interval file $file")
-    SharedFile(file, fileName).map(BedFile(_)).andThen {
-      case Success(_) =>
-        logger.debug(s"Fetched target intervals (capture kit definition)")
-      case Failure(e) =>
-        logger.error(s"Failed to target intervals $file", e)
+    tsc.withFilePrefix(Seq("sampleSheets")) { implicit tsc =>
+      val file = new File(runConfiguration.sampleSheet)
+      val fileName = file.getName
+      logger.debug(s"Fetching sample sheet $file")
+      SharedFile(file, fileName).map(SampleSheetFile(_)).andThen {
+        case Success(_) =>
+          logger.debug(s"Fetched reference")
+        case Failure(e) =>
+          logger.error(s"Failed to fetch reference $file", e)
 
+      }
     }
   }
-  private def fetchKnownSitesFiles(sampleSheet: SampleSheet.ParsedData)(
+
+  private def fetchTargetIntervals(runConfiguration: RunConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) = {
-    val files = parseAsStringList(
-      sampleSheet.genomeCenterMetadata("bqsr.knownSites")).right.get
+    tsc.withFilePrefix(Seq("references")) { implicit tsc =>
+      val file = new File(runConfiguration.targetIntervals)
+      val fileName = file.getName
+      logger.debug(s"Fetching target interval file $file")
+      SharedFile(file, fileName).map(BedFile(_)).andThen {
+        case Success(_) =>
+          logger.debug(s"Fetched target intervals (capture kit definition)")
+        case Failure(e) =>
+          logger.error(s"Failed to target intervals $file", e)
+
+      }
+    }
+  }
+  private def fetchKnownSitesFiles(runConfiguration: RunConfiguration)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) = {
+    val files =
+      runConfiguration.bqsrKnownSites
 
     val fileListWithIndices = files.map { vcfFile =>
       (new File(vcfFile), new File(vcfFile + ".idx"))

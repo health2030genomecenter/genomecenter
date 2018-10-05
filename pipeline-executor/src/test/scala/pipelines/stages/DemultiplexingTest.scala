@@ -12,7 +12,6 @@ import java.io.File
 
 import org.gc.pipelines.util.Exec
 import org.gc.pipelines.model._
-import org.gc.pipelines.application.RunfolderReadyForProcessing
 
 class DemultiplexingTestSuite
     extends FunSuite
@@ -37,10 +36,16 @@ class DemultiplexingTestSuite
       When("executing the Demultiplexing.allLanes task")
       val result = withTaskSystem(testConfig) { implicit ts =>
         val future = Demultiplexing.allLanes(
-          RunfolderReadyForProcessing(runId = runId,
-                                      sampleSheet = sampleSheet,
-                                      runFolderPath = runFolderPath))(
-          CPUMemoryRequest(1, 500))
+          DemultiplexingInput(
+            runId = RunId(runId),
+            runFolderPath = runFolderPath,
+            sampleSheet = SampleSheetFile(
+              await(SharedFile(sampleSheetFile, "sampleSheet"))),
+            extraBcl2FastqCliArguments = Seq("--tiles",
+                                             "s_1_1101",
+                                             "--use-bases-mask",
+                                             "y75n,i6n*,n10,y75n")
+          ))(CPUMemoryRequest(1, 500))
         import scala.concurrent.duration._
         scala.concurrent.Await.result(future, atMost = 400000 seconds)
 
@@ -113,6 +118,8 @@ Sample_ID,Sample_Name,Sample_Plate,Sample_Well,Index_Plate_Well,I7_Index_ID,inde
 GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,,,L001
       """
     )
+    val sampleSheetFile =
+      fileutils.openFileWriter(_.write(sampleSheet.sampleSheetContent))._1
     val runFolderPath = extractRunFolderTestData
 
     val (testConfig, basePath) = makeTestConfig
