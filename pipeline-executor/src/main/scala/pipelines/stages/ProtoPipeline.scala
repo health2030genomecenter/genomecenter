@@ -29,6 +29,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
     logger.debug(s"${r.runId} Parsed sample sheet as $sampleSheet")
 
+    def inRunQCFolder[T](f: TaskSystemComponents => T) =
+      tsc.withFilePrefix(Seq("runQC"))(f)
+
     for {
       reference <- ProtoPipeline.fetchReference(sampleSheet)
       knownSites <- ProtoPipeline.fetchKnownSitesFiles(sampleSheet)
@@ -42,7 +45,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
       fastpReports = startFastpReports(perSampleFastQs)
 
-      _ <- ProtoPipeline.allSamples(
+      perSampleResults <- ProtoPipeline.allSamples(
         PerSamplePipelineInput(
           perSampleFastQs.toSet,
           reference,
@@ -50,11 +53,31 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           selectionTargetIntervals
         ))(ResourceConfig.minimal)
 
+      sampleQCs = extractQCFiles(perSampleResults)
+
+      _ <- inRunQCFolder { implicit tsc =>
+        AlignmentQC.runQCTable(RunQCTableInput(RunId(r.runId), sampleQCs))(
+          ResourceConfig.minimal)
+      }
+
       _ <- fastpReports
 
     } yield true
 
   }
+
+  def extractQCFiles(
+      sampleResults: PerSamplePipelineResult): Seq[SampleMetrics] =
+    sampleResults.samples.toSeq.map { sample =>
+      SampleMetrics(
+        sample.alignmentQC.alignmentSummary,
+        sample.targetSelectionQC.hsMetrics,
+        sample.duplicationQC.markDuplicateMetrics,
+        sample.project,
+        sample.sampleId,
+        sample.runId
+      )
+    }
 
   def startFastpReports(perSampleFastQs: Seq[PerSampleFastQ])(
       implicit tsc: TaskSystemComponents) = {
@@ -92,16 +115,15 @@ case class SingleSamplePipelineInput(demultiplexed: PerSampleFastQ,
       demultiplexed.files ++ indexedReference.files ++ knownSites.flatMap(
         _.files) ++ selectionTargetIntervals.files: _*)
 
-case class SingleSamplePipelineResult(
-    bam: CoordinateSortedBam,
-    project: Project,
-    sampleId: SampleId,
-    runId: RunId,
-    alignmentQC: AlignmentQCResult,
-    targetSelectionQC: Option[SelectionQCResult])
+case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
+                                      project: Project,
+                                      sampleId: SampleId,
+                                      runId: RunId,
+                                      alignmentQC: AlignmentQCResult,
+                                      duplicationQC: DuplicationQCResult,
+                                      targetSelectionQC: SelectionQCResult)
     extends WithSharedFiles(
-      bam.files ++ alignmentQC.files ++ targetSelectionQC.toSeq
-        .flatMap(_.files): _*)
+      bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files: _*)
 
 case class PerSamplePipelineResult(samples: Set[SingleSamplePipelineResult])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
@@ -234,7 +256,7 @@ object ProtoPipeline extends StrictLogging {
 
           for {
 
-            alignedSample <- intoIntermediateFolder {
+            AlignedSample(alignedSample, duplicationQC) <- intoIntermediateFolder {
               implicit computationEnvironment =>
                 BWAAlignment
                   .alignFastqPerSample(
@@ -245,6 +267,7 @@ object ProtoPipeline extends StrictLogging {
                                                indexedReference))(
                     ResourceConfig.minimal)
             }
+
             table <- intoIntermediateFolder { implicit computationEnvironment =>
               BaseQualityScoreRecalibration.trainBQSR(
                 TrainBQSRInput(alignedSample.bam,
@@ -256,6 +279,7 @@ object ProtoPipeline extends StrictLogging {
                 ApplyBQSRInput(alignedSample.bam, indexedReference, table))(
                 ResourceConfig.applyBqsr)
             }
+
             alignmentQC <- intoQCFolder { implicit computationEnvironment =>
               AlignmentQC.general(
                 AlignmentQCInput(recalibrated, indexedReference))(
@@ -269,6 +293,7 @@ object ProtoPipeline extends StrictLogging {
                                    selectionTargetIntervals))(
                   ResourceConfig.minimal)
             }
+
           } yield
             SingleSamplePipelineResult(
               bam = recalibrated,
@@ -276,7 +301,8 @@ object ProtoPipeline extends StrictLogging {
               runId = demultiplexed.runId,
               sampleId = demultiplexed.sampleId,
               alignmentQC = alignmentQC,
-              targetSelectionQC = Some(targetSelectionQC)
+              duplicationQC = duplicationQC,
+              targetSelectionQC = targetSelectionQC
             )
 
     }
@@ -296,6 +322,7 @@ object ProtoPipeline extends StrictLogging {
               for {
                 indexedFasta <- BWAAlignment.indexReference(referenceFasta)(
                   ResourceConfig.indexReference)
+
                 processedSamples <- Future
                   .traverse(demultiplexed.toSeq) { perSampleFastQs =>
                     ProtoPipeline.singleSample(
@@ -305,6 +332,7 @@ object ProtoPipeline extends StrictLogging {
                                                 selectionTargetIntervals))(
                       ResourceConfig.minimal)
                   }
+
               } yield PerSamplePipelineResult(processedSamples.toSet)
           }
 

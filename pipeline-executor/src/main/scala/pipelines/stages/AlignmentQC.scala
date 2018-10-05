@@ -6,7 +6,11 @@ import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import fileutils.TempFile
 import org.gc.pipelines.util.Exec
+import org.gc.pipelines.model._
 import java.io.File
+import scala.concurrent.Future
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
 
 case class AlignmentQCInput(bam: CoordinateSortedBam,
                             reference: IndexedReferenceFasta)
@@ -35,7 +39,90 @@ case class AlignmentQCResult(
                             preAdapterDetail,
                             preAdapterSummary)
 
+case class SampleMetrics(alignmentSummary: SharedFile,
+                         hsMetrics: SharedFile,
+                         duplicationMetrics: SharedFile,
+                         project: Project,
+                         sampleId: SampleId,
+                         runId: RunId)
+    extends WithSharedFiles(alignmentSummary, hsMetrics, duplicationMetrics)
+
+case class RunQCTableInput(runId: RunId, samples: Seq[SampleMetrics])
+    extends WithSharedFiles(samples.flatMap(_.files): _*)
+
+case class RunQCTable(file: SharedFile) extends WithSharedFiles(file)
+
 object AlignmentQC {
+
+  def makeTable(
+      metrics: Seq[(AlignmentSummaryMetrics.Root,
+                    HsMetrics.Root,
+                    DuplicationMetrics.Root)]): String = {
+    val header =
+      "Proj          Sample        Lane   CptrKit              TotRds   MeanTrgtCov %PfRds %PfRdsAligned %PfUqRdsAligned   %Dup   DupRds OptDupRds BadCycles %Chimera %TrgtBase10 %TrgtBase30 %TrgtBase50"
+
+    val lines = metrics
+      .map {
+        case (alignment, targetSelection, dups) =>
+          import alignment.pairMetrics._
+          import targetSelection.metrics._
+          import dups.metrics._
+          import alignment._
+
+          val totalReads = alignment.pairMetrics.totalReads
+
+          f"$project%-14s$sampleId%-14s$lane%-7s$baitSet%-15s${totalReads / 1E6}%10.2fMb$meanTargetCoverage%13.1fx$pctPfReads%6.2f%%$pctPfReadsAligned%13.2f%%$pctPfUniqueReadsAligned%15.2f%%$pctDuplication%6.2f%%${readPairDuplicates / 1E6}%7.2fMb${readPairOpticalDuplicates / 1E6}%8.2fMb$badCycles%10s$pctChimeras%8.2f%%$pctTargetBases10%11.2f%%$pctTargetBases30%11.2f%%$pctTargetBases50%11.2f%%"
+
+      }
+      .mkString("\n")
+
+    header + "\n" + lines
+
+  }
+
+  val runQCTable =
+    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 1) {
+      case RunQCTableInput(runId, sampleMetrics) =>
+        implicit computationEnvironment =>
+          def read(f: File) = fileutils.openSource(f)(_.mkString)
+          def parse(m: SampleMetrics) =
+            for {
+              alignmentSummariesPerLane <- m.alignmentSummary.file
+                .map(read)
+                .map(txt =>
+                  AlignmentSummaryMetrics
+                    .Root(txt, m.project, m.sampleId, m.runId))
+              hsMetricsPerLane <- m.hsMetrics.file
+                .map(read)
+                .map(txt => HsMetrics.Root(txt, m.project, m.sampleId, m.runId))
+              dupMetrics <- m.duplicationMetrics.file
+                .map(read)
+                .map(txt =>
+                  DuplicationMetrics.Root(txt, m.project, m.sampleId, m.runId))
+            } yield {
+              alignmentSummariesPerLane.map { alSummaryOfLane =>
+                val lane = alSummaryOfLane.lane
+                val hsMetricsOfLane = hsMetricsPerLane.find(_.lane == lane).get
+                (alSummaryOfLane, hsMetricsOfLane, dupMetrics)
+              }
+            }
+          type MetricsTuple = (AlignmentSummaryMetrics.Root,
+                               HsMetrics.Root,
+                               DuplicationMetrics.Root)
+          val parsedFiles: Future[Seq[MetricsTuple]] =
+            Future.traverse(sampleMetrics)(parse).map(_.flatten)
+
+          for {
+            metrics <- parsedFiles
+            result <- {
+              val table = makeTable(metrics)
+              println(table)
+              SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
+                         runId + ".qc.table").map(RunQCTable(_))
+            }
+          } yield result
+
+    }
 
   val hybridizationSelection =
     AsyncTask[SelectionQCInput, SelectionQCResult]("__alignmentqc-selection", 1) {
@@ -164,4 +251,25 @@ object SelectionQCResult {
     deriveEncoder[SelectionQCResult]
   implicit val decoder: Decoder[SelectionQCResult] =
     deriveDecoder[SelectionQCResult]
+}
+
+object RunQCTableInput {
+  implicit val encoder: Encoder[RunQCTableInput] =
+    deriveEncoder[RunQCTableInput]
+  implicit val decoder: Decoder[RunQCTableInput] =
+    deriveDecoder[RunQCTableInput]
+}
+
+object RunQCTable {
+  implicit val encoder: Encoder[RunQCTable] =
+    deriveEncoder[RunQCTable]
+  implicit val decoder: Decoder[RunQCTable] =
+    deriveDecoder[RunQCTable]
+}
+
+object SampleMetrics {
+  implicit val encoder: Encoder[SampleMetrics] =
+    deriveEncoder[SampleMetrics]
+  implicit val decoder: Decoder[SampleMetrics] =
+    deriveDecoder[SampleMetrics]
 }

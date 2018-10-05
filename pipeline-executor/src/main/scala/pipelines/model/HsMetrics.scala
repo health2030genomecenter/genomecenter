@@ -49,7 +49,6 @@ object HsMetrics {
         .map(_.split("\\t").toVector)
         .toVector
       val header = lines.head
-
       def parseHeader(headerFields: Seq[String]) = {
         val idx = headerFields.map { h =>
           h -> header.indexOf(h)
@@ -57,6 +56,7 @@ object HsMetrics {
 
         (field: String, line: Vector[String]) =>
           if (idx(field) >= line.length) "" else line(idx(field))
+
       }
 
       def laneFromReadGroup(readGroup: String): Lane =
@@ -72,7 +72,7 @@ object HsMetrics {
         val TARGET_TERRITORY = "TARGET_TERRITORY"
         val PF_UNIQUE_READS = "PF_UNIQUE_READS"
         val PF_UQ_READS_ALIGNED = "PF_UQ_READS_ALIGNED"
-        val PCT_PF_UQ_READS_ALIGNED = "PCT_PF_UQ_READS_ALIGNED "
+        val PCT_PF_UQ_READS_ALIGNED = "PCT_PF_UQ_READS_ALIGNED"
         val MEAN_TARGET_COVERAGE = "MEAN_TARGET_COVERAGE"
         val MEDIAN_TARGET_COVERAGE = "MEDIAN_TARGET_COVERAGE"
         val MAX_TARGET_COVERAGE = "MAX_TARGET_COVERAGE"
@@ -121,7 +121,7 @@ object HsMetrics {
           pfReads = g(H.PF_READS).toLong,
           pfUniqueReads = g(H.PF_UNIQUE_READS).toLong,
           pfUniqueReadsAligned = g(H.PF_UQ_READS_ALIGNED).toLong,
-          pctPfUniqueReadsAligned = g(H.PF_UQ_READS_ALIGNED).toDouble,
+          pctPfUniqueReadsAligned = g(H.PCT_PF_UQ_READS_ALIGNED).toDouble,
           meanTargetCoverage = g(H.MEAN_TARGET_COVERAGE).toDouble,
           medianTargetCoverage = g(H.MEDIAN_TARGET_COVERAGE).toDouble,
           maxTargetCoverage = g(H.MAX_TARGET_COVERAGE).toDouble,

@@ -13,7 +13,39 @@ class AlignmentQCTest
     with GivenWhenThen
     with TestHelpers {
 
-  test("Parse AlignmentSummaryMetrics") {
+  ignore("Render table") {
+    new Fixture {
+      val dup = DuplicationMetrics
+        .Root(duplicationMetricsText, project, sampleId, runId)
+      val als = AlignmentSummaryMetrics
+        .Root(alignmentSummaryMetricsText, project, sampleId, runId)
+      val hs = HsMetrics
+        .Root(hsMetricsFile, project, sampleId, runId)
+      val joined = als.map { alSummaryOfLane =>
+        val lane = alSummaryOfLane.lane
+        val hsMetricsOfLane = hs.find(_.lane == lane).get
+        (alSummaryOfLane, hsMetricsOfLane, dup)
+      }
+      AlignmentQC.makeTable(joined)
+    }
+  }
+
+  test("Parse DuplicationMetrics") {
+    new Fixture {
+      Given("an output table from picard's DuplicationMetrics")
+      When("we try to parse it")
+      DuplicationMetrics
+        .Root(duplicationMetricsText, project, sampleId, runId)
+      DuplicationMetrics
+        .Root(duplicationMetricsText2,
+              Project("project1"),
+              SampleId("GIB"),
+              runId)
+      Then("it should not fail")
+    }
+  }
+
+  ignore("Parse AlignmentSummaryMetrics") {
     new Fixture {
       Given("an output table from picard's AlignmentSummaryMetrics")
       When("we try to parse it")
@@ -23,7 +55,7 @@ class AlignmentQCTest
     }
   }
 
-  test("Parse HsMetrics") {
+  ignore("Parse HsMetrics") {
     new Fixture {
       Given("an output table from picard's HsMetrics")
       When("we try to parse it")
@@ -33,7 +65,7 @@ class AlignmentQCTest
     }
   }
 
-  test("SelectionQC  should produce expected files") {
+  ignore("SelectionQC  should produce expected files") {
     new Fixture {
 
       Given("a bam file and a reference")
@@ -65,7 +97,7 @@ class AlignmentQCTest
     }
   }
 
-  test("AlignmentQC general should produce expected files") {
+  ignore("AlignmentQC general should produce expected files") {
     new Fixture {
 
       Given("a bam file and a reference")
@@ -349,6 +381,134 @@ coverage_or_base_quality	high_quality_coverage_count	unfiltered_baseq_count	high
 198	0	0	0	0
 199	0	0	0	0
 200	0	0	0	0
+
+"""
+
+    val duplicationMetricsText =
+      """## htsjdk.samtools.metrics.StringHeader
+# MarkDuplicates  --INPUT /private/var/folders/l1/wh6226rn1fsbp5134w8391440000gn/T/tasks2018_10_04_16_05_34/tasks2018_10_04_16_05_342561162817543363859.temp/some.bam --OUTPUT /var/folders/l1/wh6226rn1fsbp5134w8391440000gn/T/fileutil2018_10_04_16_05_360/fileutil2018_10_04_16_05_36253803680595703226.bam --METRICS_FILE /var/folders/l1/wh6226rn1fsbp5134w8391440000gn/T/fileutil2018_10_04_16_05_360/fileutil2018_10_04_16_05_366905709434336158524.metrics --OPTICAL_DUPLICATE_PIXEL_DISTANCE 250 --TMP_DIR /var/folders/l1/wh6226rn1fsbp5134w8391440000gn/T/fileutil2018_10_04_16_05_360/fileutil2018_10_04_16_05_363105775668648271251.markDuplicateTempFolder --CREATE_INDEX true  --MAX_SEQUENCES_FOR_DISK_READ_ENDS_MAP 50000 --MAX_FILE_HANDLES_FOR_READ_ENDS_MAP 8000 --SORTING_COLLECTION_SIZE_RATIO 0.25 --TAG_DUPLICATE_SET_MEMBERS false --REMOVE_SEQUENCING_DUPLICATES false --TAGGING_POLICY DontTag --CLEAR_DT true --ADD_PG_TAG_TO_READS true --REMOVE_DUPLICATES false --ASSUME_SORTED false --DUPLICATE_SCORING_STRATEGY SUM_OF_BASE_QUALITIES --PROGRAM_RECORD_ID MarkDuplicates --PROGRAM_GROUP_NAME MarkDuplicates --READ_NAME_REGEX <optimized capture of last three ':' separated fields as numeric values> --MAX_OPTICAL_DUPLICATE_SET_SIZE 300000 --VERBOSITY INFO --QUIET false --VALIDATION_STRINGENCY STRICT --COMPRESSION_LEVEL 5 --MAX_RECORDS_IN_RAM 500000 --CREATE_MD5_FILE false --GA4GH_CLIENT_SECRETS client_secrets.json --help false --version false --showHidden false --USE_JDK_DEFLATER false --USE_JDK_INFLATER false
+## htsjdk.samtools.metrics.StringHeader
+# Started on: Thu Oct 04 16:05:39 CEST 2018
+
+## METRICS CLASS	picard.sam.DuplicationMetrics
+LIBRARY	UNPAIRED_READS_EXAMINED	READ_PAIRS_EXAMINED	SECONDARY_OR_SUPPLEMENTARY_RDS	UNMAPPED_READS	UNPAIRED_READ_DUPLICATES	READ_PAIR_DUPLICATES	READ_PAIR_OPTICAL_DUPLICATES	PERCENT_DUPLICATION	ESTIMATED_LIBRARY_SIZE
+someProject.someSampleId	0	5000	0	0	0	0	0	0	
+
+
+"""
+
+    val duplicationMetricsText2 =
+      """## htsjdk.samtools.metrics.StringHeader
+# MarkDuplicates  --INPUT /tmp/tasks2018_10_05_08_11_46/tasks2018_10_05_08_11_467560874900561946991.temp/projects/project1/whateverRunId/intermediate/project1.GIB.whateverRunId.L001.bam --OUTPUT /tmp/fileutil2018_10_05_08_11_440/fileutil2018_10_05_08_11_443267388414674492666.bam --METRICS_FILE /tmp/fileutil2018_10_05_08_11_440/fileutil2018_10_05_08_11_445813249422001716734.metrics --OPTICAL_DUPLICATE_PIXEL_DISTANCE 250 --TMP_DIR /tmp/fileutil2018_10_05_08_11_440/fileutil2018_10_05_08_11_445060739684805306.markDuplicateTempFolder --CREATE_INDEX true  --MAX_SEQUENCES_FOR_DISK_READ_ENDS_MAP 50000 --MAX_FILE_HANDLES_FOR_READ_ENDS_MAP 8000 --SORTING_COLLECTION_SIZE_RATIO 0.25 --TAG_DUPLICATE_SET_MEMBERS false --REMOVE_SEQUENCING_DUPLICATES false --TAGGING_POLICY DontTag --CLEAR_DT true --ADD_PG_TAG_TO_READS true --REMOVE_DUPLICATES false --ASSUME_SORTED false --DUPLICATE_SCORING_STRATEGY SUM_OF_BASE_QUALITIES --PROGRAM_RECORD_ID MarkDuplicates --PROGRAM_GROUP_NAME MarkDuplicates --READ_NAME_REGEX <optimized capture of last three ':' separated fields as numeric values> --MAX_OPTICAL_DUPLICATE_SET_SIZE 300000 --VERBOSITY INFO --QUIET false --VALIDATION_STRINGENCY STRICT --COMPRESSION_LEVEL 5 --MAX_RECORDS_IN_RAM 500000 --CREATE_MD5_FILE false --GA4GH_CLIENT_SECRETS client_secrets.json --help false --version false --showHidden false --USE_JDK_DEFLATER false --USE_JDK_INFLATER false
+## htsjdk.samtools.metrics.StringHeader
+# Started on: Fri Oct 05 08:14:01 UTC 2018
+
+## METRICS CLASS	picard.sam.DuplicationMetrics
+LIBRARY	UNPAIRED_READS_EXAMINED	READ_PAIRS_EXAMINED	SECONDARY_OR_SUPPLEMENTARY_RDS	UNMAPPED_READS	UNPAIRED_READ_DUPLICATES	READ_PAIR_DUPLICATES	READ_PAIR_OPTICAL_DUPLICATES	PERCENT_DUPLICATION	ESTIMATED_LIBRARY_SIZE
+project1.GIB	7273	6937	194	66865	36	8	1	0.002459	3433980
+
+## HISTOGRAM	java.lang.Double
+BIN	VALUE
+1.0	1.000144
+2.0	1.99827
+3.0	2.994381
+4.0	3.988482
+5.0	4.980577
+6.0	5.97067
+7.0	6.958765
+8.0	7.944866
+9.0	8.928977
+10.0	9.911101
+11.0	10.891244
+12.0	11.869409
+13.0	12.8456
+14.0	13.81982
+15.0	14.792075
+16.0	15.762368
+17.0	16.730702
+18.0	17.697083
+19.0	18.661513
+20.0	19.623997
+21.0	20.584538
+22.0	21.543141
+23.0	22.49981
+24.0	23.454548
+25.0	24.407359
+26.0	25.358247
+27.0	26.307217
+28.0	27.254271
+29.0	28.199414
+30.0	29.14265
+31.0	30.083982
+32.0	31.023415
+33.0	31.960952
+34.0	32.896596
+35.0	33.830353
+36.0	34.762225
+37.0	35.692216
+38.0	36.620331
+39.0	37.546573
+40.0	38.470946
+41.0	39.393453
+42.0	40.314098
+43.0	41.232886
+44.0	42.149819
+45.0	43.064902
+46.0	43.978138
+47.0	44.889531
+48.0	45.799085
+49.0	46.706804
+50.0	47.612691
+51.0	48.516749
+52.0	49.418983
+53.0	50.319396
+54.0	51.217992
+55.0	52.114775
+56.0	53.009748
+57.0	53.902915
+58.0	54.794279
+59.0	55.683845
+60.0	56.571615
+61.0	57.457594
+62.0	58.341785
+63.0	59.224191
+64.0	60.104817
+65.0	60.983666
+66.0	61.860741
+67.0	62.736046
+68.0	63.609584
+69.0	64.48136
+70.0	65.351376
+71.0	66.219637
+72.0	67.086145
+73.0	67.950905
+74.0	68.81392
+75.0	69.675193
+76.0	70.534728
+77.0	71.392528
+78.0	72.248597
+79.0	73.102939
+80.0	73.955556
+81.0	74.806453
+82.0	75.655633
+83.0	76.503099
+84.0	77.348854
+85.0	78.192903
+86.0	79.035249
+87.0	79.875895
+88.0	80.714844
+89.0	81.5521
+90.0	82.387667
+91.0	83.221547
+92.0	84.053744
+93.0	84.884262
+94.0	85.713104
+95.0	86.540274
+96.0	87.365774
+97.0	88.189608
+98.0	89.011779
+99.0	89.832292
+100.0	90.651148
 
 """
 

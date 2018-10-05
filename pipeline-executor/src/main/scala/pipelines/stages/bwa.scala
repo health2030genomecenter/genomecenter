@@ -34,6 +34,14 @@ case class PerSampleBWAAlignmentInput(
         .flatMap(fq => List(fq.read1.file, fq.read2.file))
         .toSeq :+ reference.fasta: _*)
 
+case class DuplicationQCResult(markDuplicateMetrics: SharedFile)
+    extends WithSharedFiles(markDuplicateMetrics)
+
+case class AlignedSample(
+    bam: BamWithSampleMetadata,
+    duplicateMetric: DuplicationQCResult
+) extends WithSharedFiles(bam.files ++ duplicateMetric.files: _*)
+
 object BWAAlignment {
 
   val indexReference =
@@ -87,9 +95,7 @@ object BWAAlignment {
     }
 
   val alignFastqPerSample =
-    AsyncTask[PerSampleBWAAlignmentInput, BamWithSampleMetadata](
-      "__bwa-persample",
-      1) {
+    AsyncTask[PerSampleBWAAlignmentInput, AlignedSample]("__bwa-persample", 1) {
       case PerSampleBWAAlignmentInput(fastqs,
                                       project,
                                       sampleId,
@@ -120,9 +126,7 @@ object BWAAlignment {
     }
 
   val mergeAndMarkDuplicate =
-    AsyncTask[BamsWithSampleMetadata, BamWithSampleMetadata](
-      "__merge-markduplicate",
-      1) {
+    AsyncTask[BamsWithSampleMetadata, AlignedSample]("__merge-markduplicate", 1) {
       case BamsWithSampleMetadata(project, sampleId, runId, bams) =>
         implicit computationEnvironment =>
           val picardJar = extractPicardJar()
@@ -187,18 +191,21 @@ object BWAAlignment {
                 bai <- SharedFile(expectedBai,
                                   name = nameStub + ".bai",
                                   deleteFile = true)
-                _ <- SharedFile(tmpMetricsFile,
-                                name = nameStub + ".markDuplicateMetrics",
-                                deleteFile = true)
+                duplicateMetric <- SharedFile(
+                  tmpMetricsFile,
+                  name = nameStub + ".markDuplicateMetrics",
+                  deleteFile = true)
                 bam <- SharedFile(tmpDuplicateMarkedBam,
                                   name = nameStub + ".bam",
                                   deleteFile = true)
                 _ <- Future.traverse(bams)(_.file.delete)
               } yield
-                BamWithSampleMetadata(project,
-                                      sampleId,
-                                      runId,
-                                      CoordinateSortedBam(bam, bai))
+                AlignedSample(
+                  BamWithSampleMetadata(project,
+                                        sampleId,
+                                        runId,
+                                        CoordinateSortedBam(bam, bai)),
+                  DuplicationQCResult(duplicateMetric))
 
             }
           } yield result
@@ -370,4 +377,18 @@ object PerSampleBWAAlignmentInput {
     deriveEncoder[PerSampleBWAAlignmentInput]
   implicit val decoder: Decoder[PerSampleBWAAlignmentInput] =
     deriveDecoder[PerSampleBWAAlignmentInput]
+}
+
+object AlignedSample {
+  implicit val encoder: Encoder[AlignedSample] =
+    deriveEncoder[AlignedSample]
+  implicit val decoder: Decoder[AlignedSample] =
+    deriveDecoder[AlignedSample]
+}
+
+object DuplicationQCResult {
+  implicit val encoder: Encoder[DuplicationQCResult] =
+    deriveEncoder[DuplicationQCResult]
+  implicit val decoder: Decoder[DuplicationQCResult] =
+    deriveDecoder[DuplicationQCResult]
 }

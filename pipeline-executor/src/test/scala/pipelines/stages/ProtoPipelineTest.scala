@@ -117,6 +117,9 @@ class ProtopipelineTestSuite
           new File(basePath.getAbsolutePath + s"/projects/project3/")
         project3Folder.canRead shouldBe false
 
+        And("runQC file should be present")
+        new File(basePath.getAbsolutePath + s"/runQC/$runId.qc.table").canRead shouldBe true
+
         When("executing the same runfolder with a different sample sheet")
 
         scala.concurrent.Await.result(
