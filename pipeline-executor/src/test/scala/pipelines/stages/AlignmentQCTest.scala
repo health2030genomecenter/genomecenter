@@ -13,7 +13,7 @@ class AlignmentQCTest
     with GivenWhenThen
     with TestHelpers {
 
-  ignore("Render table") {
+  test("Render table") {
     new Fixture {
       val dup = DuplicationMetrics
         .Root(duplicationMetricsText, project, sampleId, runId)
@@ -45,7 +45,7 @@ class AlignmentQCTest
     }
   }
 
-  ignore("Parse AlignmentSummaryMetrics") {
+  test("Parse AlignmentSummaryMetrics") {
     new Fixture {
       Given("an output table from picard's AlignmentSummaryMetrics")
       When("we try to parse it")
@@ -55,7 +55,7 @@ class AlignmentQCTest
     }
   }
 
-  ignore("Parse HsMetrics") {
+  test("Parse HsMetrics") {
     new Fixture {
       Given("an output table from picard's HsMetrics")
       When("we try to parse it")
@@ -65,7 +65,7 @@ class AlignmentQCTest
     }
   }
 
-  ignore("SelectionQC  should produce expected files") {
+  test("SelectionQC  should produce expected files") {
     new Fixture {
 
       Given("a bam file and a reference")
@@ -97,7 +97,7 @@ class AlignmentQCTest
     }
   }
 
-  ignore("AlignmentQC general should produce expected files") {
+  test("AlignmentQC general should produce expected files") {
     new Fixture {
 
       Given("a bam file and a reference")
