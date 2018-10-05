@@ -90,4 +90,13 @@ object RunfolderReadyForProcessing {
     val sampleSheet = SampleSheet(openSource(sampleSheetFile)(_.mkString))
     RunfolderReadyForProcessing(runId, sampleSheet, runFolder.getAbsolutePath)
   }
+
+  def readFolderWithSampleSheet(
+      runFolder: File,
+      sampleSheetFile: File): RunfolderReadyForProcessing = {
+
+    val runId = runFolder.getAbsoluteFile.getName
+    val sampleSheet = SampleSheet(openSource(sampleSheetFile)(_.mkString))
+    RunfolderReadyForProcessing(runId, sampleSheet, runFolder.getAbsolutePath)
+  }
 }

@@ -21,7 +21,9 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
 
   val events = source
 
-  case class RunfolderDTO(path: String, sampleSheetFolderPath: String)
+  case class RunfolderDTO(path: String,
+                          sampleSheetFolderPath: String,
+                          sampleSheetFilePath: Option[String])
   object RunfolderDTO {
     implicit val encoder: Encoder[RunfolderDTO] =
       deriveEncoder[RunfolderDTO]
@@ -33,13 +35,25 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
     post {
       path("runfolder") {
         entity(as[RunfolderDTO]) {
-          case RunfolderDTO(runFolderPath, sampleSheetFolderPath) =>
+          case RunfolderDTO(runFolderPath,
+                            sampleSheetFolderPath,
+                            maybeSampleSheet) =>
             logger.info(s"Got $runFolderPath")
             val runFolder = new java.io.File(runFolderPath)
             if (runFolder.canRead) {
-              sourceActor ! RunfolderReadyForProcessing.readFolder(
-                runFolder,
-                new File(sampleSheetFolderPath))
+              val runFolderReadyEvent = maybeSampleSheet match {
+                case None =>
+                  RunfolderReadyForProcessing.readFolder(
+                    runFolder,
+                    new File(sampleSheetFolderPath)
+                  )
+                case Some(sampleSheet) =>
+                  RunfolderReadyForProcessing.readFolderWithSampleSheet(
+                    runFolder,
+                    new File(sampleSheet),
+                  )
+              }
+              sourceActor ! runFolderReadyEvent
               complete(akka.http.scaladsl.model.StatusCodes.OK)
             } else complete(akka.http.scaladsl.model.StatusCodes.BadRequest)
         }
