@@ -6,6 +6,7 @@ import tasks._
 import java.io.File
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.gc.pipelines.model._
+import org.gc.pipelines.model.{FastpReport => FastpReportModel}
 
 class AlignmentQCTest
     extends FunSuite
@@ -21,12 +22,14 @@ class AlignmentQCTest
         .Root(alignmentSummaryMetricsText, project, sampleId, runId)
       val hs = HsMetrics
         .Root(hsMetricsFile, project, sampleId, runId)
+      val fastp = FastpReportModel
+        .Root(fastpText, project, sampleId, runId, Lane(lane))
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
-        (alSummaryOfLane, hsMetricsOfLane, dup)
+        (alSummaryOfLane, hsMetricsOfLane, dup, fastp)
       }
-      AlignmentQC.makeTable(joined)
+      println(AlignmentQC.makeTable(joined))
     }
   }
 
@@ -511,6 +514,12 @@ BIN	VALUE
 100.0	90.651148
 
 """
+
+    val fastpText = scala.io.Source
+      .fromInputStream(
+        getClass.getResourceAsStream(
+          "/someProject.someSampleId.someRunId.L001.fastp.json"))
+      .mkString
 
     val project = Project("someProject")
     val sampleId = SampleId("someSampleId")

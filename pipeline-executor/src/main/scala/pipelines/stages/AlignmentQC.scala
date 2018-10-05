@@ -62,19 +62,20 @@ object AlignmentQC {
                     DuplicationMetrics.Root,
                     FastpReportModel.Root)]): String = {
     val header =
-      "Proj          Sample        Lane   CptrKit              TotRds   MeanTrgtCov %PfRds %PfRdsAligned %PfUqRdsAligned   %Dup   DupRds OptDupRds BadCycles %Chimera %TrgtBase10 %TrgtBase30 %TrgtBase50"
+      "Proj          Sample        Lane   CptrKit              TotRds   MeanTrgtCov %PfRds %PfRdsAligned %PfUqRdsAligned   %Dup   DupRds OptDupRds BadCycles %Chimera %TrgtBase10 %TrgtBase30 %TrgtBase50    GC InsertSizePeak"
 
     val lines = metrics
       .map {
-        case (alignment, targetSelection, dups, _) =>
+        case (alignment, targetSelection, dups, fastpMetrics) =>
           import alignment.pairMetrics._
           import targetSelection.metrics._
           import dups.metrics._
           import alignment._
+          import fastpMetrics.metrics._
 
           val totalReads = alignment.pairMetrics.totalReads
 
-          f"$project%-14s$sampleId%-14s$lane%-7s$baitSet%-15s${totalReads / 1E6}%10.2fMb$meanTargetCoverage%13.1fx$pctPfReads%6.2f%%$pctPfReadsAligned%13.2f%%$pctPfUniqueReadsAligned%15.2f%%$pctDuplication%6.2f%%${readPairDuplicates / 1E6}%7.2fMb${readPairOpticalDuplicates / 1E6}%8.2fMb$badCycles%10s$pctChimeras%8.2f%%$pctTargetBases10%11.2f%%$pctTargetBases30%11.2f%%$pctTargetBases50%11.2f%%"
+          f"$project%-14s$sampleId%-14s$lane%-7s$baitSet%-15s${totalReads / 1E6}%10.2fMb$meanTargetCoverage%13.1fx$pctPfReads%6.2f%%$pctPfReadsAligned%13.2f%%$pctPfUniqueReadsAligned%15.2f%%$pctDuplication%6.2f%%${readPairDuplicates / 1E6}%7.2fMb${readPairOpticalDuplicates / 1E6}%8.2fMb$badCycles%10s$pctChimeras%8.2f%%$pctTargetBases10%11.2f%%$pctTargetBases30%11.2f%%$pctTargetBases50%11.2f%%$gcContent%6.2f$insertSizePeak%15s"
 
       }
       .mkString("\n")

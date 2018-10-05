@@ -15,8 +15,11 @@ object FastpReport {
   )
 
   case class Metrics(
-      fake: Boolean
+      gcContent: Double,
+      insertSizePeak: Int
   )
+
+  case class InsertSizeObject(peak: Int)
 
   object Root {
 
@@ -25,8 +28,22 @@ object FastpReport {
               sampleId: SampleId,
               runId: RunId,
               lane: Lane): Root = {
-      val _ = fastpJson
-      Root(project, sampleId, runId, lane, Metrics(true))
+      val jsonRoot = io.circe.parser.parse(fastpJson).right.get
+      val insertSizePeak =
+        jsonRoot.hcursor
+          .downField("insert_size")
+          .downField("peak")
+          .as[Int]
+          .right
+          .get
+      val gcContent = jsonRoot.hcursor
+        .downField("summary")
+        .downField("before_filtering")
+        .downField("gc_content")
+        .as[Double]
+        .right
+        .get
+      Root(project, sampleId, runId, lane, Metrics(gcContent, insertSizePeak))
     }
 
     implicit val encoder: Encoder[Root] =
