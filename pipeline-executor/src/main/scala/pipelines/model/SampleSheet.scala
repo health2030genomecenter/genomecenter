@@ -10,7 +10,8 @@ case class SampleSheet(sampleSheetContent: String) {
 
 object SampleSheet extends StrictLogging {
 
-  case class Multiplex(sample: SampleId,
+  case class Multiplex(sampleId: SampleId,
+                       sampleName: SampleName,
                        project: Project,
                        lane: Lane,
                        index1: Index,
@@ -38,6 +39,8 @@ object SampleSheet extends StrictLogging {
 
     private val sampleIdColumnIdx: Option[Int] = positive(
       dataHeader.indexOf("Sample_ID"))
+    private val sampleNameColumnIdx: Option[Int] = positive(
+      dataHeader.indexOf("Sample_Name"))
     private val projectColumnIdx: Option[Int] = positive(
       dataHeader.indexOf("Sample_Project"))
     private val laneColumnIdx: Option[Int] = positive(
@@ -55,6 +58,7 @@ object SampleSheet extends StrictLogging {
     val poolingLayout: Seq[Multiplex] = {
       val parsedLines = for {
         sampleIdColumnIdx <- sampleIdColumnIdx
+        sampleNameColumnIdx <- sampleNameColumnIdx
         projectColumnIdx <- projectColumnIdx
         laneColumnIdx <- laneColumnIdx
         index1ColumnIdx <- index1ColumnIdx
@@ -63,6 +67,7 @@ object SampleSheet extends StrictLogging {
           val cellInThisLine: Int => Option[String] = cell(line, _)
           (
             cellInThisLine(sampleIdColumnIdx).map(SampleId(_)),
+            cellInThisLine(sampleNameColumnIdx).map(SampleName(_)),
             cellInThisLine(projectColumnIdx).map(Project(_)),
             cellInThisLine(laneColumnIdx).map(Lane(_)),
             cellInThisLine(index1ColumnIdx).map(Index(_)),
@@ -72,13 +77,18 @@ object SampleSheet extends StrictLogging {
         }
       }
       parsedLines.toList.flatten.collect {
-        case (Some(sample), Some(project), Some(lane), Some(index1), index2) =>
-          Multiplex(sample, project, lane, index1, index2)
+        case (Some(sampleId),
+              Some(sampleName),
+              Some(project),
+              Some(lane),
+              Some(index1),
+              index2) =>
+          Multiplex(sampleId, sampleName, project, lane, index1, index2)
       }
     }
 
     def getProjectBySampleId(id: SampleId): Option[Project] =
-      poolingLayout.find(_.sample == id).map(_.project)
+      poolingLayout.find(_.sampleId == id).map(_.project)
 
   }
 
