@@ -52,9 +52,118 @@ case class SampleMetrics(alignmentSummary: SharedFile,
 case class RunQCTableInput(runId: RunId, samples: Seq[SampleMetrics])
     extends WithSharedFiles(samples.flatMap(_.files): _*)
 
-case class RunQCTable(file: SharedFile) extends WithSharedFiles(file)
+case class RunQCTable(table: SharedFile, htmlTable: SharedFile)
+    extends WithSharedFiles(table, htmlTable)
 
 object AlignmentQC {
+
+  def makeHtmlTable(
+      metrics: Seq[(AlignmentSummaryMetrics.Root,
+                    HsMetrics.Root,
+                    DuplicationMetrics.Root,
+                    FastpReportModel.Root)]): String = {
+    def mkHeader(elems1: Seq[String], elems: Seq[(String, Boolean)]) =
+      s"""
+          <thead>
+            <tr>
+              ${elems1
+        .dropRight(1)
+        .map { elem =>
+          s"""<th style="text-align: left; border-bottom: 1px solid #000;">$elem</th>"""
+        }
+        .mkString("\n")}
+
+          ${elems1.lastOption.map { elem =>
+        s"""<th style="text-align: left; border-bottom: 1px solid #000; padding-right:30px;">$elem</th>"""
+      }.mkString}
+
+              ${elems
+        .map {
+          case (elem, left) =>
+            val align = if (left) "left" else "right"
+            s"""<th style="text-align: $align; border-bottom: 1px solid #000;">$elem</th>"""
+        }
+        .mkString("\n")}
+            </tr>
+          </thead>
+          """
+
+    def line(elems: Seq[(String, Boolean)]) =
+      s"""
+          <tr>
+          ${elems
+        .map {
+          case (elem, left) =>
+            val align = if (left) "left" else "right"
+            s"""<td style="text-align: $align">$elem</td>"""
+        }
+        .mkString("\n")}
+          </tr>
+          """
+
+    val left = true
+    val right = false
+    val lines = metrics
+      .map {
+        case (alignment, targetSelection, dups, fastpMetrics) =>
+          import alignment.pairMetrics._
+          import targetSelection.metrics._
+          import dups.metrics._
+          import alignment._
+          import fastpMetrics.metrics._
+
+          val totalReads = alignment.pairMetrics.totalReads
+
+          line(
+            Seq(
+              project -> left,
+              sampleId -> left,
+              lane -> left,
+              baitSet -> left,
+              f"${totalReads / 1E6}%10.2fMb" -> right,
+              f"$meanTargetCoverage%13.1fx" -> right,
+              f"${pctPfReads * 100}%6.2f%%" -> right,
+              f"${pctPfReadsAligned * 100}%13.2f%%" -> right,
+              f"${pctPfUniqueReadsAligned * 100}%15.2f%%" -> right,
+              f"${pctDuplication * 100}%6.2f%%" -> right,
+              f"${readPairDuplicates / 1E6}%7.2fMb" -> right,
+              f"${readPairOpticalDuplicates / 1E6}%8.2fMb" -> right,
+              badCycles.toString -> right,
+              f"${pctChimeras * 100}%8.2f%%" -> right,
+              f"${pctTargetBases10 * 100}%11.2f%%" -> right,
+              f"${pctTargetBases30 * 100}%11.2f%%" -> right,
+              f"${pctTargetBases50 * 100}%11.2f%%" -> right,
+              f"$gcContent%6.2f" -> right,
+              insertSizePeak.toString -> right
+            ))
+
+      }
+      .mkString("\n")
+
+    val header = mkHeader(
+      List("Proj", "Sample", "Lane", "CaptureKit"),
+      List(
+        "TotalReads" -> right,
+        "MeanTargetCoverage" -> right,
+        "PFReads" -> right,
+        "PFReadsAligned" -> right,
+        "PFUniqueReadsAligned" -> right,
+        "Dup" -> right,
+        "DupReads" -> right,
+        "OptDupReads" -> right,
+        "BadCycles" -> right,
+        "Chimera" -> right,
+        "TargetBase10" -> right,
+        "Targetbase30" -> right,
+        "TargetBase50" -> right,
+        "GC" -> right,
+        "InsertSizePeak" -> right
+      )
+    )
+
+    """<!DOCTYPE html><head></head><body><table style="border-collapse: collapse;">""" + header + "\n<tbody>" + lines + "</tbody></table></body>"
+
+  }
 
   def makeTable(
       metrics: Seq[(AlignmentSummaryMetrics.Root,
@@ -75,7 +184,7 @@ object AlignmentQC {
 
           val totalReads = alignment.pairMetrics.totalReads
 
-          f"$project%-14s$sampleId%-14s$lane%-7s$baitSet%-15s${totalReads / 1E6}%10.2fMb$meanTargetCoverage%13.1fx$pctPfReads%6.2f%%$pctPfReadsAligned%13.2f%%$pctPfUniqueReadsAligned%15.2f%%$pctDuplication%6.2f%%${readPairDuplicates / 1E6}%7.2fMb${readPairOpticalDuplicates / 1E6}%8.2fMb$badCycles%10s$pctChimeras%8.2f%%$pctTargetBases10%11.2f%%$pctTargetBases30%11.2f%%$pctTargetBases50%11.2f%%$gcContent%6.2f$insertSizePeak%15s"
+          f"$project%-14s$sampleId%-14s$lane%-7s$baitSet%-15s${totalReads / 1E6}%10.2fMb$meanTargetCoverage%13.1fx${pctPfReads * 100}%6.2f%%${pctPfReadsAligned * 100}%13.2f%%${pctPfUniqueReadsAligned * 100}%15.2f%%${pctDuplication * 100}%6.2f%%${readPairDuplicates / 1E6}%7.2fMb${readPairOpticalDuplicates / 1E6}%8.2fMb$badCycles%10s$pctChimeras%8.2f%%${pctTargetBases10 * 100}%11.2f%%${pctTargetBases30 * 100}%11.2f%%${pctTargetBases50 * 100}%11.2f%%$gcContent%6.2f$insertSizePeak%15s"
 
       }
       .mkString("\n")
@@ -144,13 +253,17 @@ object AlignmentQC {
 
           for {
             metrics <- parsedFiles
-            result <- {
+            table <- {
               val table = makeTable(metrics)
-              println(table)
               SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
-                         runId + ".qc.table").map(RunQCTable(_))
+                         runId + ".qc.table")
             }
-          } yield result
+            htmlTable <- {
+              val table = makeHtmlTable(metrics)
+              SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
+                         runId + ".qc.table.html")
+            }
+          } yield RunQCTable(table, htmlTable)
 
     }
 

@@ -29,7 +29,26 @@ class AlignmentQCTest
         val hsMetricsOfLane = hs.find(_.lane == lane).get
         (alSummaryOfLane, hsMetricsOfLane, dup, fastp)
       }
-      println(AlignmentQC.makeTable(joined))
+      (AlignmentQC.makeTable(joined))
+    }
+  }
+
+  test("Render html table") {
+    new Fixture {
+      val dup = DuplicationMetrics
+        .Root(duplicationMetricsText, project, sampleId, runId)
+      val als = AlignmentSummaryMetrics
+        .Root(alignmentSummaryMetricsText, project, sampleId, runId)
+      val hs = HsMetrics
+        .Root(hsMetricsFile, project, sampleId, runId)
+      val fastp = FastpReportModel
+        .Root(fastpText, project, sampleId, runId, Lane(lane))
+      val joined = als.map { alSummaryOfLane =>
+        val lane = alSummaryOfLane.lane
+        val hsMetricsOfLane = hs.find(_.lane == lane).get
+        (alSummaryOfLane, hsMetricsOfLane, dup, fastp)
+      }
+      println(AlignmentQC.makeHtmlTable(joined))
     }
   }
 
