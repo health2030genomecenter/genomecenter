@@ -46,12 +46,19 @@ object DemultiplexingStats {
                                      TotalClustersRaw: Long,
                                      TotalClustersPF: Long,
                                      Yield: Long,
-                                     DemuxResults: Seq[DemuxResultPerSample])
+                                     DemuxResults: Seq[DemuxResultPerSample],
+                                     Undetermined: UndeterminedResuls)
 
   case class DemuxResultPerSample(
       SampleId: String,
       SampleName: String,
       IndexMetrics: Seq[IndexMetric],
+      NumberReads: Long,
+      Yield: Long,
+      ReadMetrics: Seq[ReadMetric]
+  )
+
+  case class UndeterminedResuls(
       NumberReads: Long,
       Yield: Long,
       ReadMetrics: Seq[ReadMetric]
@@ -101,7 +108,17 @@ object DemultiplexingSummary {
     val sampleSummaries = raw.ConversionResults.flatMap {
       conversionResultOfLane =>
         val lane = Lane(conversionResultOfLane.LaneNumber)
-        conversionResultOfLane.DemuxResults.map { demuxResultOfSample =>
+        val demuxed = conversionResultOfLane.DemuxResults
+        val undetermined = DemultiplexingStats.DemuxResultPerSample(
+          SampleId = "Undetermined",
+          SampleName = "Undetermined",
+          IndexMetrics = Nil,
+          NumberReads = conversionResultOfLane.Undetermined.NumberReads,
+          Yield = conversionResultOfLane.Undetermined.Yield,
+          ReadMetrics = conversionResultOfLane.Undetermined.ReadMetrics
+        )
+
+        (demuxed :+ undetermined).map { demuxResultOfSample =>
           val read1Metrics = demuxResultOfSample.ReadMetrics
             .find(_.ReadNumber == 1)
           val read2Metrics = demuxResultOfSample.ReadMetrics
@@ -194,12 +211,6 @@ object DemultiplexingSummary {
       read2PctQ30: Double,
   )
 
-// Lane totalClustersRow totalClustersPF %PFClusters
-//   1     123123123        23323234         89.0
-
-//   unknown barcodes Lane 1
-//   ATGCATG 123123123
-//   ADASF   f13131
   def renderAsTable(root: Root) = {
     val laneSummaryHeader =
       "Lanes:\nLane     TotClustRaw   TotClustPF       %PF"
@@ -217,11 +228,11 @@ object DemultiplexingSummary {
     }
 
     val sampleHeader =
-      "Samples:\nPrj           SmplId        Lane   BCode       BCMismatch%     TotRds    TotYield   Rd1_Yield   Rd2_Yield   Rd1_YieldQ30   Rd2_YieldQ30   Rd1_%Q30   Rd2_%Q30"
+      "Samples:\nPrj           SmplId        Lane   BCode             BCMismatch%     TotRds    TotYield   Rd1_Yield   Rd2_Yield   Rd1_YieldQ30   Rd2_YieldQ30   Rd1_%Q30   Rd2_%Q30"
 
     val sampleLines = root.sampleSummaries.map { s =>
       import s._
-      f"$project%-14s$sampleId%-14s$lane%-7s$indexSequence%-12s$indexMismatchRate%10.2f%%${totalReads / 1E6}%10.4fM${totalYield / 1E6}%10.2fMb${read1Yield / 1E6}%10.2fMb${read2Yield / 1E6}%10.2fMb${read1YieldQ30 / 1E6}%13.2fMb${read2YieldQ30 / 1E6}%13.2fMb$read1PctQ30%10.2f%%$read2PctQ30%10.2f%%"
+      f"$project%-14s$sampleId%-14s$lane%-7s$indexSequence%-18s$indexMismatchRate%10.2f%%${totalReads / 1E6}%10.4fM${totalYield / 1E6}%10.2fMb${read1Yield / 1E6}%10.2fMb${read2Yield / 1E6}%10.2fMb${read1YieldQ30 / 1E6}%13.2fMb${read2YieldQ30 / 1E6}%13.2fMb$read1PctQ30%10.2f%%$read2PctQ30%10.2f%%"
     }
 
     s"RunId: ${root.runId}\n\n" + laneSummaryHeader + "\n" + laneSummaryLines
