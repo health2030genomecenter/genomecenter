@@ -21,6 +21,12 @@ package object model {
   def SampleId(s: String): SampleId = tag[SampleIdTag][String](s)
   implicit val (sampleIdEncoder, sampleIdDecoder) = stringCodec[SampleIdTag]
 
+  trait SampleNameTag
+  type SampleName = String @@ SampleNameTag
+  def SampleName(s: String): SampleName = tag[SampleNameTag][String](s)
+  implicit val (sampleNameEncoder, sampleNameDecoder) =
+    stringCodec[SampleNameTag]
+
   trait ReadTypeTag
   type ReadType = String @@ ReadTypeTag
   def ReadType(s: String): ReadType = tag[ReadTypeTag][String](s)
