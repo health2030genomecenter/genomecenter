@@ -1,14 +1,19 @@
 package org.gc.pipelines.util
 
 import java.io.File
-import java.nio.file.{Files => JFiles}
+import java.nio.file.{Files => JFiles, FileSystems}
 import scala.collection.JavaConverters._
 
 object Files {
   def list(folder: File, glob: String): List[File] = {
-    val stream = JFiles.newDirectoryStream(folder.toPath, glob)
+    val pathMatcher = FileSystems.getDefault.getPathMatcher("glob:" + glob)
+    val stream =
+      JFiles.walk(folder.toPath)
     try {
-      stream.asScala.map(_.toFile).toList
+      stream.iterator.asScala
+        .filter(path => pathMatcher.matches(path))
+        .map(_.toFile)
+        .toList
     } finally {
       stream.close()
     }

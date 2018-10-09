@@ -110,7 +110,7 @@ object Demultiplexing {
   val perLane =
     AsyncTask[DemultiplexSingleLaneInput, DemultiplexedReadData](
       "__demultiplex-per-lane",
-      1) {
+      3) {
       case DemultiplexSingleLaneInput(
           DemultiplexingInput(runId,
                               runFolderPath,
@@ -190,7 +190,7 @@ object Demultiplexing {
               val statsFile =
                 new File(new File(outputFolder, "Stats"), "Stats.json")
 
-              Files.list(outputFolder, "*.fastq.gz") :+ statsFile
+              Files.list(outputFolder, "**.fastq.gz") :+ statsFile
 
             }(computationEnvironment.components
               .withChildPrefix(runId)
