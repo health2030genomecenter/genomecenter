@@ -90,10 +90,10 @@ object DemultiplexingSummary {
     val laneSummaries = raw.ConversionResults.map { conversionResultOfLane =>
       val lane = Lane(conversionResultOfLane.LaneNumber)
       val pctPf = 100d * conversionResultOfLane.TotalClustersPF.toDouble / conversionResultOfLane.TotalClustersRaw
-      val top10UnknownBarcodes = unknownBarCodesByLane
+      val top20UnknownBarcodes = unknownBarCodesByLane
         .get(conversionResultOfLane.LaneNumber)
         .map { unknownBarcodes =>
-          unknownBarcodes.Barcodes.toSeq.sortBy(_._2).reverse.take(10)
+          unknownBarcodes.Barcodes.toSeq.sortBy(_._2).reverse.take(20)
         }
         .getOrElse(Nil)
       DemultiplexingLaneSummary(
@@ -101,7 +101,7 @@ object DemultiplexingSummary {
         totalClustersRaw = conversionResultOfLane.TotalClustersRaw,
         totalClustersPF = conversionResultOfLane.TotalClustersPF,
         pctPFClusters = pctPf,
-        topUnknownBarcodes = top10UnknownBarcodes
+        topUnknownBarcodes = top20UnknownBarcodes
       )
     }
 
@@ -228,11 +228,11 @@ object DemultiplexingSummary {
     }
 
     val sampleHeader =
-      "Samples:\nPrj           SmplId        Lane   BCode             BCMismatch%     TotRds    TotYield   Rd1_Yield   Rd2_Yield   Rd1_YieldQ30   Rd2_YieldQ30   Rd1_%Q30   Rd2_%Q30"
+      "Samples:\nPrj           SmplId        Lane   BCode             BCMismatch%     TotRds    Rd1_YieldQ30   Rd2_YieldQ30   Rd1_%Q30   Rd2_%Q30"
 
     val sampleLines = root.sampleSummaries.map { s =>
       import s._
-      f"$project%-14s$sampleId%-14s$lane%-7s$indexSequence%-18s$indexMismatchRate%10.2f%%${totalReads / 1E6}%10.4fM${totalYield / 1E6}%10.2fMb${read1Yield / 1E6}%10.2fMb${read2Yield / 1E6}%10.2fMb${read1YieldQ30 / 1E6}%13.2fMb${read2YieldQ30 / 1E6}%13.2fMb$read1PctQ30%10.2f%%$read2PctQ30%10.2f%%"
+      f"$project%-14s$sampleId%-14s$lane%-7s$indexSequence%-18s$indexMismatchRate%10.2f%%${totalReads / 1E6}%10.4fM${read1YieldQ30 / 1E6}%13.2fMb${read2YieldQ30 / 1E6}%13.2fMb$read1PctQ30%10.2f%%$read2PctQ30%10.2f%%"
     }
 
     s"RunId: ${root.runId}\n\n" + laneSummaryHeader + "\n" + laneSummaryLines
