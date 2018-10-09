@@ -152,6 +152,8 @@ object Demultiplexing {
             Nil
           } else List("--tiles", "s_" + laneNumber)
 
+          val processingThreads = math.max(1, resourceAllocated.cpu - 2)
+
           for {
             sampleSheetFile <- sampleSheet.file.file
             parsedSampleSheet <- sampleSheet.parse
@@ -167,7 +169,9 @@ object Demultiplexing {
                   "--output-dir",
                   outputFolder.getAbsolutePath,
                   "--sample-sheet",
-                  sampleSheetFile.getAbsolutePath
+                  sampleSheetFile.getAbsolutePath,
+                  "--processing-threads",
+                  processingThreads.toString
                 ) ++ tilesArgumentList ++ extraArguments
 
                 val escaped = commandLine.mkString("'", "' '", "'")
