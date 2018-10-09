@@ -52,7 +52,8 @@ object SampleSheet extends StrictLogging {
 
     val runId = header.get("Experiment Name").flatten
     val sampleIds = distinctColumnValues(sampleIdColumnIdx).map(SampleId(_))
-    val lanes = distinctColumnValues(laneColumnIdx).map(Lane(_))
+    val lanes =
+      distinctColumnValues(laneColumnIdx).map(value => Lane(value.toInt))
     val projects = distinctColumnValues(projectColumnIdx).map(Project(_))
 
     val poolingLayout: Seq[Multiplex] = {
@@ -69,7 +70,7 @@ object SampleSheet extends StrictLogging {
             cellInThisLine(sampleIdColumnIdx).map(SampleId(_)),
             cellInThisLine(sampleNameColumnIdx).map(SampleName(_)),
             cellInThisLine(projectColumnIdx).map(Project(_)),
-            cellInThisLine(laneColumnIdx).map(Lane(_)),
+            cellInThisLine(laneColumnIdx).map(value => Lane(value.toInt)),
             cellInThisLine(index1ColumnIdx).map(Index(_)),
             index2ColumnIdx.flatMap(cellInThisLine).map(Index(_))
           )

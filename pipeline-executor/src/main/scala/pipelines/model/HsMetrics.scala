@@ -60,7 +60,7 @@ object HsMetrics {
       }
 
       def laneFromReadGroup(readGroup: String): Lane =
-        Lane(readGroup.split("\\.").last)
+        Lane(readGroup.split("\\.").last.toInt)
 
       object H {
         val READ_GROUP = "READ_GROUP"

@@ -49,7 +49,7 @@ class MarkDuplicatesTestSuite
     val project = Project("someProject")
     val sampleId = SampleId("someSampleId")
     val runId = RunId("someRunId")
-    val lane = Lane("L001")
+    val lane = Lane(1)
 
     val bam = new File(getClass.getResource("/tutorial_8017/papa.bam").getFile)
     val referenceFile = new File(

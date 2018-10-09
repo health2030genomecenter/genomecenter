@@ -54,7 +54,7 @@ object AlignmentSummaryMetrics {
       }
 
       def laneFromReadGroup(readGroup: String): Lane =
-        Lane(readGroup.split("\\.").last)
+        Lane(readGroup.split("\\.").last.toInt)
 
       object H {
         val rg = "READ_GROUP"

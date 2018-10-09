@@ -54,7 +54,7 @@ class BwaAlignmentTestSuite
     val project = Project("someProject")
     val sampleId = SampleId("someSampleId")
     val runId = RunId("someRunId")
-    val lane = Lane("L001")
+    val lane = Lane(1)
 
     val fastq1 = new File(
       getClass.getResource("/tutorial_8017/papa.read1.fq.gz").getFile)

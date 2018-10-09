@@ -43,7 +43,7 @@ object Demultiplexing {
     } yield (sample.sampleId -> sample.project)).toMap
 
   val allLanes =
-    AsyncTask[DemultiplexingInput, DemultiplexedReadData]("__demultiplex", 1) {
+    AsyncTask[DemultiplexingInput, DemultiplexedReadData]("__demultiplex", 2) {
       runFolder => implicit computationEnvironment =>
         releaseResources
         computationEnvironment.withFilePrefix(Seq("demultiplex")) {
@@ -105,12 +105,12 @@ object Demultiplexing {
     }
 
   val fastqFileNameRegex =
-    "([a-zA-Z0-9_-]+)_S[0-9]*_(L[0-9]*)_(R[12])_001.fastq.gz".r
+    "^([a-zA-Z0-9_\\-\\/]+/)?([a-zA-Z0-9_-]+)_S([0-9]+)_L([0-9]*)_(R[12])_001.fastq.gz$".r
 
   val perLane =
     AsyncTask[DemultiplexSingleLaneInput, DemultiplexedReadData](
       "__demultiplex-per-lane",
-      3) {
+      5) {
       case DemultiplexSingleLaneInput(
           DemultiplexingInput(runId,
                               runFolderPath,
@@ -127,32 +127,58 @@ object Demultiplexing {
           def extractMetadataFromFilename(fastq: SharedFile,
                                           sampleSheet: SampleSheet.ParsedData) =
             fastq.name match {
-              case fastqFileNameRegex(_sampleId, lane, read) =>
-                val sampleId = SampleId(_sampleId)
-                val projectId = sampleSheet
-                  .getProjectBySampleId(sampleId)
-                  .getOrElse(Project("NA"))
-                Some(
-                  FastQWithSampleMetadata(projectId,
-                                          sampleId,
-                                          RunId(runId),
-                                          Lane(lane),
-                                          ReadType(read),
-                                          FastQ(fastq)))
+              case fastqFileNameRegex(_,
+                                      _sampleName,
+                                      sampleNumberInSampleSheet1Based,
+                                      lane,
+                                      read) =>
+                if (sampleNumberInSampleSheet1Based.toInt > 0) {
+                  val sampleSheetEntry = sampleSheet.poolingLayout(
+                    sampleNumberInSampleSheet1Based.toInt - 1)
+                  val sampleSheetSampleId = sampleSheetEntry.sampleId
+                  val sampleSheetSampleName = sampleSheetEntry.sampleName
+                  val sampleSheetProject = sampleSheetEntry.project
+                  val sampleSheetLane = sampleSheetEntry.lane
+
+                  val parsedSampleName = SampleName(_sampleName)
+                  val parsedLane = Lane(lane.toInt)
+
+                  require(
+                    sampleSheetSampleName == parsedSampleName,
+                    s"Sample name parsed from file name and read from sample sheet do not match. $sampleSheetSampleName $parsedSampleName $fastq $sampleSheet"
+                  )
+                  require(
+                    sampleSheetLane == Lane(lane.toInt),
+                    s"lanes parsed from file name and read from sample sheet do not match. $sampleSheetLane $lane $fastq $sampleSheet")
+
+                  Some(
+                    FastQWithSampleMetadata(sampleSheetProject,
+                                            sampleSheetSampleId,
+                                            RunId(runId),
+                                            parsedLane,
+                                            ReadType(read),
+                                            FastQ(fastq)))
+                } else {
+                  Some(
+                    FastQWithSampleMetadata(Project("NA"),
+                                            SampleId("Undetermined"),
+                                            RunId(runId),
+                                            Lane(lane.toInt),
+                                            ReadType(read),
+                                            FastQ(fastq)))
+                }
               case _ =>
                 log.error(
                   s"Fastq file name has unexpected pattern. $fastq name: ${fastq.name}")
                 None
             }
 
-          val laneNumber = laneToProcess.dropWhile(_ == 'L').toInt
-
           val tilesArgumentList = if (extraArguments.contains("--tiles")) {
             log.warning("--tiles argument to bcl2fastq is overriden.")
             Nil
-          } else List("--tiles", "s_" + laneNumber)
+          } else List("--tiles", "s_" + laneToProcess)
 
-          val processingThreads = math.max(1, resourceAllocated.cpu - 2)
+          val processingThreads = resourceAllocated.cpu
 
           for {
             sampleSheetFile <- sampleSheet.file.file
@@ -194,7 +220,7 @@ object Demultiplexing {
 
             }(computationEnvironment.components
               .withChildPrefix(runId)
-              .withChildPrefix(laneToProcess))
+              .withChildPrefix(laneToProcess.toString))
 
           } yield {
             val fastQFiles = fastQAndStatFiles.dropRight(1)

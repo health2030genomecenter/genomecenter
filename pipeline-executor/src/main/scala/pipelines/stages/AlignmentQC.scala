@@ -118,7 +118,7 @@ object AlignmentQC {
             Seq(
               project -> left,
               sampleId -> left,
-              lane -> left,
+              lane.toString -> left,
               baitSet -> left,
               f"${totalReads / 1E6}%10.2fMb" -> right,
               f"$meanTargetCoverage%13.1fx" -> right,

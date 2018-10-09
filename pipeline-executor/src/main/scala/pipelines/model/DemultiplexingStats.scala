@@ -81,7 +81,7 @@ object DemultiplexingSummary {
       raw.UnknownBarcodes.map(ukb => ukb.Lane -> ukb).toMap
 
     val laneSummaries = raw.ConversionResults.map { conversionResultOfLane =>
-      val lane = Lane("L" + conversionResultOfLane.LaneNumber)
+      val lane = Lane(conversionResultOfLane.LaneNumber)
       val pctPf = 100d * conversionResultOfLane.TotalClustersPF.toDouble / conversionResultOfLane.TotalClustersRaw
       val top10UnknownBarcodes = unknownBarCodesByLane
         .get(conversionResultOfLane.LaneNumber)
@@ -100,7 +100,7 @@ object DemultiplexingSummary {
 
     val sampleSummaries = raw.ConversionResults.flatMap {
       conversionResultOfLane =>
-        val lane = Lane("L" + conversionResultOfLane.LaneNumber)
+        val lane = Lane(conversionResultOfLane.LaneNumber)
         conversionResultOfLane.DemuxResults.map { demuxResultOfSample =>
           val read1Metrics = demuxResultOfSample.ReadMetrics
             .find(_.ReadNumber == 1)

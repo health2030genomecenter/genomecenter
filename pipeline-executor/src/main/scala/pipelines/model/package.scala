@@ -2,14 +2,14 @@ package org.gc.pipelines
 
 import shapeless.tag.@@
 import shapeless.tag
-import org.gc.pipelines.util.Circe.stringCodec
+import org.gc.pipelines.util.Circe.{stringCodec, intCodec}
 
 package object model {
 
   trait LaneTag
-  type Lane = String @@ LaneTag
-  def Lane(s: String): Lane = tag[LaneTag][String](s)
-  implicit val (laneEncoder, laneDecoder) = stringCodec[LaneTag]
+  type Lane = Int @@ LaneTag
+  def Lane(s: Int): Lane = tag[LaneTag][Int](s)
+  implicit val (laneEncoder, laneDecoder) = intCodec[LaneTag]
 
   trait ProjectTag
   type Project = String @@ ProjectTag

@@ -9,13 +9,14 @@ class SampleSheetTest extends FunSuite with Matchers {
       val parsed = SampleSheet(exampleSampleSheetContent).parsed
       parsed.runId shouldBe None
       parsed.sampleIds shouldBe Seq("A10001", "A10002", "A10003", "A10004")
-      parsed.lanes shouldBe Seq("L1", "L2")
+      parsed.lanes shouldBe Seq(1, 2)
       parsed.projects shouldBe Seq("proj")
       parsed.poolingLayout.size shouldBe 4
       parsed.poolingLayout.take(1) shouldBe List(
         SampleSheet.Multiplex(SampleId("A10001"),
+                              SampleName("Sample_A"),
                               Project("proj"),
-                              Lane("L1"),
+                              Lane(1),
                               Index("ATTACTCG"),
                               Some(Index("TATAGCCT")))
       )
@@ -44,10 +45,10 @@ customKey,customValue
 bcl2fastqArguments,["--flag","stuff,with,comma"]
 [Data]
 Sample_ID,Sample_Name,I7_Index_ID,index,I5_Index_ID,index2,Lane,Sample_Project
-A10001,Sample_A,D701,ATTACTCG,D501,TATAGCCT,L1,proj
-A10002,Sample_B,D702,TCCGGAGA,D501,TATAGCCT,L1,proj
-A10003,Sample_C,D703,CGCTCATT,D501,TATAGCCT,L2,proj
-A10004,Sample_D,D704,GAGATTCC,D501,TATAGCCT,L2,proj
+A10001,Sample_A,D701,ATTACTCG,D501,TATAGCCT,1,proj
+A10002,Sample_B,D702,TCCGGAGA,D501,TATAGCCT,1,proj
+A10003,Sample_C,D703,CGCTCATT,D501,TATAGCCT,2,proj
+A10004,Sample_D,D704,GAGATTCC,D501,TATAGCCT,2,proj
 """
   }
 

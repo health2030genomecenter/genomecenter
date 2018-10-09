@@ -11,4 +11,11 @@ object Circe {
       Decoder.decodeString.map(tag[Tag][String](_))
     (enc, dec)
   }
+
+  def intCodec[Tag]: (Encoder[Int @@ Tag], Decoder[Int @@ Tag]) = {
+    val enc: Encoder[Int @@ Tag] = Encoder.encodeInt.contramap(identity)
+    val dec: Decoder[Int @@ Tag] =
+      Decoder.decodeInt.map(tag[Tag][Int](_))
+    (enc, dec)
+  }
 }
