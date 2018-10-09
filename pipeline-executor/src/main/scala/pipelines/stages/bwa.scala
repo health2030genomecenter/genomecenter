@@ -142,6 +142,8 @@ object BWAAlignment {
           val tmpStdErr = TempFile.createTempFile(".stderr")
 
           val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+          val tmpDir =
+            s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
           for {
             localBams <- Future.sequence(bams.map(_.file.file))
@@ -161,12 +163,13 @@ object BWAAlignment {
                 .mkString("--INPUT ", "--INPUT ", "")
 
               val bashScript = s"""
-        java $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
+        java $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
           $inputFlags \\
           --OUTPUT ${tmpDuplicateMarkedBam.getAbsolutePath} \\
           --METRICS_FILE ${tmpMetricsFile.getAbsolutePath} \\
           --OPTICAL_DUPLICATE_PIXEL_DISTANCE=250 \\
-          --CREATE_INDEX=true \\
+          --CREATE_INDEX true \\
+          --MAX_RECORDS_IN_RAM 5000000 \\
           --TMP_DIR $tempFolder \\
           > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
         """
@@ -253,6 +256,9 @@ object BWAAlignment {
           val sequencingCenter = "Health2030GenomeCenter"
           val runDate: String = java.time.Instant.now.toString
 
+          val tmpDir =
+            s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
+
           for {
             read1 <- read1.file.file.map(_.getAbsolutePath)
             read2 <- read2.file.file.map(_.getAbsolutePath)
@@ -260,7 +266,7 @@ object BWAAlignment {
             result <- {
 
               val bashScript = s""" \\
-      java -Xmx3G -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
+      java -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
         --FASTQ $read1 \\
         --FASTQ2 $read2 \\
         --OUTPUT /dev/stdout \\
@@ -275,14 +281,14 @@ object BWAAlignment {
         --SEQUENCING_CENTER  $sequencingCenter \\
         --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
       \\
-     java -Xmx4G -Dpicard.useLegacyParser=false -jar $picardJar MarkIlluminaAdapters \\
+     java -Xmx4G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkIlluminaAdapters \\
        --INPUT /dev/stdin \\
        --OUTPUT /dev/stdout \\
        --QUIET true \\
        --METRICS $markAdapterMetricsFileOutput \\
        --TMP_DIR $markAdapterTempFolder 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-     java -Xmx3G -Dpicard.useLegacyParser=false -jar $picardJar SamToFastq \\
+     java -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SamToFastq \\
        --INPUT /dev/stdin \\
        --FASTQ /dev/stdout \\
        --QUIET true \\
@@ -294,10 +300,10 @@ object BWAAlignment {
      \\
      $bwaExecutable mem -M -t $bwaNumberOfThreads -p $reference /dev/stdin 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-     java -Xmx6G -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
+     java -Xmx6G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
        --REFERENCE_SEQUENCE $reference \\
        --UNMAPPED_BAM <(
-           java -Xmx8G -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
+           java -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
              --FASTQ $read1 \\
              --FASTQ2 $read2 \\
              --OUTPUT /dev/stdout \\
@@ -322,6 +328,7 @@ object BWAAlignment {
        --MAX_INSERTIONS_OR_DELETIONS -1 \\
        --PRIMARY_ALIGNMENT_STRATEGY MostDistant \\
        --ATTRIBUTES_TO_RETAIN XS \\
+       --MAX_RECORDS_IN_RAM 5000000 \\
        --TMP_DIR $mergeBamAlignmentTempFolder \\
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
       """
