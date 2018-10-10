@@ -186,13 +186,13 @@ object BWAAlignment {
 
               for {
                 _ <- SharedFile(tmpStdOut,
-                                name = nameStub + ".bam.stdout",
+                                name = nameStub + ".mdup.bam.stdout",
                                 deleteFile = true)
                 _ <- SharedFile(tmpStdErr,
-                                name = nameStub + ".bam.stderr",
+                                name = nameStub + ".mdup.bam.stderr",
                                 deleteFile = true)
                 bai <- SharedFile(expectedBai,
-                                  name = nameStub + ".bai",
+                                  name = nameStub + ".mdup.bai",
                                   deleteFile = true)
                 duplicateMetric <- SharedFile(
                   tmpMetricsFile,
