@@ -27,7 +27,8 @@ class BwaAlignmentTestSuite
             sampleId = sampleId,
             runId = runId,
             lane = lane,
-            reference = indexedFasta
+            reference = indexedFasta,
+            umi = None
           )
 
         val future =

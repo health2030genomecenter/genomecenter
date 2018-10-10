@@ -22,7 +22,8 @@ class FastpTestSuite
             FastQPerLane(
               lane = lane,
               read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz"))),
-              read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")))
+              read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz"))),
+              umi = None
             ),
             project = project,
             sampleId = sampleId,

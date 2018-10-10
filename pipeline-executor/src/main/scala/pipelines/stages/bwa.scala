@@ -20,8 +20,11 @@ case class PerLaneBWAAlignmentInput(
     sampleId: SampleId,
     runId: RunId,
     lane: Lane,
-    reference: IndexedReferenceFasta
-) extends WithSharedFiles(read1.file, read2.file, reference.fasta)
+    reference: IndexedReferenceFasta,
+    umi: Option[FastQ]
+) extends WithSharedFiles(
+      Seq(read1.file, read2.file, reference.fasta) ++ umi.toList
+        .map(_.file): _*)
 
 case class PerSampleBWAAlignmentInput(
     fastqs: Set[FastQPerLane],
@@ -112,7 +115,8 @@ object BWAAlignment {
                                        sampleId,
                                        runId,
                                        lane.lane,
-                                       reference))(ResourceConfig.bwa)
+                                       reference,
+                                       lane.umi))(ResourceConfig.bwa)
 
           for {
             alignedLanes <- Future.sequence(fastqs.map(alignLane))
@@ -225,9 +229,11 @@ object BWAAlignment {
                                     sampleId,
                                     runId,
                                     lane,
-                                    reference) =>
+                                    reference,
+                                    maybeUmi) =>
         implicit computationEnvironment =>
           val picardJar = extractPicardJar()
+          val umiProcessor = extractUmiProcessorJar()
 
           val bwaExecutable = extractBwaExecutable()
 
@@ -267,10 +273,17 @@ object BWAAlignment {
           for {
             read1 <- read1.file.file.map(_.getAbsolutePath)
             read2 <- read2.file.file.map(_.getAbsolutePath)
+            umi <- maybeUmi match {
+              case Some(umi) =>
+                umi.file.file.map(_.getAbsolutePath).map(Some(_))
+              case None => Future.successful(None)
+            }
             reference <- reference.localFile
             result <- {
 
-              val fastqToUnmappedBam = s"""\\
+              maybeUmi match {
+                case None =>
+                  val fastqToUnmappedBam = s"""\\
         java -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
                 --FASTQ $read1 \\
                 --FASTQ2 $read2 \\
@@ -289,8 +302,42 @@ object BWAAlignment {
                 --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
               """
 
-              Exec.bash(logDiscriminator = "bwa.fastq2ubam." + sampleId,
-                        onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
+                  Exec.bash(logDiscriminator = "bwa.fastq2ubam." + sampleId,
+                            onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
+                case Some(umi) =>
+                  val fastqToUnmappedBam = s"""\\
+        java -Xmx2G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
+                --FASTQ $read1 \\
+                --FASTQ2 $read2 \\
+                --OUTPUT /dev/stdout \\
+                --QUIET true \\
+                --SORT_ORDER unsorted \\
+                --COMPRESSION_LEVEL 0 \\
+                --READ_GROUP_NAME $readGroupName \\
+                --SAMPLE_NAME $uniqueSampleName \\
+                --LIBRARY_NAME $uniqueSampleName \\
+                --PLATFORM_UNIT $platformUnit \\
+                --PLATFORM illumina \\
+                --SEQUENCING_CENTER  $sequencingCenter \\
+                --TMP_DIR ${unmappedBamTempFolder.getAbsolutePath} \\
+                --MAX_RECORDS_IN_RAM 5000000 \\
+                --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
+                \\
+        java -Xmx2G $tmpDir -jar $umiProcessor $umi \\
+              2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
+                 \\
+        java -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
+                --INPUT /dev/stdin/ \\
+                --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
+                --SORT_ORDER queryname \\
+                --TMP_DIR ${unmappedBamTempFolder.getAbsolutePath} \\
+                --MAX_RECORDS_IN_RAM 5000000 \\
+                2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+              """
+
+                  Exec.bash(logDiscriminator = "bwa.fastq2ubam_umi." + sampleId,
+                            onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
+              }
 
               log.info(s"Fastq of $sampleId sorted.")
 
@@ -359,6 +406,11 @@ object BWAAlignment {
   def extractPicardJar(): String =
     fileutils.TempFile
       .getExecutableFromJar("/bin/picard_2.8.14.jar", "picard_2.8.14.jar")
+      .getAbsolutePath
+
+  def extractUmiProcessorJar(): String =
+    fileutils.TempFile
+      .getExecutableFromJar("/umiprocessor", "umiprocessor")
       .getAbsolutePath
 
   private def extractBwaExecutable(): String = {

@@ -26,6 +26,20 @@ lazy val tasksSlurm = project
     )
   )
 
+lazy val umiProcessor = project
+  .in(file("umiprocessor"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "umiprocessor",
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      "com.github.samtools" % "htsjdk" % "2.16.1",
+      "io.github.pityka" %% "fileutils" % "1.2.2" % "test"
+    ),
+    assemblyJarName := "umiprocessor",
+    test in assembly := {}
+  )
+
 lazy val pipelineExecutor = project
   .in(file("pipeline-executor"))
   .settings(commonSettings: _*)
@@ -56,11 +70,21 @@ lazy val pipelineExecutor = project
   .enablePlugins(JavaServerAppPackaging)
   .enablePlugins(BuildInfoPlugin)
   .settings(
+    // To have access to the build version during runtime
     buildInfoKeys := Seq[BuildInfoKey](version),
     buildInfoPackage := "org.gc.buildinfo"
   )
   .settings(
+    // This amends the launch script to put ../resources onto the classpath
     scriptClasspath := scriptClasspath.value :+ "../resources/"
+  )
+  .settings(
+    // This makes the fat jar of the umiProcessor project available on the classpath
+    // first at normal deployment with universal
+    // second at test
+    // (resources in Compile) would put the jar into a jar which slows the buidl.
+    mappings in Universal += (assembly in Compile in umiProcessor).value -> "lib/umiprocessor",
+    resources in Test += (assembly in Compile in umiProcessor).value
   )
 
 lazy val root = (project in file("."))
@@ -68,7 +92,7 @@ lazy val root = (project in file("."))
   .settings(
     publishArtifact := false
   )
-  .aggregate(tasksSlurm, pipelineExecutor)
+  .aggregate(tasksSlurm, pipelineExecutor, umiProcessor)
   .enablePlugins(GitVersioning)
 
 scalafmtOnCompile in ThisBuild := true

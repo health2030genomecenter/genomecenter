@@ -85,7 +85,10 @@ case class CoordinateSortedBam(bam: SharedFile, bai: SharedFile)
     } yield bam
 }
 
-case class FastQPerLane(lane: Lane, read1: FastQ, read2: FastQ)
+case class FastQPerLane(lane: Lane,
+                        read1: FastQ,
+                        read2: FastQ,
+                        umi: Option[FastQ])
 
 case class BWAAlignedReads(bams: Set[BamWithSampleMetadata])
     extends WithSharedFiles(bams.map(_.bam.bam).toSeq: _*)

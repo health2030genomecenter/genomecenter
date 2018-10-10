@@ -174,7 +174,7 @@ object ProtoPipeline extends StrictLogging {
                 for {
                   read1 <- maybeRead1
                   read2 <- maybeRead2
-                } yield FastQPerLane(lane, read1, read2)
+                } yield FastQPerLane(lane, read1, read2, None)
               }
               .flatten
           PerSampleFastQ(
