@@ -16,11 +16,11 @@ import com.typesafe.scalalogging.StrictLogging
 object SlurmShutdown extends ShutdownNode {
 
   def shutdownRunningNode(nodeName: RunningJobId): Unit = {
-    execGetStreamsAndCode(s"scancel ${nodeName.value}")
+    s"scancel ${nodeName.value}" !
   }
 
   def shutdownPendingNode(nodeName: PendingJobId): Unit = {
-    execGetStreamsAndCode(s"scancel ${nodeName.value}")
+    s"scancel ${nodeName.value}" !
   }
 
 }
