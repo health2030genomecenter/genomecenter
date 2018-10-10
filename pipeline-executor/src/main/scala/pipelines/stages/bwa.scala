@@ -245,7 +245,12 @@ object BWAAlignment {
           val mergeBamAlignmentTempFolder =
             TempFile.createTempFolder(".mergeBamAlignmentTempFolder")
 
+          val unmappedBamTempFolder =
+            TempFile.createTempFolder(".unmappedBamFastqToSamTempFolder")
+
           val tmpCleanBam = TempFile.createTempFile(".bam")
+          val tmpIntermediateUnmappedBam =
+            TempFile.createTempFile(".unmappedBam")
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
 
@@ -265,59 +270,54 @@ object BWAAlignment {
             reference <- reference.localFile
             result <- {
 
-              val bashScript = s""" \\
-      java -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
-        --FASTQ $read1 \\
-        --FASTQ2 $read2 \\
-        --OUTPUT /dev/stdout \\
-        --QUIET true \\
-        --SORT_ORDER queryname \\
-        --COMPRESSION_LEVEL 0 \\
-        --READ_GROUP_NAME $readGroupName \\
-        --SAMPLE_NAME $uniqueSampleName \\
-        --LIBRARY_NAME $uniqueSampleName \\
-        --PLATFORM_UNIT $platformUnit \\
-        --PLATFORM illumina \\
-        --SEQUENCING_CENTER  $sequencingCenter \\
-        --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
-      \\
+              val fastqToUnmappedBam = s"""\\
+        java -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
+                --FASTQ $read1 \\
+                --FASTQ2 $read2 \\
+                --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
+                --QUIET true \\
+                --SORT_ORDER queryname \\
+                --COMPRESSION_LEVEL 0 \\
+                --READ_GROUP_NAME $readGroupName \\
+                --SAMPLE_NAME $uniqueSampleName \\
+                --LIBRARY_NAME $uniqueSampleName \\
+                --PLATFORM_UNIT $platformUnit \\
+                --PLATFORM illumina \\
+                --SEQUENCING_CENTER  $sequencingCenter \\
+                --TMP_DIR ${unmappedBamTempFolder.getAbsolutePath} \\
+                --MAX_RECORDS_IN_RAM 5000000 \\
+                --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+              """
+
+              Exec.bash(logDiscriminator = "bwa.fastq2ubam." + sampleId,
+                        onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
+
+              log.info(s"Fastq of $sampleId sorted.")
+
+              val bashScript = s"""\\
+     set -e \\
      java -Xmx4G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkIlluminaAdapters \\
-       --INPUT /dev/stdin \\
+       --INPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
        --OUTPUT /dev/stdout \\
        --QUIET true \\
        --METRICS $markAdapterMetricsFileOutput \\
        --TMP_DIR $markAdapterTempFolder 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-     java -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SamToFastq \\
-       --INPUT /dev/stdin \\
-       --FASTQ /dev/stdout \\
-       --QUIET true \\
-       --CLIPPING_ATTRIBUTE XT \\
-       --CLIPPING_ACTION 2 \\
-       --INTERLEAVE true \\
-       --INCLUDE_NON_PF_READS true \\
-       --TMP_DIR $samToFastqTempFolder 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
+    java -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SamToFastq \\
+      --INPUT /dev/stdin \\
+      --FASTQ /dev/stdout \\
+      --QUIET true \\
+      --CLIPPING_ATTRIBUTE XT \\
+      --CLIPPING_ACTION 2 \\
+      --INTERLEAVE true \\
+      --INCLUDE_NON_PF_READS true \\
+      --TMP_DIR $samToFastqTempFolder 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
      $bwaExecutable mem -M -t $bwaNumberOfThreads -p $reference /dev/stdin 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
      java -Xmx6G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
        --REFERENCE_SEQUENCE $reference \\
-       --UNMAPPED_BAM <(
-           java -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
-             --FASTQ $read1 \\
-             --FASTQ2 $read2 \\
-             --OUTPUT /dev/stdout \\
-             --QUIET true \\
-             --SORT_ORDER queryname \\
-             --COMPRESSION_LEVEL 0 \\
-             --READ_GROUP_NAME $readGroupName \\
-             --SAMPLE_NAME $uniqueSampleName \\
-             --LIBRARY_NAME $uniqueSampleName \\
-             --PLATFORM_UNIT $platformUnit \\
-             --PLATFORM illumina \\
-             --SEQUENCING_CENTER  $sequencingCenter \\
-             --RUN_DATE $runDate
-         ) \\
+       --UNMAPPED_BAM ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
        --ALIGNED_BAM /dev/stdin \\
        --OUTPUT ${tmpCleanBam.getAbsolutePath} \\
        --CREATE_INDEX false \\
@@ -335,6 +335,10 @@ object BWAAlignment {
 
               Exec.bash(logDiscriminator = "bwa.pipes." + sampleId,
                         onError = Exec.ThrowIfNonZero)(bashScript)
+
+              log.info(
+                s"Deleting intermediate unmapped bam $tmpIntermediateUnmappedBam .")
+              tmpIntermediateUnmappedBam.delete
 
               val nameStub = readGroupName
 
