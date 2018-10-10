@@ -295,7 +295,6 @@ object BWAAlignment {
               log.info(s"Fastq of $sampleId sorted.")
 
               val bashScript = s"""\\
-     set -e \\
      java -Xmx4G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkIlluminaAdapters \\
        --INPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
        --OUTPUT /dev/stdout \\

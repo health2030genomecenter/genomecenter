@@ -46,6 +46,11 @@ class BwaAlignmentTestSuite
 
       recordsInBamFile(localBam) shouldBe 10000
 
+      takeRecordsInBamFile(localBam, 100).foreach { record =>
+        record.getReadUnmappedFlag shouldBe false
+        record.getReferenceName shouldBe "chr19"
+      }
+
     }
   }
 

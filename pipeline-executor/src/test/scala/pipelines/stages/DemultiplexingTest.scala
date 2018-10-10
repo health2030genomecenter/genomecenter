@@ -160,9 +160,18 @@ trait TestHelpers {
     import htsjdk.samtools.SamReaderFactory
     import scala.collection.JavaConverters._
     val reader = SamReaderFactory.makeDefault.open(file)
-    val length = reader.iterator.asScala.length
+    val length = reader.iterator.asScala.toList.length
     reader.close
     length
+  }
+
+  def takeRecordsInBamFile(file: File, take: Int) = {
+    import htsjdk.samtools.SamReaderFactory
+    import scala.collection.JavaConverters._
+    val reader = SamReaderFactory.makeDefault.open(file)
+    val list = reader.iterator.asScala.take(take).toList
+    reader.close
+    list
   }
 
   def await[T](f: Future[T]) = Await.result(f, atMost = 180 seconds)
