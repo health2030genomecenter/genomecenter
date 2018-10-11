@@ -1,7 +1,7 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Exec, ResourceConfig}
+import org.gc.pipelines.util.{Exec, ResourceConfig, JVM}
 import org.gc.pipelines.util
 
 import io.circe.{Decoder, Encoder}
@@ -63,7 +63,7 @@ object BWAAlignment {
 
             Exec.bash(logDiscriminator = "fasta.dict",
                       onError = Exec.ThrowIfNonZero)(
-              s"java -Xmx1G -Dpicard.useLegacyParser=false -jar $picardJar CreateSequenceDictionary --REFERENCE $pathToFasta"
+              s"java ${JVM.serial} -Xmx1G -Dpicard.useLegacyParser=false -jar $picardJar CreateSequenceDictionary --REFERENCE $pathToFasta"
             )
 
             val fastaIndex = {
@@ -156,7 +156,7 @@ object BWAAlignment {
               localBams.foreach { localBam =>
                 Exec.bash("bwa.buildbamindex." + sampleId,
                           onError = Exec.ThrowIfNonZero)(
-                  s"""java $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar BuildBamIndex \\
+                  s"""java ${JVM.serial} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar BuildBamIndex \\
                  --INPUT ${localBam.getAbsolutePath} \\
                  > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)"""
                 )
@@ -167,7 +167,7 @@ object BWAAlignment {
                 .mkString("--INPUT ", "--INPUT ", "")
 
               val bashScript = s"""
-        java $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
+        java ${JVM.g1} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
           $inputFlags \\
           --OUTPUT ${tmpDuplicateMarkedBam.getAbsolutePath} \\
           --METRICS_FILE ${tmpMetricsFile.getAbsolutePath} \\
@@ -284,7 +284,7 @@ object BWAAlignment {
               umi match {
                 case None =>
                   val fastqToUnmappedBam = s"""\\
-        java -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
+        java ${JVM.g1} -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
                 --FASTQ $read1 \\
                 --FASTQ2 $read2 \\
                 --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
@@ -306,7 +306,7 @@ object BWAAlignment {
                             onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
                 case Some(umi) =>
                   val fastqToUnmappedBam = s"""\\
-        java -Xmx2G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
+        java ${JVM.serial} -Xmx2G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
                 --FASTQ $read1 \\
                 --FASTQ2 $read2 \\
                 --OUTPUT /dev/stdout \\
@@ -322,10 +322,10 @@ object BWAAlignment {
                 --MAX_RECORDS_IN_RAM 5000000 \\
                 --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                 \\
-        java -Xmx2G $tmpDir -jar $umiProcessor $umi \\
+        java ${JVM.serial} -Xmx2G $tmpDir -jar $umiProcessor $umi \\
               2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                  \\
-        java -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
+        java ${JVM.g1} -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
                 --INPUT /dev/stdin/ \\
                 --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
                 --SORT_ORDER queryname \\
@@ -341,14 +341,14 @@ object BWAAlignment {
               log.info(s"Fastq of $sampleId sorted.")
 
               val bashScript = s"""\\
-     java -Xmx4G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkIlluminaAdapters \\
+     java ${JVM.serial} -Xmx4G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkIlluminaAdapters \\
        --INPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
        --OUTPUT /dev/stdout \\
        --QUIET true \\
        --METRICS $markAdapterMetricsFileOutput \\
        --TMP_DIR $markAdapterTempFolder 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-    java -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SamToFastq \\
+    java ${JVM.serial} -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SamToFastq \\
       --INPUT /dev/stdin \\
       --FASTQ /dev/stdout \\
       --QUIET true \\
@@ -360,7 +360,7 @@ object BWAAlignment {
      \\
      $bwaExecutable mem -M -t $bwaNumberOfThreads -p $reference /dev/stdin 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-     java -Xmx12G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
+     java ${JVM.g1} -Xmx12G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
        --REFERENCE_SEQUENCE $reference \\
        --UNMAPPED_BAM ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
        --ALIGNED_BAM /dev/stdin \\
