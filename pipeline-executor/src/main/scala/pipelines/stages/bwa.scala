@@ -314,7 +314,7 @@ object BWAAlignment {
      \\
      $bwaExecutable mem -M -t $bwaNumberOfThreads -p $reference /dev/stdin 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-     java -Xmx6G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
+     java -Xmx12G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
        --REFERENCE_SEQUENCE $reference \\
        --UNMAPPED_BAM ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
        --ALIGNED_BAM /dev/stdin \\
@@ -327,7 +327,7 @@ object BWAAlignment {
        --MAX_INSERTIONS_OR_DELETIONS -1 \\
        --PRIMARY_ALIGNMENT_STRATEGY MostDistant \\
        --ATTRIBUTES_TO_RETAIN XS \\
-       --MAX_RECORDS_IN_RAM 5000000 \\
+       --MAX_RECORDS_IN_RAM 4000000 \\
        --TMP_DIR $mergeBamAlignmentTempFolder \\
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
       """
