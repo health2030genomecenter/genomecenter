@@ -10,7 +10,7 @@ import htsjdk.samtools.fastq.FastqReader
 import htsjdk.samtools.util.SequenceUtil
 import java.io._
 
-object CopyUmiToOX {
+object CopyUmiFromFastqToBam {
 
   def copy(bam: InputStream, umiFastq: File, output: OutputStream) = {
     val samReader =

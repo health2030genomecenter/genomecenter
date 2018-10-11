@@ -28,7 +28,7 @@ class UmiProcessor(args: Array[String]) {
       case _ =>
         System.err.println(s"Got cli arguments: ${args.toList}")
         val fqFile = new File(args(0))
-        val count = CopyUmiToOX.copy(System.in, fqFile, System.out)
+        val count = CopyUmiFromFastqToBam.copy(System.in, fqFile, System.out)
         System.err.println(s"Processed $count records.")
 
     }

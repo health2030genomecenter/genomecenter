@@ -6,13 +6,13 @@ import htsjdk.samtools._
 import java.io._
 import scala.collection.JavaConverters._
 
-class CopyUmiToOXTest extends FunSuite with Matchers {
+class CopyUmiFromFastqToBamTest extends FunSuite with Matchers {
 
   test("copy correctly ") {
     val (fastq, bam) = setup
     val is = new FileInputStream(bam)
     val generatedBam = fileutils.openFileOutputStream { os =>
-      val count = CopyUmiToOX.copy(is, fastq, os)
+      val count = CopyUmiFromFastqToBam.copy(is, fastq, os)
       count shouldBe 2
     }._1
     is.close
