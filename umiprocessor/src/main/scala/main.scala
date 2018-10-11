@@ -13,7 +13,7 @@ class UmiProcessor(args: Array[String]) {
     println(
       """Usage:
       java -jar jar umi.fastq
-        Joins a bam stream on standard input with the contents of the umi.fastq file. The two files must have the same ordering. Copies the sequence content of the fastq file to the OX tag of the sam records. Writes an uncompressed bam stream to the standard output. Diagnostic logs are written to standard error.    
+        Joins a bam stream on standard input with the contents of the umi.fastq file. The two files must have the same ordering. Copies the sequence content of the fastq file to the OX tag of the sam records. Expects two sam records par fastq record (paired reads). Writes an uncompressed bam stream to the standard output. Diagnostic logs are written to standard error. 
       java -jar jar --help 
         Prints this message""")
   }

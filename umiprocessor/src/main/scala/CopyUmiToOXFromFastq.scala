@@ -35,12 +35,19 @@ object CopyUmiToOX {
         val umiSequence = umiFqRecord.getReadString
         val umiReadName =
           SequenceUtil.getSamReadNameFromFastqHeader(umiFqRecord.getReadName)
-        val readRecord = samIterator.next
-        assert(
-          readRecord.getReadName == umiReadName,
-          s"Umi read name != sam read name. The two files must have the same ordering. $umiFqRecord vs $readRecord")
-        readRecord.setAttribute("OX", umiSequence)
-        samWriter.addAlignment(readRecord)
+
+        def processNextSamRecord() = {
+          val readRecord = samIterator.next
+          assert(
+            umiReadName.contains(readRecord.getReadName),
+            s"Umi read name != sam read name. The two files must have the same ordering. $umiReadName vs ${readRecord.getReadName} $umiFqRecord vs $readRecord $counter"
+          )
+          readRecord.setAttribute("OX", umiSequence)
+          samWriter.addAlignment(readRecord)
+        }
+
+        processNextSamRecord()
+        processNextSamRecord()
       }
     }
     samWriter.close

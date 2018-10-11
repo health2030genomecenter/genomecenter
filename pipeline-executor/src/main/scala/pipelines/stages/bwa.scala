@@ -281,7 +281,7 @@ object BWAAlignment {
             reference <- reference.localFile
             result <- {
 
-              maybeUmi match {
+              umi match {
                 case None =>
                   val fastqToUnmappedBam = s"""\\
         java -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
@@ -310,7 +310,6 @@ object BWAAlignment {
                 --FASTQ $read1 \\
                 --FASTQ2 $read2 \\
                 --OUTPUT /dev/stdout \\
-                --QUIET true \\
                 --SORT_ORDER unsorted \\
                 --COMPRESSION_LEVEL 0 \\
                 --READ_GROUP_NAME $readGroupName \\

@@ -20,13 +20,27 @@ class CopyUmiToOXTest extends FunSuite with Matchers {
       SamReaderFactory.makeDefault.open(SamInputResource.of(generatedBam))
     val reads = samReader.iterator.asScala.toList
     samReader.close
-    reads.head.getReadName shouldBe "readname1"
-    reads.head.getReadString shouldBe "AAAA"
-    reads.head.getAttribute("OX").toString shouldBe "CCCC"
 
-    reads(1).getReadName shouldBe "readname2"
-    reads(1).getReadString shouldBe "TTTT"
-    reads(1).getAttribute("OX").toString shouldBe "GG"
+    val firstPair1 = reads(0)
+    val firstPair2 = reads(1)
+    val secondPair1 = reads(2)
+    val secondPair2 = reads(3)
+
+    firstPair1.getReadName shouldBe "readname1"
+    firstPair1.getReadString shouldBe "AAAA"
+    firstPair1.getAttribute("OX").toString shouldBe "CCCC"
+
+    firstPair2.getReadName shouldBe "readname1"
+    firstPair2.getReadString shouldBe "AAAA"
+    firstPair2.getAttribute("OX").toString shouldBe "CCCC"
+
+    secondPair1.getReadName shouldBe "readname2"
+    secondPair1.getReadString shouldBe "TTTT"
+    secondPair1.getAttribute("OX").toString shouldBe "GG"
+
+    secondPair2.getReadName shouldBe "readname2"
+    secondPair2.getReadString shouldBe "TTTT"
+    secondPair2.getAttribute("OX").toString shouldBe "GG"
 
   }
 
@@ -52,6 +66,7 @@ class CopyUmiToOXTest extends FunSuite with Matchers {
           r.setReadName(name)
           r.setReadUnmappedFlag(true)
           r.setReadString(read)
+          writer.addAlignment(r)
           writer.addAlignment(r)
       }
       writer.close
