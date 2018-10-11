@@ -142,10 +142,16 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
     Source
       .tick(1 seconds,
             2 seconds,
-            RunfolderReadyForProcessing(
-              "fake",
-              "fakePath",
-              RunConfiguration(false, "fake", "fake", "fake", Set(), Nil)))
+            RunfolderReadyForProcessing("fake",
+                                        "fakePath",
+                                        RunConfiguration(false,
+                                                         "fake",
+                                                         "fake",
+                                                         "fake",
+                                                         Set(),
+                                                         Nil,
+                                                         (1, 2),
+                                                         None)))
       .take(take.toLong)
       .zipWithIndex
       .map {

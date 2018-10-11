@@ -44,7 +44,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         ResourceConfig.minimal)
 
       perSampleFastQs = ProtoPipeline
-        .groupBySample(demultiplexed.withoutUndetermined)
+        .groupBySample(demultiplexed.withoutUndetermined,
+                       r.runConfiguration.readAssignment,
+                       r.runConfiguration.umi)
 
       fastpReports = startFastpReports(perSampleFastQs)
 
@@ -146,7 +148,19 @@ object ProtoPipeline extends StrictLogging {
       .headOption
       .map(_.fastq)
 
-  def groupBySample(demultiplexed: DemultiplexedReadData): Seq[PerSampleFastQ] =
+  /**
+    * @param readAssignment Mapping between members of a read pair and numbers assigned by bcl2fastq.
+    * @param umi Number assigned by bcl2fastq, if any
+    *
+    * e.g. if R1 is the first member of the pair and R2 is the second member of the pair
+    * then (1,2)
+    * if R1 is the first member of the pair, R2 is the UMI, R3 is the second member of the pair
+    * then (1,3) and if you want to process the umi then pass Some(2) to the umi param.
+    * if R1 is the second member of the pair (for whatever reason) and R2 is the first then pass (2,1)
+    */
+  def groupBySample(demultiplexed: DemultiplexedReadData,
+                    readAssignment: (Int, Int),
+                    umi: Option[Int]): Seq[PerSampleFastQ] =
     demultiplexed.fastqs
       .groupBy { fq =>
         (fq.project, fq.sampleId, fq.runId)
@@ -161,9 +175,16 @@ object ProtoPipeline extends StrictLogging {
               .map(_._2)
               .map { (fqsInLane: Set[FastQWithSampleMetadata]) =>
                 val maybeRead1 =
-                  selectReadType(fqsInLane.toSeq, ReadType("R1"))
+                  selectReadType(fqsInLane.toSeq,
+                                 ReadType("R" + readAssignment._1))
+
                 val maybeRead2 =
-                  selectReadType(fqsInLane.toSeq, ReadType("R2"))
+                  selectReadType(fqsInLane.toSeq,
+                                 ReadType("R" + readAssignment._2))
+
+                val maybeUmi = umi.flatMap(umiReadNumber =>
+                  selectReadType(fqsInLane.toSeq,
+                                 ReadType("R" + umiReadNumber)))
 
                 val lane = {
                   val distinctLanesInGroup = fqsInLane.map(_.lane)
@@ -174,7 +195,7 @@ object ProtoPipeline extends StrictLogging {
                 for {
                   read1 <- maybeRead1
                   read2 <- maybeRead2
-                } yield FastQPerLane(lane, read1, read2, None)
+                } yield FastQPerLane(lane, read1, read2, maybeUmi)
               }
               .flatten
           PerSampleFastQ(

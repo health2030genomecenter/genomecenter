@@ -236,7 +236,9 @@ sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       targetIntervals = targetIntervals,
       bqsrKnownSites = Set(knownSitesVCF.getAbsolutePath),
       extraBcl2FastqArguments =
-        Seq("--tiles", "s_1_1101", "--use-bases-mask", "y75n,i6n*,n10,y75n")
+        Seq("--tiles", "s_1_1101", "--use-bases-mask", "y75n,i6n*,n10,y75n"),
+      readAssignment = (1, 2),
+      umi = None
     )
 
     val (testConfig, basePath) = makeTestConfig

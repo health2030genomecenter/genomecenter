@@ -18,7 +18,11 @@ case class RunConfiguration(
     referenceFasta: String,
     targetIntervals: String,
     bqsrKnownSites: Set[String],
-    extraBcl2FastqArguments: Seq[String]
+    extraBcl2FastqArguments: Seq[String],
+    /* Mapping between members of a read pair and numbers assigned by bcl2fastq */
+    readAssignment: (Int, Int),
+    /* Number assigned by bcl2fastq, if any */
+    umi: Option[Int]
 )
 
 case class RunfolderReadyForProcessing(runId: String,
@@ -140,7 +144,13 @@ object RunConfiguration {
           bqsrKnownSites = config.getStringList("bqsr.knownSites").asScala.toSet,
           extraBcl2FastqArguments =
             config.getStringList("extraBcl2FastqArguments").asScala,
-          sampleSheet = config.getString("sampleSheet")
+          sampleSheet = config.getString("sampleSheet"),
+          readAssignment = {
+            val list = config.getIntList("readAssignment").asScala
+            (list(0), list(1))
+          },
+          umi =
+            config.getIntList("umiReadNumber").asScala.headOption.map(_.toInt)
         )
       }
       .toEither
