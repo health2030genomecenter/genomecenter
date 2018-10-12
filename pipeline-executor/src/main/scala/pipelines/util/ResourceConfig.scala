@@ -17,6 +17,8 @@ object ResourceConfig {
 
   def bwa(implicit tsc: TaskSystemComponents) = parse("bwa")
 
+  def sortBam(implicit tsc: TaskSystemComponents) = parse("sortBam")
+
   def picardMergeAndMarkDuplicates(implicit tsc: TaskSystemComponents) =
     parse("picardMergeAndMarkDuplicates")
 
@@ -31,5 +33,8 @@ object ResourceConfig {
 
   def minimal(implicit tsc: TaskSystemComponents) =
     parse("minimal")
+
+  val picardSamSortRecordPerMegabyteHeap =
+    config.getDouble("picardSamSortRecordPerMegabyteHeap")
 
 }

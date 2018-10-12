@@ -174,6 +174,14 @@ trait TestHelpers {
     list
   }
 
+  def getSortOrder(file: File) = {
+    import htsjdk.samtools.SamReaderFactory
+    val reader = SamReaderFactory.makeDefault.open(file)
+    val sortOrder = reader.getFileHeader.getSortOrder.toString
+    reader.close
+    sortOrder
+  }
+
   def await[T](f: Future[T]) = Await.result(f, atMost = 180 seconds)
 
   def makeTestConfig = {

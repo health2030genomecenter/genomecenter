@@ -28,8 +28,8 @@ class MarkDuplicatesTestSuite
         val future =
           BWAAlignment.mergeAndMarkDuplicate(input)(CPUMemoryRequest(1, 500))
         val markDupResult = await(future)
-        val bamFile = await(markDupResult.bam.bam.bam.file)
-        await(markDupResult.bam.bam.bam.history).context.get.dependencies.size shouldBe 1
+        val bamFile = await(markDupResult.bam.bam.file.file)
+        await(markDupResult.bam.bam.file.history).context.get.dependencies.size shouldBe 1
         (markDupResult, bamFile)
       }
 

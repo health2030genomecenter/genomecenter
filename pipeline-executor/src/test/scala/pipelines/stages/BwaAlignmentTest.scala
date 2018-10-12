@@ -47,9 +47,11 @@ class BwaAlignmentTestSuite
 
       recordsInBamFile(localBam) shouldBe 10000
 
+      getSortOrder(localBam) shouldBe "queryname"
+
       takeRecordsInBamFile(localBam, 100).foreach { record =>
         record.getReadUnmappedFlag shouldBe false
-        record.getReferenceName shouldBe "chr19"
+        record.getReferenceName.take(5) shouldBe "chr19"
       }
 
     }
@@ -90,9 +92,11 @@ class BwaAlignmentTestSuite
 
       recordsInBamFile(localBam) shouldBe 10000
 
+      getSortOrder(localBam) shouldBe "queryname"
+
       takeRecordsInBamFile(localBam, 100).foreach { record =>
         record.getReadUnmappedFlag shouldBe false
-        record.getReferenceName shouldBe "chr19"
+        record.getReferenceName.take(5) shouldBe "chr19"
         record.getAttribute("OX").toString.size shouldBe 151
       }
 

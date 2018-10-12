@@ -1,7 +1,7 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Exec, ResourceConfig, JVM}
+import org.gc.pipelines.util.{Exec, ResourceConfig, JVM, BAM}
 import org.gc.pipelines.util
 
 import io.circe.{Decoder, Encoder}
@@ -40,7 +40,7 @@ case class PerSampleBWAAlignmentInput(
 case class DuplicationQCResult(markDuplicateMetrics: SharedFile)
     extends WithSharedFiles(markDuplicateMetrics)
 
-case class AlignedSample(
+case class MarkDuplicateResult(
     bam: BamWithSampleMetadata,
     duplicateMetric: DuplicationQCResult
 ) extends WithSharedFiles(bam.files ++ duplicateMetric.files: _*)
@@ -98,7 +98,9 @@ object BWAAlignment {
     }
 
   val alignFastqPerSample =
-    AsyncTask[PerSampleBWAAlignmentInput, AlignedSample]("__bwa-persample", 1) {
+    AsyncTask[PerSampleBWAAlignmentInput, MarkDuplicateResult](
+      "__bwa-persample",
+      1) {
       case PerSampleBWAAlignmentInput(fastqs,
                                       project,
                                       sampleId,
@@ -129,8 +131,77 @@ object BWAAlignment {
           } yield merged
     }
 
+  val sortByCoordinateAndIndex =
+    AsyncTask[Bam, CoordinateSortedBam]("__sortbam", 1) {
+      case Bam(bam) =>
+        implicit computationEnvironment =>
+          val picardJar = extractPicardJar()
+
+          val tempFolder =
+            TempFile
+              .createTempFolder(".markDuplicateTempFolder")
+              .getAbsolutePath
+          val tmpSorted = TempFile.createTempFile(".bam")
+          val tmpStdOut = TempFile.createTempFile(".stdout")
+          val tmpStdErr = TempFile.createTempFile(".stderr")
+          val javaTmpDir =
+            s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
+
+          val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+          val maxReads =
+            (resourceAllocated.memory.toDouble * ResourceConfig.picardSamSortRecordPerMegabyteHeap).toLong
+
+          for {
+            localBam <- bam.file
+            result <- {
+
+              Exec.bash(logDiscriminator = "sortbam.sort",
+                        onError = Exec.ThrowIfNonZero)(
+                s"""java ${JVM.g1} $maxHeap $javaTmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
+                --INPUT ${localBam.getAbsolutePath} \\
+                --OUTPUT ${tmpSorted.getAbsolutePath} \\
+                --SORT_ORDER coordinate \\
+                --TMP_DIR $tempFolder \\
+                --MAX_RECORDS_IN_RAM $maxReads \\
+              > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+              """)
+
+              Exec.bash("sortbam.idx", onError = Exec.ThrowIfNonZero)(
+                s"""java ${JVM.serial} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar BuildBamIndex \\
+                 --INPUT ${tmpSorted.getAbsolutePath} \\
+                 > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)"""
+              )
+
+              val expectedBai =
+                new File(
+                  tmpSorted.getAbsolutePath
+                    .stripSuffix(".bam") + ".bai")
+
+              val nameStub = bam.name.stripSuffix(".bam")
+
+              for {
+                _ <- SharedFile(tmpStdOut,
+                                name = nameStub + ".sort.stdout",
+                                deleteFile = true)
+                _ <- SharedFile(tmpStdErr,
+                                name = nameStub + ".sort.stderr",
+                                deleteFile = true)
+                sortedBam <- SharedFile(tmpSorted,
+                                        name = nameStub + ".sorted.bam",
+                                        deleteFile = true)
+                bai <- SharedFile(expectedBai,
+                                  name = nameStub + ".sorted.bai",
+                                  deleteFile = true)
+              } yield CoordinateSortedBam(sortedBam, bai)
+
+            }
+          } yield result
+    }
+
   val mergeAndMarkDuplicate =
-    AsyncTask[BamsWithSampleMetadata, AlignedSample]("__merge-markduplicate", 1) {
+    AsyncTask[BamsWithSampleMetadata, MarkDuplicateResult](
+      "__merge-markduplicate",
+      1) {
       case BamsWithSampleMetadata(project, sampleId, runId, bams) =>
         implicit computationEnvironment =>
           val picardJar = extractPicardJar()
@@ -154,11 +225,9 @@ object BWAAlignment {
             result <- {
 
               localBams.foreach { localBam =>
-                Exec.bash("bwa.buildbamindex." + sampleId,
-                          onError = Exec.ThrowIfNonZero)(
-                  s"""java ${JVM.serial} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar BuildBamIndex \\
-                 --INPUT ${localBam.getAbsolutePath} \\
-                 > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)"""
+                require(
+                  BAM.getSortOrder(localBam) == htsjdk.samtools.SAMFileHeader.SortOrder.queryname,
+                  "Error in pipeline. Input bam of mark duplicate should be queryname sorted."
                 )
               }
 
@@ -172,19 +241,14 @@ object BWAAlignment {
           --OUTPUT ${tmpDuplicateMarkedBam.getAbsolutePath} \\
           --METRICS_FILE ${tmpMetricsFile.getAbsolutePath} \\
           --OPTICAL_DUPLICATE_PIXEL_DISTANCE=250 \\
-          --CREATE_INDEX true \\
-          --MAX_RECORDS_IN_RAM 5000000 \\
+          --CREATE_INDEX false \\
+          --MAX_RECORDS_IN_RAM 0 \\
           --TMP_DIR $tempFolder \\
           > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
         """
 
               Exec.bash(logDiscriminator = "markduplicates." + sampleId,
                         onError = Exec.ThrowIfNonZero)(bashScript)
-
-              val expectedBai =
-                new File(
-                  tmpDuplicateMarkedBam.getAbsolutePath
-                    .stripSuffix(".bam") + ".bai")
 
               val nameStub = project + "." + sampleId + "." + runId
 
@@ -195,23 +259,17 @@ object BWAAlignment {
                 _ <- SharedFile(tmpStdErr,
                                 name = nameStub + ".mdup.bam.stderr",
                                 deleteFile = true)
-                bai <- SharedFile(expectedBai,
-                                  name = nameStub + ".mdup.bai",
-                                  deleteFile = true)
                 duplicateMetric <- SharedFile(
                   tmpMetricsFile,
-                  name = nameStub + ".markDuplicateMetrics",
+                  name = nameStub + ".mdup.markDuplicateMetrics",
                   deleteFile = true)
                 bam <- SharedFile(tmpDuplicateMarkedBam,
-                                  name = nameStub + ".bam",
+                                  name = nameStub + ".mdup.bam",
                                   deleteFile = true)
                 _ <- Future.traverse(bams)(_.file.delete)
               } yield
-                AlignedSample(
-                  BamWithSampleMetadata(project,
-                                        sampleId,
-                                        runId,
-                                        CoordinateSortedBam(bam, bai)),
+                MarkDuplicateResult(
+                  BamWithSampleMetadata(project, sampleId, runId, Bam(bam)),
                   DuplicationQCResult(duplicateMetric))
 
             }
@@ -267,6 +325,10 @@ object BWAAlignment {
           val sequencingCenter = "Health2030GenomeCenter"
           val runDate: String = java.time.Instant.now.toString
 
+          val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+          val maxReads =
+            (resourceAllocated.memory.toDouble * ResourceConfig.picardSamSortRecordPerMegabyteHeap).toLong
+
           val tmpDir =
             s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
@@ -284,7 +346,7 @@ object BWAAlignment {
               umi match {
                 case None =>
                   val fastqToUnmappedBam = s"""\\
-        java ${JVM.g1} -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
+        java ${JVM.g1} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
                 --FASTQ $read1 \\
                 --FASTQ2 $read2 \\
                 --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
@@ -298,7 +360,7 @@ object BWAAlignment {
                 --PLATFORM illumina \\
                 --SEQUENCING_CENTER  $sequencingCenter \\
                 --TMP_DIR ${unmappedBamTempFolder.getAbsolutePath} \\
-                --MAX_RECORDS_IN_RAM 5000000 \\
+                --MAX_RECORDS_IN_RAM $maxReads \\
                 --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
               """
 
@@ -311,6 +373,7 @@ object BWAAlignment {
                 --FASTQ2 $read2 \\
                 --OUTPUT /dev/stdout \\
                 --SORT_ORDER unsorted \\
+                --MAX_RECORDS_IN_RAM 0 \\
                 --COMPRESSION_LEVEL 0 \\
                 --READ_GROUP_NAME $readGroupName \\
                 --SAMPLE_NAME $uniqueSampleName \\
@@ -319,18 +382,17 @@ object BWAAlignment {
                 --PLATFORM illumina \\
                 --SEQUENCING_CENTER  $sequencingCenter \\
                 --TMP_DIR ${unmappedBamTempFolder.getAbsolutePath} \\
-                --MAX_RECORDS_IN_RAM 5000000 \\
                 --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                 \\
         java ${JVM.serial} -Xmx2G $tmpDir -jar $umiProcessor $umi \\
               2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                  \\
-        java ${JVM.g1} -Xmx8G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
+        java ${JVM.g1} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
                 --INPUT /dev/stdin/ \\
                 --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
                 --SORT_ORDER queryname \\
                 --TMP_DIR ${unmappedBamTempFolder.getAbsolutePath} \\
-                --MAX_RECORDS_IN_RAM 5000000 \\
+                --MAX_RECORDS_IN_RAM $maxReads \\
                 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
               """
 
@@ -360,20 +422,21 @@ object BWAAlignment {
      \\
      $bwaExecutable mem -M -t $bwaNumberOfThreads -p $reference /dev/stdin 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-     java ${JVM.g1} -Xmx12G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
+     java ${JVM.g1} -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
        --REFERENCE_SEQUENCE $reference \\
        --UNMAPPED_BAM ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
        --ALIGNED_BAM /dev/stdin \\
        --OUTPUT ${tmpCleanBam.getAbsolutePath} \\
        --CREATE_INDEX false \\
        --ADD_MATE_CIGAR true \\
+       --SORT_ORDER queryname \\
        --CLIP_ADAPTERS false \\
        --CLIP_OVERLAPPING_READS true \\
        --INCLUDE_SECONDARY_ALIGNMENTS true \\
        --MAX_INSERTIONS_OR_DELETIONS -1 \\
        --PRIMARY_ALIGNMENT_STRATEGY MostDistant \\
        --ATTRIBUTES_TO_RETAIN XS \\
-       --MAX_RECORDS_IN_RAM 4000000 \\
+       --MAX_RECORDS_IN_RAM 0 \\
        --TMP_DIR $mergeBamAlignmentTempFolder \\
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
       """
@@ -440,11 +503,11 @@ object PerSampleBWAAlignmentInput {
     deriveDecoder[PerSampleBWAAlignmentInput]
 }
 
-object AlignedSample {
-  implicit val encoder: Encoder[AlignedSample] =
-    deriveEncoder[AlignedSample]
-  implicit val decoder: Decoder[AlignedSample] =
-    deriveDecoder[AlignedSample]
+object MarkDuplicateResult {
+  implicit val encoder: Encoder[MarkDuplicateResult] =
+    deriveEncoder[MarkDuplicateResult]
+  implicit val decoder: Decoder[MarkDuplicateResult] =
+    deriveDecoder[MarkDuplicateResult]
 }
 
 object DuplicationQCResult {

@@ -307,7 +307,7 @@ object ProtoPipeline extends StrictLogging {
 
           for {
 
-            AlignedSample(alignedSample, duplicationQC) <- intoIntermediateFolder {
+            MarkDuplicateResult(alignedSample, duplicationQC) <- intoIntermediateFolder {
               implicit computationEnvironment =>
                 BWAAlignment
                   .alignFastqPerSample(
@@ -319,15 +319,23 @@ object ProtoPipeline extends StrictLogging {
                     ResourceConfig.minimal)
             }
 
+            coordinateSorted <- intoIntermediateFolder {
+              implicit computationEnvironment =>
+                BWAAlignment.sortByCoordinateAndIndex(alignedSample.bam)(
+                  ResourceConfig.sortBam)
+            }
+
+            _ <- alignedSample.bam.file.delete
+
             table <- intoIntermediateFolder { implicit computationEnvironment =>
               BaseQualityScoreRecalibration.trainBQSR(
-                TrainBQSRInput(alignedSample.bam,
+                TrainBQSRInput(coordinateSorted,
                                indexedReference,
                                knownSites.toSet))(ResourceConfig.trainBqsr)
             }
             recalibrated <- intoFinalFolder { implicit computationEnvironment =>
               BaseQualityScoreRecalibration.applyBQSR(
-                ApplyBQSRInput(alignedSample.bam, indexedReference, table))(
+                ApplyBQSRInput(coordinateSorted, indexedReference, table))(
                 ResourceConfig.applyBqsr)
             }
 
