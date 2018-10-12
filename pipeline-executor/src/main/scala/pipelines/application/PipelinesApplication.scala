@@ -54,7 +54,7 @@ class PipelinesApplication(
   implicit val materializer = taskSystemComponents.actorMaterializer
 
   (previousUnfinishedRuns ++ futureRuns)
-    .mapAsync(1) { run =>
+    .mapAsync(1000) { run =>
       logger.debug(s"Looking for suitable pipeline for ${run.runId}")
       pipelines.find(_.canProcess(run)) match {
         case Some(pipeline) =>
