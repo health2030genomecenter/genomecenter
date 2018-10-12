@@ -18,6 +18,7 @@ import akka.testkit.TestKit
 import com.typesafe.scalalogging.StrictLogging
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.model._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -140,19 +141,22 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
     with StrictLogging {
   def events =
     Source
-      .tick(1 seconds,
-            2 seconds,
-            RunfolderReadyForProcessing("fake",
-                                        "fakePath",
-                                        RunConfiguration(false,
-                                                         "fake",
-                                                         "fake",
-                                                         "fake",
-                                                         Set(),
-                                                         Nil,
-                                                         (1, 2),
-                                                         None,
-                                                         Selector.empty)))
+      .tick(
+        1 seconds,
+        2 seconds,
+        RunfolderReadyForProcessing("fake",
+                                    "fakePath",
+                                    RunConfiguration(ProcessingId("all"),
+                                                     false,
+                                                     "fake",
+                                                     "fake",
+                                                     "fake",
+                                                     Set(),
+                                                     Nil,
+                                                     (1, 2),
+                                                     None,
+                                                     Selector.empty))
+      )
       .take(take.toLong)
       .zipWithIndex
       .map {

@@ -38,7 +38,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         r.runConfiguration)
 
       demultiplexed <- Demultiplexing.allLanes(
-        DemultiplexingInput(RunId(r.runId),
+        DemultiplexingInput(r.runConfiguration.processingId,
+                            RunId(r.runId),
                             r.runFolderPath,
                             sampleSheet,
                             r.runConfiguration.extraBcl2FastqArguments))(

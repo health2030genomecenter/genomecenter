@@ -27,6 +27,7 @@ case class Selector(
 }
 
 case class RunConfiguration(
+    processingId: ProcessingId,
     automatic: Boolean,
     sampleSheet: String,
     referenceFasta: String,
@@ -180,6 +181,7 @@ object RunConfiguration {
           else Selector.empty
 
         RunConfiguration(
+          processingId = ProcessingId(config.getString("processingId")),
           automatic = config.getBoolean("automatic"),
           referenceFasta = config.getString("referenceFasta"),
           targetIntervals = config.getString("targetIntervals"),

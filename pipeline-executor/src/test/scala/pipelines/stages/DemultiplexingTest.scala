@@ -37,6 +37,7 @@ class DemultiplexingTestSuite
       val result = withTaskSystem(testConfig) { implicit ts =>
         val future = Demultiplexing.allLanes(
           DemultiplexingInput(
+            processingId = ProcessingId("all"),
             runId = RunId(runId),
             runFolderPath = runFolderPath,
             sampleSheet = SampleSheetFile(

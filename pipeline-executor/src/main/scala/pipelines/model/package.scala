@@ -47,4 +47,10 @@ package object model {
   def RunId(s: String): RunId = tag[RunIdTag][String](s)
   implicit val (runIdEncoder, runIdDecoder) = stringCodec[RunIdTag]
 
+  trait ProcessingIdTag
+  type ProcessingId = String @@ ProcessingIdTag
+  def ProcessingId(s: String): ProcessingId = tag[ProcessingIdTag][String](s)
+  implicit val (processIdEncoder, processIdDecoder) =
+    stringCodec[ProcessingIdTag]
+
 }

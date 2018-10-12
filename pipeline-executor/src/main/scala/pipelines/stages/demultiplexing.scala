@@ -16,6 +16,7 @@ import akka.util.ByteString
 import java.io.File
 
 case class DemultiplexingInput(
+    processingId: ProcessingId,
     runId: RunId,
     runFolderPath: String,
     sampleSheet: SampleSheetFile,
@@ -48,7 +49,9 @@ object Demultiplexing {
         releaseResources
         computationEnvironment.withFilePrefix(Seq("demultiplex")) {
           implicit computationEnvironment =>
-            def intoRunIdFolder[T] = appendToFilePrefix[T](Seq(runFolder.runId))
+            def intoRunIdFolder[T] =
+              appendToFilePrefix[T](
+                Seq(runFolder.runId, runFolder.processingId))
 
             for {
               sampleSheet <- runFolder.sampleSheet.parse
@@ -112,7 +115,8 @@ object Demultiplexing {
       "__demultiplex-per-lane",
       5) {
       case DemultiplexSingleLaneInput(
-          DemultiplexingInput(runId,
+          DemultiplexingInput(processingId,
+                              runId,
                               runFolderPath,
                               sampleSheet,
                               extraArguments),
@@ -226,9 +230,11 @@ object Demultiplexing {
 
               Files.list(outputFolder, "**.fastq.gz") :+ statsFile
 
-            }(computationEnvironment.components
-              .withChildPrefix(runId)
-              .withChildPrefix(laneToProcess.toString))
+            }(
+              computationEnvironment.components
+                .withChildPrefix(runId)
+                .withChildPrefix(processingId)
+                .withChildPrefix(laneToProcess.toString))
 
           } yield {
             val fastQFiles = fastQAndStatFiles.dropRight(1)

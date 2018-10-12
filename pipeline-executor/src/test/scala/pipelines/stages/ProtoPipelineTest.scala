@@ -231,6 +231,7 @@ sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
     val runFolderPath = extractRunFolderTestData
 
     val runConfiguration = RunConfiguration(
+      processingId = ProcessingId("all"),
       automatic = true,
       sampleSheet = sampleSheetFile.getAbsolutePath,
       referenceFasta = referenceFasta,
