@@ -291,7 +291,6 @@ object BWAAlignment {
                                     maybeUmi) =>
         implicit computationEnvironment =>
           val picardJar = extractPicardJar()
-          val umiProcessor = extractUmiProcessorJar()
 
           val bwaExecutable = extractBwaExecutable()
 
@@ -367,6 +366,7 @@ object BWAAlignment {
                   Exec.bash(logDiscriminator = "bwa.fastq2ubam." + sampleId,
                             onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
                 case Some(umi) =>
+                  val umiProcessor = extractUmiProcessorJar()
                   val fastqToUnmappedBam = s"""\\
         java ${JVM.serial} -Xmx2G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
                 --FASTQ $read1 \\

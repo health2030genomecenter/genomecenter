@@ -83,7 +83,7 @@ lazy val pipelineExecutor = project
     // first at normal deployment with universal
     // second at test
     // (resources in Compile) would put the jar into a jar which slows the buidl.
-    mappings in Universal += (assembly in Compile in umiProcessor).value -> "lib/umiprocessor",
+    mappings in Universal += (assembly in Compile in umiProcessor).value -> "resources/umiprocessor",
     resources in Test += (assembly in Compile in umiProcessor).value
   )
 
