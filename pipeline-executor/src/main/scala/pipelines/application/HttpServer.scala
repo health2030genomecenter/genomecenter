@@ -32,26 +32,35 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
   private[pipelines] val route =
     post {
       path("runfolder") {
-        entity(as[RunfolderDTO]) {
-          case dto @ RunfolderDTO(runFolderPath, configurationFile) =>
-            logger.info(s"Got $runFolderPath")
-            val runFolder = new java.io.File(runFolderPath)
-            if (runFolder.canRead) {
-              val maybeRunFolderReadyEvent =
-                RunfolderReadyForProcessing.readFolderWithConfigFile(
-                  runFolder,
-                  new File(configurationFile)
-                )
+        entity(as[Seq[RunfolderDTO]]) { runFolders =>
+          val invalidPath = runFolders.exists {
+            case RunfolderDTO(path, _) => !new java.io.File(path).canRead
+          }
 
-              maybeRunFolderReadyEvent match {
-                case Left(error) =>
-                  logger.info(s"$dto failed to parse due to error $error.")
-                case Right(runFolderReadyEvent) =>
-                  sourceActor ! runFolderReadyEvent
-              }
+          if (invalidPath) {
+            complete(akka.http.scaladsl.model.StatusCodes.BadRequest)
+          } else {
+            runFolders.foreach {
+              case dto @ RunfolderDTO(runFolderPath, configurationFile) =>
+                logger.info(s"Got $runFolderPath")
+                val runFolder = new java.io.File(runFolderPath)
 
-              complete(akka.http.scaladsl.model.StatusCodes.OK)
-            } else complete(akka.http.scaladsl.model.StatusCodes.BadRequest)
+                val maybeRunFolderReadyEvent =
+                  RunfolderReadyForProcessing.readFolderWithConfigFile(
+                    runFolder,
+                    new File(configurationFile)
+                  )
+
+                maybeRunFolderReadyEvent match {
+                  case Left(error) =>
+                    logger.info(s"$dto failed to parse due to error $error.")
+                  case Right(runFolderReadyEvent) =>
+                    sourceActor ! runFolderReadyEvent
+                }
+
+            }
+            complete(akka.http.scaladsl.model.StatusCodes.OK)
+          }
         }
 
       }
