@@ -56,6 +56,16 @@ object SampleSheet extends StrictLogging {
       distinctColumnValues(laneColumnIdx).map(value => Lane(value.toInt))
     val projects = distinctColumnValues(projectColumnIdx).map(Project(_))
 
+    /** bcl2fastq source code Layout.cpp 804
+      *
+      * Sample number is the number in which the Sample_IDs are occuring.
+      */
+    def getSampleSheetEntriesByBcl2FastqSampleNumber(sampleNumber: Int) = {
+      val sampleNumbers = poolingLayout.map(_.sampleId).distinct
+      val sampleId = sampleNumbers(sampleNumber - 1)
+      poolingLayout.filter(_.sampleId == sampleId)
+    }
+
     val poolingLayout: Seq[Multiplex] = {
       val parsedLines = for {
         sampleIdColumnIdx <- sampleIdColumnIdx

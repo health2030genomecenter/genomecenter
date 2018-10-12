@@ -133,12 +133,19 @@ object Demultiplexing {
                                       lane,
                                       read) =>
                 if (sampleNumberInSampleSheet1Based.toInt > 0) {
-                  val sampleSheetEntry = sampleSheet.poolingLayout(
-                    sampleNumberInSampleSheet1Based.toInt - 1)
-                  val sampleSheetSampleId = sampleSheetEntry.sampleId
-                  val sampleSheetSampleName = sampleSheetEntry.sampleName
-                  val sampleSheetProject = sampleSheetEntry.project
-                  val sampleSheetLane = sampleSheetEntry.lane
+                  val sampleSheetEntries =
+                    sampleSheet.getSampleSheetEntriesByBcl2FastqSampleNumber(
+                      sampleNumberInSampleSheet1Based.toInt)
+                  assert(sampleSheetEntries.map(_.sampleId).distinct.size == 1)
+                  assert(
+                    sampleSheetEntries.map(_.sampleName).distinct.size == 1)
+                  assert(sampleSheetEntries.map(_.project).distinct.size == 1)
+
+                  val sampleSheetSampleId = sampleSheetEntries.head.sampleId
+                  val sampleSheetSampleName = sampleSheetEntries.head.sampleName
+                  val sampleSheetProject = sampleSheetEntries.head.project
+                  val sampleSheetLanes: Seq[Lane] =
+                    sampleSheetEntries.map(_.lane)
 
                   val parsedSampleName = SampleName(_sampleName)
                   val parsedLane = Lane(lane.toInt)
@@ -148,8 +155,9 @@ object Demultiplexing {
                     s"Sample name parsed from file name and read from sample sheet do not match. $sampleSheetSampleName $parsedSampleName $fastq $sampleSheet"
                   )
                   require(
-                    sampleSheetLane == Lane(lane.toInt),
-                    s"lanes parsed from file name and read from sample sheet do not match. $sampleSheetLane $lane $fastq $sampleSheet")
+                    sampleSheetLanes.contains(Lane(lane.toInt)),
+                    s"lanes parsed from file name and read from sample sheet do not match. $sampleSheetLanes $lane $fastq $sampleSheet"
+                  )
 
                   Some(
                     FastQWithSampleMetadata(sampleSheetProject,
