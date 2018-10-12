@@ -10,7 +10,8 @@ import org.gc.pipelines.util.Exec
 import org.gc.pipelines.model._
 import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
-  RunConfiguration
+  RunConfiguration,
+  Selector
 }
 
 class ProtopipelineTestSuite
@@ -238,7 +239,11 @@ sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       extraBcl2FastqArguments =
         Seq("--tiles", "s_1_1101", "--use-bases-mask", "y75n,i6n*,n10,y75n"),
       readAssignment = (1, 2),
-      umi = None
+      umi = None,
+      wesSelector = Selector(runIds = Set(RunId(runId)),
+                             samples = Set.empty,
+                             lanes = Set.empty,
+                             projects = Set.empty)
     )
 
     val (testConfig, basePath) = makeTestConfig

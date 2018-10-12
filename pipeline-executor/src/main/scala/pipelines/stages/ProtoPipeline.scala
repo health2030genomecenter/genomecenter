@@ -6,7 +6,8 @@ import tasks.circesupport._
 import org.gc.pipelines.application.{
   Pipeline,
   RunfolderReadyForProcessing,
-  RunConfiguration
+  RunConfiguration,
+  Selector
 }
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.ResourceConfig
@@ -50,9 +51,19 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
       fastpReports = startFastpReports(perSampleFastQs)
 
+      samplesForWESAnalysis = ProtoPipeline.select(
+        r.runConfiguration.wesSelector,
+        perSampleFastQs)
+
+      _ = {
+        logger.info(
+          s"Demultiplexed samples from run ${r.runId} : $perSampleFastQs")
+        logger.info(s"WES samples from run ${r.runId} : $samplesForWESAnalysis")
+      }
+
       perSampleResults <- ProtoPipeline.allSamples(
         PerSamplePipelineInput(
-          perSampleFastQs.toSet,
+          samplesForWESAnalysis.toSet,
           reference,
           knownSites.toSet,
           selectionTargetIntervals
@@ -394,6 +405,15 @@ object ProtoPipeline extends StrictLogging {
 
               } yield PerSamplePipelineResult(processedSamples.toSet)
           }
+
+    }
+
+  def select(selector: Selector, samples: Seq[PerSampleFastQ]) =
+    samples.filter { sample =>
+      val lanes = sample.lanes.map { fqLane =>
+        Metadata(sample.runId, fqLane.lane, sample.sampleId, sample.project)
+      }
+      lanes.exists(selector.isSelected)
 
     }
 

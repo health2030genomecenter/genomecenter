@@ -151,7 +151,8 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
                                                          Set(),
                                                          Nil,
                                                          (1, 2),
-                                                         None)))
+                                                         None,
+                                                         Selector.empty)))
       .take(take.toLong)
       .zipWithIndex
       .map {

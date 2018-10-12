@@ -9,8 +9,22 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import java.nio.file.FileSystems
 import java.io.File
 import com.typesafe.scalalogging.StrictLogging
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ConfigFactory, Config}
 import scala.collection.JavaConverters._
+import org.gc.pipelines.model._
+
+case class Selector(
+    lanes: Set[Lane],
+    samples: Set[SampleId],
+    runIds: Set[RunId],
+    projects: Set[Project]
+) {
+  def isSelected(sample: Metadata): Boolean =
+    lanes.contains(sample.lane) ||
+      samples.contains(sample.sample) ||
+      runIds.contains(sample.runId) ||
+      projects.contains(sample.project)
+}
 
 case class RunConfiguration(
     automatic: Boolean,
@@ -22,7 +36,8 @@ case class RunConfiguration(
     /* Mapping between members of a read pair and numbers assigned by bcl2fastq */
     readAssignment: (Int, Int),
     /* Number assigned by bcl2fastq, if any */
-    umi: Option[Int]
+    umi: Option[Int],
+    wesSelector: Selector
 )
 
 case class RunfolderReadyForProcessing(runId: String,
@@ -127,6 +142,27 @@ object RunfolderReadyForProcessing {
   }
 }
 
+object Selector {
+  implicit val encoder: Encoder[Selector] =
+    deriveEncoder[Selector]
+  implicit val decoder: Decoder[Selector] =
+    deriveDecoder[Selector]
+
+  val empty = Selector(Set.empty, Set.empty, Set.empty, Set.empty)
+
+  def apply(config: Config): Selector = {
+    def getOrEmpty(path: String) =
+      if (config.hasPath(path)) Set.empty
+      else config.getStringList(path).asScala.toSet
+    Selector(
+      lanes = getOrEmpty("lanes").map(_.toInt).map(Lane(_)),
+      projects = getOrEmpty("projects").map(Project(_)),
+      runIds = getOrEmpty("runIds").map(RunId(_)),
+      samples = getOrEmpty("samples").map(SampleId(_)),
+    )
+  }
+}
+
 object RunConfiguration {
   implicit val encoder: Encoder[RunConfiguration] =
     deriveEncoder[RunConfiguration]
@@ -136,7 +172,13 @@ object RunConfiguration {
   def apply(content: String): Either[String, RunConfiguration] =
     scala.util
       .Try {
+
         val config = ConfigFactory.parseString(content)
+
+        def getSelector(path: String) =
+          if (config.hasPath(path)) Selector(config.getConfig(path))
+          else Selector.empty
+
         RunConfiguration(
           automatic = config.getBoolean("automatic"),
           referenceFasta = config.getString("referenceFasta"),
@@ -150,7 +192,8 @@ object RunConfiguration {
             (list(0), list(1))
           },
           umi =
-            config.getIntList("umiReadNumber").asScala.headOption.map(_.toInt)
+            config.getIntList("umiReadNumber").asScala.headOption.map(_.toInt),
+          wesSelector = getSelector("wes")
         )
       }
       .toEither
