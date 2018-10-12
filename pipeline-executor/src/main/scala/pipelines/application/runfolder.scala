@@ -152,7 +152,7 @@ object Selector {
 
   def apply(config: Config): Selector = {
     def getOrEmpty(path: String) =
-      if (config.hasPath(path)) Set.empty
+      if (!config.hasPath(path)) Set.empty
       else config.getStringList(path).asScala.toSet
     Selector(
       lanes = getOrEmpty("lanes").map(_.toInt).map(Lane(_)),
