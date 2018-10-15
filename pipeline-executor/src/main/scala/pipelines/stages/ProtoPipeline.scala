@@ -30,6 +30,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     def inRunQCFolder[T](f: TaskSystemComponents => T) =
       tsc.withFilePrefix(Seq("runQC"))(f)
 
+    def inDeliverablesFolder[T](f: TaskSystemComponents => T) =
+      tsc.withFilePrefix(Seq("deliverables"))(f)
+
     for {
       reference <- ProtoPipeline.fetchReference(r.runConfiguration)
       knownSites <- ProtoPipeline.fetchKnownSitesFiles(r.runConfiguration)
@@ -77,6 +80,16 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       _ <- inRunQCFolder { implicit tsc =>
         AlignmentQC.runQCTable(RunQCTableInput(RunId(r.runId), sampleQCs))(
           ResourceConfig.minimal)
+      }
+
+      _ <- inDeliverablesFolder { implicit tsc =>
+        Delivery.collectDeliverables(
+          CollectDeliverablesInput(
+            RunId(r.runId),
+            r.runConfiguration.processingId,
+            perSampleFastQs.toSet,
+            perSampleResults.samples
+          ))(ResourceConfig.minimal)
       }
 
     } yield true
