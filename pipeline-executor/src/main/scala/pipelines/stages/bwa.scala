@@ -314,6 +314,7 @@ object BWAAlignment {
           val tmpCleanBam = TempFile.createTempFile(".bam")
           val tmpIntermediateUnmappedBam =
             TempFile.createTempFile(".unmappedBam")
+
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
 
@@ -331,7 +332,7 @@ object BWAAlignment {
           val tmpDir =
             s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
-          for {
+          val resultF = for {
             read1 <- read1.file.file.map(_.getAbsolutePath)
             read2 <- read2.file.file.map(_.getAbsolutePath)
             umi <- maybeUmi match {
@@ -351,7 +352,7 @@ object BWAAlignment {
                 --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
                 --QUIET true \\
                 --SORT_ORDER queryname \\
-                --COMPRESSION_LEVEL 0 \\
+                --COMPRESSION_LEVEL 1 \\
                 --READ_GROUP_NAME $readGroupName \\
                 --SAMPLE_NAME $uniqueSampleName \\
                 --LIBRARY_NAME $uniqueSampleName \\
@@ -374,7 +375,7 @@ object BWAAlignment {
                 --OUTPUT /dev/stdout \\
                 --SORT_ORDER unsorted \\
                 --MAX_RECORDS_IN_RAM 0 \\
-                --COMPRESSION_LEVEL 0 \\
+                --COMPRESSION_LEVEL 1 \\
                 --READ_GROUP_NAME $readGroupName \\
                 --SAMPLE_NAME $uniqueSampleName \\
                 --LIBRARY_NAME $uniqueSampleName \\
@@ -462,6 +463,15 @@ object BWAAlignment {
                                              Bam(bam))
             }
           } yield result
+
+          resultF.andThen {
+            case _ =>
+              if (tmpIntermediateUnmappedBam.canRead) {
+                tmpIntermediateUnmappedBam.delete
+              }
+          }
+
+          resultF
 
     }
 
