@@ -123,13 +123,17 @@ object Demultiplexing {
           laneToProcess
           ) =>
         implicit computationEnvironment =>
+          implicit val materializer =
+            computationEnvironment.components.actorMaterializer
+
           val executable =
             fileutils.TempFile.getExecutableFromJar(resourceName =
                                                       "/bin/bcl2fastq_v220",
                                                     fileName = "bcl2fastq_v220")
 
           def extractMetadataFromFilename(fastq: SharedFile,
-                                          sampleSheet: SampleSheet.ParsedData) =
+                                          sampleSheet: SampleSheet.ParsedData,
+                                          stats: DemultiplexingStats.Root) =
             fastq.name match {
               case fastqFileNameRegex(_,
                                       _sampleName,
@@ -163,21 +167,33 @@ object Demultiplexing {
                     s"lanes parsed from file name and read from sample sheet do not match. $sampleSheetLanes $lane $fastq $sampleSheet"
                   )
 
+                  val numberOfReads = for {
+                    laneStats <- stats.ConversionResults.find(
+                      _.LaneNumber == parsedLane)
+                    sampleStats <- laneStats.DemuxResults.find(
+                      _.SampleId == sampleSheetSampleId)
+                  } yield sampleStats.NumberReads
+
                   Some(
                     FastQWithSampleMetadata(sampleSheetProject,
                                             sampleSheetSampleId,
                                             RunId(runId),
                                             parsedLane,
                                             ReadType(read),
-                                            FastQ(fastq)))
+                                            FastQ(fastq, numberOfReads.get)))
                 } else {
+                  val numberOfReads = for {
+                    laneStats <- stats.ConversionResults.find(
+                      _.LaneNumber == lane.toInt)
+                  } yield laneStats.Undetermined.NumberReads
+
                   Some(
                     FastQWithSampleMetadata(Project("NA"),
                                             SampleId("Undetermined"),
                                             RunId(runId),
                                             Lane(lane.toInt),
                                             ReadType(read),
-                                            FastQ(fastq)))
+                                            FastQ(fastq, numberOfReads.get)))
                 }
               case _ =>
                 log.error(
@@ -236,13 +252,22 @@ object Demultiplexing {
                 .withChildPrefix(processingId)
                 .withChildPrefix(laneToProcess.toString))
 
+            statsFileContent <- fastQAndStatFiles.last.source
+              .runFold(ByteString.empty)(_ ++ _)
+              .map(_.utf8String)
+
           } yield {
             val fastQFiles = fastQAndStatFiles.dropRight(1)
             val statsFile = fastQAndStatFiles.last
+            val stats =
+              io.circe.parser
+                .decode[DemultiplexingStats.Root](statsFileContent)
+                .right
+                .get
 
             DemultiplexedReadData(
               fastQFiles
-                .map(extractMetadataFromFilename(_, parsedSampleSheet))
+                .map(extractMetadataFromFilename(_, parsedSampleSheet, stats))
                 .collect { case Some(tuple) => tuple }
                 .toSet,
               EValue(statsFile)

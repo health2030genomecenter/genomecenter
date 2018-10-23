@@ -109,7 +109,21 @@ object BWAAlignment {
         implicit computationEnvironment =>
           releaseResources
 
-          def alignLane(lane: FastQPerLane) =
+          def alignLane(lane: FastQPerLane) = {
+            val totalReads = lane.read1.numberOfReads + lane.read2.numberOfReads + lane.umi
+              .map(_.numberOfReads)
+              .getOrElse(0L)
+
+            val scratchNeeded = ((math.max(
+              ResourceConfig.bwa.scratch.toDouble,
+              ResourceConfig.uncompressedBamSizeBytePerRead.toDouble * (totalReads.toDouble))) / 1E6).toInt
+            val resourceRequest =
+              ResourceConfig.bwa.copy(
+                cpuMemoryRequest = ResourceConfig.bwa.cpuMemoryRequest
+                  .copy(scratch = scratchNeeded))
+
+            log.info("BWA scratch space computed: " + scratchNeeded + "Mb ")
+
             alignSingleLane(
               PerLaneBWAAlignmentInput(lane.read1,
                                        lane.read2,
@@ -118,7 +132,8 @@ object BWAAlignment {
                                        runId,
                                        lane.lane,
                                        reference,
-                                       lane.umi))(ResourceConfig.bwa)
+                                       lane.umi))(resourceRequest)
+          }
 
           for {
             alignedLanes <- Future.sequence(fastqs.map(alignLane))

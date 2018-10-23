@@ -78,7 +78,8 @@ case class CoordinateSortedBamWithSampleMetadata(project: Project,
                                                  bam: CoordinateSortedBam)
     extends WithSharedFiles(bam.files: _*)
 
-case class FastQ(file: SharedFile) extends ResultWithSharedFiles(file)
+case class FastQ(file: SharedFile, numberOfReads: Long)
+    extends ResultWithSharedFiles(file)
 
 case class Bam(file: SharedFile) extends ResultWithSharedFiles(file)
 

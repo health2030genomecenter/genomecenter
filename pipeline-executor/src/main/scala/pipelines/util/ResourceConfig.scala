@@ -39,4 +39,7 @@ object ResourceConfig {
   val picardSamSortRecordPerMegabyteHeap =
     config.getDouble("picardSamSortRecordPerMegabyteHeap")
 
+  val uncompressedBamSizeBytePerRead =
+    config.getDouble("uncompressedBamSizeBytePerRead")
+
 }

@@ -47,7 +47,7 @@ object DemultiplexingStats {
                                      TotalClustersPF: Long,
                                      Yield: Long,
                                      DemuxResults: Seq[DemuxResultPerSample],
-                                     Undetermined: UndeterminedResuls)
+                                     Undetermined: UndeterminedResults)
 
   case class DemuxResultPerSample(
       SampleId: String,
@@ -58,7 +58,7 @@ object DemultiplexingStats {
       ReadMetrics: Seq[ReadMetric]
   )
 
-  case class UndeterminedResuls(
+  case class UndeterminedResults(
       NumberReads: Long,
       Yield: Long,
       ReadMetrics: Seq[ReadMetric]

@@ -34,7 +34,7 @@ object Fastp {
   val report =
     AsyncTask[FastQPerLaneWithMetadata, FastpReport]("__fastp-report", 1) {
       case FastQPerLaneWithMetadata(
-          FastQPerLane(lane, FastQ(read1), FastQ(read2), _),
+          FastQPerLane(lane, FastQ(read1, _), FastQ(read2, _), _),
           project,
           sampleId,
           runId) =>
