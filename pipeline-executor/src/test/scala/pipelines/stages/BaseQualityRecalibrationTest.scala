@@ -52,9 +52,10 @@ class BaseQualityRecalibrationTest
 
   trait Fixture {
 
-    val bam = new File(getClass.getResource("/tutorial_8017/papa.bam").getFile)
+    val bam = new File(
+      getClass.getResource("/tutorial_8017/papa.bam.sorted").getFile)
     val bai = new File(
-      getClass.getResource("/tutorial_8017/papa.bam.bai").getFile)
+      getClass.getResource("/tutorial_8017/papa.bam.sorted.bai").getFile)
     val referenceFile = new File(
       getClass
         .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta")

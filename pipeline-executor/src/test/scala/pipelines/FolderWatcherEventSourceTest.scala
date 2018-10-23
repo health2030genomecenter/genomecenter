@@ -46,7 +46,7 @@ class FolderWatcherEventSourceTest
     val fileNameToWatch = "something"
     val configurationFile = "config-runid"
     val configurationFileContent =
-      "automatic=true\nsampleSheet=b\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\nextraBcl2FastqArguments=[]"
+      "processingId=b\nreadAssignment=[1,1]\numiReadNumber=[1]\nautomatic=true\nsampleSheet=b\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\nextraBcl2FastqArguments=[]"
     val runConfiguration = RunConfiguration(configurationFileContent)
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)

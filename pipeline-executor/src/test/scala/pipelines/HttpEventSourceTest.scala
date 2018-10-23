@@ -46,7 +46,7 @@ class HttpEventSourceTest
     val fileNameToWatch = "something"
     val runConfigurationFileName = "config-runid"
     val runConfigurationFileContent =
-      "automatic=true\nsampleSheet=b\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\nextraBcl2FastqArguments=[]"
+      "processingId=b\nreadAssignment=[1,1]\numiReadNumber=[1]\nautomatic=true\nsampleSheet=b\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\nextraBcl2FastqArguments=[]"
 
     val runConfiguration = RunConfiguration(runConfigurationFileContent)
     val runId = "runid"
@@ -78,7 +78,7 @@ class HttpEventSourceTest
       uri = Uri("/runfolder"),
       entity = HttpEntity(
         ContentTypes.`application/json`,
-        s"""{"path":"$runFolder","configurationFilePath":"$runFolder/config-runid" } """)
+        s"""[{"path":"$runFolder","configurationFilePath":"$runFolder/config-runid" }]""")
     )
     request ~> server.route ~> check {
       status shouldEqual StatusCodes.OK
