@@ -122,7 +122,7 @@ object BWAAlignment {
                 cpuMemoryRequest = ResourceConfig.bwa.cpuMemoryRequest
                   .copy(scratch = scratchNeeded))
 
-            log.info("BWA scratch space computed: " + scratchNeeded + "Mb ")
+            log.info("BWA scratch space computed: " + scratchNeeded + "MB ")
 
             alignSingleLane(
               PerLaneBWAAlignmentInput(lane.read1,
