@@ -172,7 +172,7 @@ object BWAAlignment {
 
               Exec.bash(logDiscriminator = "sortbam.sort",
                         onError = Exec.ThrowIfNonZero)(
-                s"""java ${JVM.g1} $maxHeap $javaTmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
+                s"""java ${JVM.serial} $maxHeap $javaTmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
                 --INPUT ${localBam.getAbsolutePath} \\
                 --OUTPUT ${tmpSorted.getAbsolutePath} \\
                 --SORT_ORDER coordinate \\
@@ -251,7 +251,7 @@ object BWAAlignment {
                 .mkString("--INPUT ", "--INPUT ", "")
 
               val bashScript = s"""
-        java ${JVM.g1} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
+        java ${JVM.serial} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
           $inputFlags \\
           --OUTPUT ${tmpDuplicateMarkedBam.getAbsolutePath} \\
           --METRICS_FILE ${tmpMetricsFile.getAbsolutePath} \\
@@ -360,7 +360,7 @@ object BWAAlignment {
               umi match {
                 case None =>
                   val fastqToUnmappedBam = s"""\\
-        java ${JVM.g1} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
+        java ${JVM.serial} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
                 --FASTQ $read1 \\
                 --FASTQ2 $read2 \\
                 --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
@@ -402,7 +402,7 @@ object BWAAlignment {
         java ${JVM.serial} -Xmx2G $tmpDir -jar $umiProcessor $umi \\
               2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                  \\
-        java ${JVM.g1} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
+        java ${JVM.serial} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
                 --INPUT /dev/stdin/ \\
                 --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
                 --SORT_ORDER queryname \\
@@ -437,7 +437,7 @@ object BWAAlignment {
      \\
      $bwaExecutable mem -M -t $bwaNumberOfThreads -p $reference /dev/stdin 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
      \\
-     java ${JVM.g1} -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
+     java ${JVM.serial} -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeBamAlignment \\
        --REFERENCE_SEQUENCE $reference \\
        --UNMAPPED_BAM ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
        --ALIGNED_BAM /dev/stdin \\
