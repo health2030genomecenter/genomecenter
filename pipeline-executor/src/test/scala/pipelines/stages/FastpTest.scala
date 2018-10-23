@@ -21,8 +21,8 @@ class FastpTestSuite
           FastQPerLaneWithMetadata(
             FastQPerLane(
               lane = lane,
-              read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz"))),
-              read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz"))),
+              read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
+              read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
               umi = None
             ),
             project = project,
@@ -31,7 +31,7 @@ class FastpTestSuite
           )
 
         val future =
-          Fastp.report(input)(CPUMemoryRequest(1, 500))
+          Fastp.report(input)(ResourceRequest(1, 500))
         val fastpReport = await(future)
 
         val htmlReport = await(fastpReport.html.file)

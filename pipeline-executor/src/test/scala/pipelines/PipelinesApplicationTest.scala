@@ -180,7 +180,7 @@ object TestPipeline extends Pipeline {
 
   def execute(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents): Future[Boolean] =
-    pretend(r)(CPUMemoryRequest(1, 500)).map(_ => true)
+    pretend(r)(ResourceRequest(1, 500)).map(_ => true)
 
 }
 
@@ -197,7 +197,7 @@ object TestPipelineWhichNeverRuns extends Pipeline {
 
   def execute(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents): Future[Boolean] =
-    pretend(r)(CPUMemoryRequest(1, 500)).map(_ => true)
+    pretend(r)(ResourceRequest(1, 500)).map(_ => true)
 
 }
 
@@ -219,7 +219,7 @@ object TestPipelineWhichFails extends Pipeline {
 
   def execute(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents): Future[Boolean] = {
-    pretend(r)(CPUMemoryRequest(1, 500)).map(_ => true)
+    pretend(r)(ResourceRequest(1, 500)).map(_ => true)
   }
 
 }

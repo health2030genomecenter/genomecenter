@@ -21,8 +21,8 @@ class BwaAlignmentTestSuite
 
         val input =
           PerLaneBWAAlignmentInput(
-            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz"))),
-            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz"))),
+            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
+            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
             project = project,
             sampleId = sampleId,
             runId = runId,
@@ -32,7 +32,7 @@ class BwaAlignmentTestSuite
           )
 
         val future =
-          BWAAlignment.alignSingleLane(input)(CPUMemoryRequest(1, 500))
+          BWAAlignment.alignSingleLane(input)(ResourceRequest(1, 500))
         val bamWithSampleMetadata = await(future)
         val bamFile = await(bamWithSampleMetadata.bam.file.file)
         await(bamWithSampleMetadata.bam.file.history).context.get.dependencies.size shouldBe 3
@@ -66,18 +66,18 @@ class BwaAlignmentTestSuite
 
         val input =
           PerLaneBWAAlignmentInput(
-            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz"))),
-            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz"))),
+            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
+            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
             project = project,
             sampleId = sampleId,
             runId = runId,
             lane = lane,
             reference = indexedFasta,
-            umi = Some(FastQ(await(SharedFile(fastq2, "fastq2.gz"))))
+            umi = Some(FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L))
           )
 
         val future =
-          BWAAlignment.alignSingleLane(input)(CPUMemoryRequest(1, 500))
+          BWAAlignment.alignSingleLane(input)(ResourceRequest(1, 500))
         val bamWithSampleMetadata = await(future)
         val bamFile = await(bamWithSampleMetadata.bam.file.file)
         await(bamWithSampleMetadata.bam.file.history).context.get.dependencies.size shouldBe 4

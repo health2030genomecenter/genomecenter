@@ -20,7 +20,7 @@ class SortBamTestSuite
         val input = Bam(await(SharedFile(bam, "some.bam")))
 
         val future =
-          BWAAlignment.sortByCoordinateAndIndex(input)(CPUMemoryRequest(1, 500))
+          BWAAlignment.sortByCoordinateAndIndex(input)(ResourceRequest(1, 500))
         val bamFile = await(await(future).bam.file)
         val baiFile = await(await(future).bai.file)
         (bamFile, baiFile)

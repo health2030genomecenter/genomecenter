@@ -32,10 +32,10 @@ class BaseQualityRecalibrationTest
         val future =
           for {
             table <- BaseQualityScoreRecalibration.trainBQSR(input)(
-              CPUMemoryRequest(1, 3000))
+              ResourceRequest(1, 3000))
             recalibratedBam <- BaseQualityScoreRecalibration.applyBQSR(
               ApplyBQSRInput(input.bam, input.reference, table))(
-              CPUMemoryRequest(1, 3000))
+              ResourceRequest(1, 3000))
             filePath <- recalibratedBam.bam.file
           } yield filePath
 

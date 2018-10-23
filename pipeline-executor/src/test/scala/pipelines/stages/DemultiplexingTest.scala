@@ -46,7 +46,7 @@ class DemultiplexingTestSuite
                                              "s_1_1101",
                                              "--use-bases-mask",
                                              "y75n,i6n*,n10,y75n")
-          ))(CPUMemoryRequest(1, 500))
+          ))(ResourceRequest(1, 500))
         import scala.concurrent.duration._
         scala.concurrent.Await.result(future, atMost = 400000 seconds)
 

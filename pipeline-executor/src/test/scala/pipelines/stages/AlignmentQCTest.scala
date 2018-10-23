@@ -106,7 +106,7 @@ class AlignmentQCTest
         val future =
           for {
             qcMetrics <- AlignmentQC.hybridizationSelection(input)(
-              CPUMemoryRequest(1, 3000))
+              ResourceRequest(1, 3000))
           } yield qcMetrics
 
         await(future.flatMap(_.hsMetrics.file))
@@ -135,7 +135,7 @@ class AlignmentQCTest
         When("executing the general alignment qc step")
         val future =
           for {
-            qcMetrics <- AlignmentQC.general(input)(CPUMemoryRequest(1, 3000))
+            qcMetrics <- AlignmentQC.general(input)(ResourceRequest(1, 3000))
           } yield qcMetrics
 
         await(future.flatMap(_.alignmentSummary.file))
