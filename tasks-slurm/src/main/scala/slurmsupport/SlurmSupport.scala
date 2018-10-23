@@ -35,8 +35,8 @@ class SlurmCreateNode(masterAddress: InetSocketAddress,
   val additionalSbatchArguments =
     config.raw.getStringList("tasks.slurm.sbatchExtraArguments").asScala
 
-  def requestOneNewJobFromJobScheduler(requestSize: CPUMemoryRequest)
-    : Try[Tuple2[PendingJobId, CPUMemoryAvailable]] = {
+  def requestOneNewJobFromJobScheduler(requestSize: ResourceRequest)
+    : Try[Tuple2[PendingJobId, ResourceAvailable]] = {
 
     val allocateFullNodeConfigValue: Seq[Int] =
       config.raw
@@ -52,9 +52,14 @@ class SlurmCreateNode(masterAddress: InetSocketAddress,
       if (allocateFullNode) allocateFullNodeConfigValue(0)
       else requestSize.cpu._1
 
+    val scratch =
+      if (allocateFullNode)(allocateFullNodeConfigValue(2))
+      else requestSize.scratch
+
     val script = Deployment.script(
       memory = memory,
       cpu = mincpu,
+      scratch = scratch,
       elasticSupport = elasticSupport,
       masterAddress = masterAddress,
       download = new java.net.URL("http",
@@ -88,8 +93,7 @@ class SlurmCreateNode(masterAddress: InetSocketAddress,
 
     Try(
       (PendingJobId(pid.toString),
-       CPUMemoryAvailable(cpu = requestSize.cpu._1,
-                          memory = requestSize.memory)))
+       ResourceAvailable(cpu = mincpu, memory = memory, scratch = scratch)))
 
   }
 
@@ -132,6 +136,8 @@ trait SlurmHostConfiguration extends HostConfigurationFromConfig {
 
   override lazy val availableMemory = Option(
     System.getenv("SLURM_MEM_PER_NODE")).map(_.toInt).getOrElse(config.hostRAM)
+
+  override lazy val availableScratch = config.hostScratch
 
   override lazy val availableCPU = Option(System.getenv("SLURM_CPUS_ON_NODE"))
     .map(_.toInt)

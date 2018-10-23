@@ -8,7 +8,9 @@ object ResourceConfig {
 
   private def parse(path: String)(implicit tsc: TaskSystemComponents) = {
     val subtree = config.getConfig(path)
-    CPUMemoryRequest(subtree.getInt("cpu"), subtree.getInt("ram"))
+    ResourceRequest(subtree.getInt("cpu"),
+                    subtree.getInt("ram"),
+                    subtree.getInt("scratch"))
   }
 
   def bcl2fastq(implicit tsc: TaskSystemComponents) = parse("bcl2fastq")

@@ -18,7 +18,7 @@ lazy val tasksSlurm = project
   .settings(
     name := "tasks-slurm",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.22-SNAPSHOT",
+      "io.github.pityka" %% "tasks-core" % "0.0.23-SNAPSHOT",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
@@ -46,9 +46,9 @@ lazy val pipelineExecutor = project
   .settings(
     name := "pipeline-executor",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.22-SNAPSHOT",
-      "io.github.pityka" %% "tasks-collection" % "0.0.22-SNAPSHOT",
-      "io.github.pityka" %% "tasks-ui-backend" % "0.0.22-SNAPSHOT",
+      "io.github.pityka" %% "tasks-core" % "0.0.23-SNAPSHOT",
+      "io.github.pityka" %% "tasks-collection" % "0.0.23-SNAPSHOT",
+      "io.github.pityka" %% "tasks-ui-backend" % "0.0.23-SNAPSHOT",
       "io.github.pityka" %% "fileutils" % "1.2.2",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
