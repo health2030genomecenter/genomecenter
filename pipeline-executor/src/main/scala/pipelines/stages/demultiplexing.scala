@@ -232,7 +232,10 @@ object Demultiplexing {
             Nil
           } else List("--tiles", "s_" + laneToProcess)
 
-          val processingThreads = resourceAllocated.cpu
+          /* bcl2fastq manual page 16:
+           * Use one thread per CPU core plus a little more to supply CPU with work.
+           */
+          val processingThreads = resourceAllocated.cpu + 2
 
           for {
             sampleSheetFile <- sampleSheet.file.file
