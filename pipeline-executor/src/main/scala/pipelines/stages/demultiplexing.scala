@@ -11,7 +11,9 @@ import io.circe._
 import io.circe.generic.semiauto._
 
 import akka.stream.scaladsl.Source
+import akka.stream.Materializer
 import akka.util.ByteString
+import scala.concurrent.ExecutionContext
 
 import java.io.File
 
@@ -20,8 +22,9 @@ case class DemultiplexingInput(
     runId: RunId,
     runFolderPath: String,
     sampleSheet: SampleSheetFile,
-    extraBcl2FastqCliArguments: Seq[String]
-) extends WithSharedFiles(sampleSheet.files: _*)
+    extraBcl2FastqCliArguments: Seq[String],
+    globalIndexSet: Option[SharedFile]
+) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*)
 
 case class DemultiplexSingleLaneInput(run: DemultiplexingInput, lane: Lane)
 
@@ -43,18 +46,31 @@ object Demultiplexing {
       sample <- lanes.fastqs
     } yield (sample.sampleId -> sample.project)).toMap
 
+  def parseGlobalIndexSet(source: Source[ByteString, _])(
+      implicit am: Materializer,
+      ec: ExecutionContext) =
+    source.runFold(ByteString.empty)(_ ++ _).map(_.utf8String).map { string =>
+      scala.io.Source.fromString(string).getLines.filter(_.nonEmpty).toSet
+    }
+
   val allLanes =
     AsyncTask[DemultiplexingInput, DemultiplexedReadData]("__demultiplex", 2) {
       runFolder => implicit computationEnvironment =>
         releaseResources
         computationEnvironment.withFilePrefix(Seq("demultiplex")) {
           implicit computationEnvironment =>
+            implicit val actorMaterializer =
+              computationEnvironment.components.actorMaterializer
+
             def intoRunIdFolder[T] =
               appendToFilePrefix[T](
                 Seq(runFolder.runId, runFolder.processingId))
 
             for {
               sampleSheet <- runFolder.sampleSheet.parse
+              globalIndexSet <- runFolder.globalIndexSet
+                .map(sf => parseGlobalIndexSet(sf.source))
+                .getOrElse(Future.successful(Set.empty[String]))
 
               lanes = {
                 val lanes = sampleSheet.lanes
@@ -91,7 +107,8 @@ object Demultiplexing {
                         DemultiplexingSummary.renderAsTable(
                           DemultiplexingSummary.fromStats(
                             mergedStats,
-                            sampleToProjectMap(demultiplexedLanes)))
+                            sampleToProjectMap(demultiplexedLanes),
+                            globalIndexSet))
                       SharedFile(Source.single(
                                    ByteString(tableAsString.getBytes("UTF-8"))),
                                  name = runFolder.runId + ".stats.table")
@@ -119,7 +136,8 @@ object Demultiplexing {
                               runId,
                               runFolderPath,
                               sampleSheet,
-                              extraArguments),
+                              extraArguments,
+                              _),
           laneToProcess
           ) =>
         implicit computationEnvironment =>

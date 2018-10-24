@@ -38,7 +38,8 @@ case class RunConfiguration(
     readAssignment: (Int, Int),
     /* Number assigned by bcl2fastq, if any */
     umi: Option[Int],
-    wesSelector: Selector
+    wesSelector: Selector,
+    globalIndexSet: String
 )
 
 case class RunfolderReadyForProcessing(runId: String,
@@ -195,7 +196,8 @@ object RunConfiguration {
           },
           umi =
             config.getIntList("umiReadNumber").asScala.headOption.map(_.toInt),
-          wesSelector = getSelector("wes")
+          wesSelector = getSelector("wes"),
+          globalIndexSet = config.getString("globalIndexSet")
         )
       }
       .toEither

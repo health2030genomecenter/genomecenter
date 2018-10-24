@@ -37,6 +37,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       reference <- ProtoPipeline.fetchReference(r.runConfiguration)
       knownSites <- ProtoPipeline.fetchKnownSitesFiles(r.runConfiguration)
       sampleSheet <- ProtoPipeline.fetchSampleSheet(r.runConfiguration)
+      globalIndexSet <- ProtoPipeline.fetchFile(
+        "references",
+        r.runConfiguration.globalIndexSet)
       selectionTargetIntervals <- ProtoPipeline.fetchTargetIntervals(
         r.runConfiguration)
 
@@ -45,8 +48,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                             RunId(r.runId),
                             r.runFolderPath,
                             sampleSheet,
-                            r.runConfiguration.extraBcl2FastqArguments))(
-        ResourceConfig.minimal)
+                            r.runConfiguration.extraBcl2FastqArguments,
+                            Some(globalIndexSet)))(ResourceConfig.minimal)
 
       perSampleFastQs = ProtoPipeline
         .groupBySample(demultiplexed.withoutUndetermined,
@@ -262,6 +265,16 @@ object ProtoPipeline extends StrictLogging {
           logger.error(s"Failed to fetch reference $file", e)
 
       }
+    }
+  }
+
+  private def fetchFile(folderName: String, path: String)(
+      implicit tsc: TaskSystemComponents) = {
+    tsc.withFilePrefix(Seq(folderName)) { implicit tsc =>
+      val file = new File(path)
+      val fileName = file.getName
+      logger.debug(s"Fetching $file")
+      SharedFile(file, fileName)
     }
   }
 

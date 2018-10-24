@@ -167,6 +167,10 @@ class ProtopipelineTestSuite
       .getResource("/tutorial_8017/capture.bed")
       .getFile
 
+    val globalIndexSetFilePath = getClass
+      .getResource("/indices")
+      .getFile
+
     val knownSitesVCF = new File(
       getClass
         .getResource("/example.vcf")
@@ -249,7 +253,8 @@ sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       wesSelector = Selector(runIds = Set(RunId(runId)),
                              samples = Set.empty,
                              lanes = Set.empty,
-                             projects = Set.empty)
+                             projects = Set.empty),
+      globalIndexSet = globalIndexSetFilePath
     )
 
     val (testConfig, basePath) = makeTestConfig

@@ -25,7 +25,8 @@ class DemultiplexingTestSuite
       .decode[DemultiplexingStats.Root](statsFileContent)
       .right
       .get
-    val summaryStat = DemultiplexingSummary.fromStats(rawStats, Map())
+    val summaryStat =
+      DemultiplexingSummary.fromStats(rawStats, Map(), Set.empty)
     println(DemultiplexingSummary.renderAsTable(summaryStat))
   }
 
@@ -45,7 +46,8 @@ class DemultiplexingTestSuite
             extraBcl2FastqCliArguments = Seq("--tiles",
                                              "s_1_1101",
                                              "--use-bases-mask",
-                                             "y75n,i6n*,n10,y75n")
+                                             "y75n,i6n*,n10,y75n"),
+            globalIndexSet = None
           ))(ResourceRequest(1, 500))
         import scala.concurrent.duration._
         scala.concurrent.Await.result(future, atMost = 400000 seconds)
@@ -55,7 +57,7 @@ class DemultiplexingTestSuite
       Then(
         "a run and lane specific folder should be created at the root of the storage")
       val outputFolder =
-        new File(basePath.getAbsolutePath + s"/demultiplex/$runId/L001")
+        new File(basePath.getAbsolutePath + s"/demultiplex/$runId/all/1")
       outputFolder.canRead shouldBe true
 
       And("uncaptured output files from bcl2fastq should be present")
@@ -67,13 +69,12 @@ class DemultiplexingTestSuite
 
       And(
         "captured fastq files should be present for the demultiplexed samples and for the undetermined reads")
-      result.get.fastqs.size shouldBe 6
+      result.get.fastqs.size shouldBe 4
       result.get.fastqs.toList.map(_.sampleId).toSet shouldBe Set(
         "Undetermined",
-        "GIB",
-        "sample2")
+        "GIB")
       result.get.fastqs.toList.map(_.readType).toSet shouldBe Set("R2", "R1")
-      result.get.fastqs.toList.map(_.lane).toSet shouldBe Set("L001")
+      result.get.fastqs.toList.map(_.lane).toSet shouldBe Set(1)
 
     }
   }

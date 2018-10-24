@@ -82,7 +82,8 @@ object DemultiplexingStats {
 object DemultiplexingSummary {
 
   def fromStats(raw: DemultiplexingStats.Root,
-                sampleIdToProject: Map[SampleId, Project]): Root = {
+                sampleIdToProject: Map[SampleId, Project],
+                globalIndexSet: Set[String]): Root = {
     val runId = RunId(raw.RunId)
     val unknownBarCodesByLane =
       raw.UnknownBarcodes.map(ukb => ukb.Lane -> ukb).toMap
@@ -177,7 +178,8 @@ object DemultiplexingSummary {
         val indicesInFlowcell: Set[String] =
           sampleSummaries.map(_.indexSequence).toSet
         val candidateIndexSwaps = frequentUnknownBarcodes.filter {
-          case (idx: String, _, _) => indicesInFlowcell.contains(idx)
+          case (idx: String, _, _) =>
+            indicesInFlowcell.contains(idx) || globalIndexSet.contains(idx)
         }
         candidateIndexSwaps.map {
           case (idx, count, fraction) =>
