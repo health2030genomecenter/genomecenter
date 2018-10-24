@@ -127,7 +127,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                                sample.runId)
 
     Future.traverse(fastqsPerLanePerSample)(fq =>
-      tsc.withFilePrefix(Seq("demultiplex", fq.runId, fq.lane.lane.toString)) {
+      tsc.withFilePrefix(Seq("fastp", fq.runId, fq.lane.lane.toString)) {
         implicit tsc =>
           Fastp.report(fq)(ResourceConfig.fastp)
     })
