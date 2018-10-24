@@ -42,7 +42,7 @@ class ProtopipelineTestSuite
         Then(
           "a run and lane specific folder should be created at the root of the storage")
         val demultiplexOutputFolder =
-          new File(basePath.getAbsolutePath + s"/demultiplex/$runId/L001")
+          new File(basePath.getAbsolutePath + s"/demultiplex/$runId/all/1")
         demultiplexOutputFolder.canRead shouldBe true
 
         And("uncaptured output files from bcl2fastq should be present")
@@ -57,38 +57,38 @@ class ProtopipelineTestSuite
 
         And("stats files should be merged")
         new File(
-          basePath.getAbsolutePath + s"/demultiplex/$runId/$runId.Stats.json").canRead shouldBe true
+          basePath.getAbsolutePath + s"/demultiplex/$runId/all/$runId.Stats.json").canRead shouldBe true
 
         And("human readable table should be generated")
         new File(
-          basePath.getAbsolutePath + s"/demultiplex/$runId/$runId.stats.table").canRead shouldBe true
+          basePath.getAbsolutePath + s"/demultiplex/$runId/all/$runId.stats.table").canRead shouldBe true
 
         And("fastp report files are generated")
         new File(
-          basePath.getAbsolutePath + s"/demultiplex/$runId/L001/project1.GIB.whateverRunId.L001.fastp.json").canRead shouldBe true
+          basePath.getAbsolutePath + s"/fastp/$runId/1/project1.GIB.whateverRunId.1.fastp.json").canRead shouldBe true
         new File(
-          basePath.getAbsolutePath + s"/demultiplex/$runId/L001/project1.GIB.whateverRunId.L001.fastp.html").canRead shouldBe true
+          basePath.getAbsolutePath + s"/fastp/$runId/1/project1.GIB.whateverRunId.1.fastp.html").canRead shouldBe true
 
         And("bwa alignment per lane of the first sample should not be present")
         val bwaFolder = new File(
           basePath.getAbsolutePath + s"/projects/project1/whateverRunId/intermediate/")
         And("stderr of alignment is present")
-        new File(bwaFolder, "project1.GIB.whateverRunId.L001.bam.stderr").canRead shouldBe true
+        new File(bwaFolder, "project1.GIB.whateverRunId.1.bam.stderr").canRead shouldBe true
         And("bam file of alignment should be already deleted")
-        new File(bwaFolder, "project1.GIB.whateverRunId.L001.bam").canRead shouldBe false
+        new File(bwaFolder, "project1.GIB.whateverRunId.1.bam").canRead shouldBe false
 
         And("merge and mark duplicate of the first sample should be present")
         val markduplicatesFolder =
           new File(
             basePath.getAbsolutePath + s"/projects/project1/whateverRunId/intermediate/")
-        new File(markduplicatesFolder, "project1.GIB.whateverRunId.bam.stderr").canRead shouldBe true
+        new File(markduplicatesFolder, "project1.GIB.whateverRunId.mdup.bam.stderr").canRead shouldBe true
         new File(
           markduplicatesFolder,
-          "project1.GIB.whateverRunId.markDuplicateMetrics").canRead shouldBe true
+          "project1.GIB.whateverRunId.mdup.markDuplicateMetrics").canRead shouldBe true
         And(
           "merged and duplicated marked bam and bai file should be already deleted")
-        new File(markduplicatesFolder, "project1.GIB.whateverRunId.bam").canRead shouldBe false
-        new File(markduplicatesFolder, "project1.GIB.whateverRunId.bai").canRead shouldBe false
+        new File(markduplicatesFolder, "project1.GIB.whateverRunId.mdup.bam").canRead shouldBe false
+        new File(markduplicatesFolder, "project1.GIB.whateverRunId.mdup.bai").canRead shouldBe false
 
         And("recalibrated bam files should be present")
         val bqsrApplyFolderForProject1 =
@@ -97,12 +97,12 @@ class ProtopipelineTestSuite
 
         new File(
           bqsrApplyFolderForProject1,
-          "project1.GIB.whateverRunId.bqsr.apply.stderr").canRead shouldBe true
+          "project1.GIB.whateverRunId.mdup.sorted.bqsr.apply.stderr").canRead shouldBe true
         new File(bqsrApplyFolderForProject1,
-                 "project1.GIB.whateverRunId.bqsr.bai").canRead shouldBe true
+                 "project1.GIB.whateverRunId.mdup.sorted.bqsr.bai").canRead shouldBe true
         val project1RecalibratedBam =
           new File(bqsrApplyFolderForProject1,
-                   "project1.GIB.whateverRunId.bqsr.bam")
+                   "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam")
         project1RecalibratedBam.canRead shouldBe true
         val project1Timestamp = project1RecalibratedBam.lastModified
 
@@ -111,10 +111,10 @@ class ProtopipelineTestSuite
           basePath.getAbsolutePath + s"/projects/project1/whateverRunId/QC")
         new File(
           qcFolder,
-          "project1.GIB.whateverRunId.bqsr.bam.alignment_summary_metrics").canRead shouldBe true
+          "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam.alignment_summary_metrics").canRead shouldBe true
 
         And("hybridization selection metrics should be present")
-        new File(qcFolder, "project1.GIB.whateverRunId.bqsr.bam.hsMetrics").canRead shouldBe true
+        new File(qcFolder, "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam.hsMetrics").canRead shouldBe true
 
         And("project3 should not be demultiplexed")
         val project3Folder =
