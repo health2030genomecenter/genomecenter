@@ -87,33 +87,6 @@ object DemultiplexingSummary {
     val unknownBarCodesByLane =
       raw.UnknownBarcodes.map(ukb => ukb.Lane -> ukb).toMap
 
-    val laneSummaries = raw.ConversionResults.map { conversionResultOfLane =>
-      val lane = Lane(conversionResultOfLane.LaneNumber)
-      val pctPf = 100d * conversionResultOfLane.TotalClustersPF.toDouble / conversionResultOfLane.TotalClustersRaw
-      val top20UnknownBarcodes = unknownBarCodesByLane
-        .get(conversionResultOfLane.LaneNumber)
-        .map { unknownBarcodes =>
-          unknownBarcodes.Barcodes.toSeq.sortBy(_._2).reverse.take(20)
-        }
-        .getOrElse(Nil)
-        .map{ case (idx,count) =>
-          (idx,count,count/conversionResultOfLane.TotalClustersPF.toDouble)
-        }
-
-       val indexSwaps = {
-         val total = conversionResultOfLane.TotalClustersPF.toDouble
-         val frequentUnknownBarcodes = top20UnknownBarcodes.filter(_._3 >= 0.01)
-         frequentUnknownBarcodes
-       } 
-      DemultiplexingLaneSummary(
-        lane = lane,
-        totalClustersRaw = conversionResultOfLane.TotalClustersRaw,
-        totalClustersPF = conversionResultOfLane.TotalClustersPF,
-        pctPFClusters = pctPf,
-        topUnknownBarcodes = top20UnknownBarcodes
-      )
-    }
-
     val sampleSummaries = raw.ConversionResults.flatMap {
       conversionResultOfLane =>
         val lane = Lane(conversionResultOfLane.LaneNumber)
@@ -183,6 +156,53 @@ object DemultiplexingSummary {
         }
     }
 
+    val laneSummaries = raw.ConversionResults.map { conversionResultOfLane =>
+      val lane = Lane(conversionResultOfLane.LaneNumber)
+      val pctPf = 100d * conversionResultOfLane.TotalClustersPF.toDouble / conversionResultOfLane.TotalClustersRaw
+      val top20UnknownBarcodes = unknownBarCodesByLane
+        .get(conversionResultOfLane.LaneNumber)
+        .map { unknownBarcodes =>
+          unknownBarcodes.Barcodes.toSeq.sortBy(_._2).reverse.take(20)
+        }
+        .getOrElse(Nil)
+        .map {
+          case (idx, count) =>
+            (idx,
+             count,
+             count / conversionResultOfLane.TotalClustersPF.toDouble)
+        }
+
+      val indexSwaps = {
+        val frequentUnknownBarcodes = top20UnknownBarcodes.filter(_._3 >= 0.01)
+        val indicesInFlowcell: Set[String] =
+          sampleSummaries.map(_.indexSequence).toSet
+        val candidateIndexSwaps = frequentUnknownBarcodes.filter {
+          case (idx: String, _, _) => indicesInFlowcell.contains(idx)
+        }
+        candidateIndexSwaps.map {
+          case (idx, count, fraction) =>
+            IndexSwap(
+              indexSequence = idx,
+              count = count,
+              fractionOfLane = fraction,
+              presentInOtherLanes = sampleSummaries
+                .filter(_.indexSequence == idx)
+                .map(_.lane)
+                .distinct
+            )
+        }
+
+      }
+      DemultiplexingLaneSummary(
+        lane = lane,
+        totalClustersRaw = conversionResultOfLane.TotalClustersRaw,
+        totalClustersPF = conversionResultOfLane.TotalClustersPF,
+        pctPFClusters = pctPf,
+        topUnknownBarcodes = top20UnknownBarcodes,
+        indexSwaps = indexSwaps
+      )
+    }
+
     Root(runId, sampleSummaries, laneSummaries)
 
   }
@@ -198,16 +218,16 @@ object DemultiplexingSummary {
       totalClustersRaw: Long,
       totalClustersPF: Long,
       pctPFClusters: Double,
-      topUnknownBarcodes: Seq[(String, Long)],
+      topUnknownBarcodes: Seq[(String, Long, Double)],
       indexSwaps: Seq[IndexSwap]
   )
 
-  case class IndexSwap {
-    indexSequence: String,
-    count: Long,
-    fractionOfLane: Double,
-    presentInOtherLanes: Seq[Lane]
-  }
+  case class IndexSwap(
+      indexSequence: String,
+      count: Long,
+      fractionOfLane: Double,
+      presentInOtherLanes: Seq[Lane]
+  )
 
   case class DemultiplexingSampleSummary(
       project: Project,
@@ -234,12 +254,32 @@ object DemultiplexingSummary {
     val laneSummaryLines = root.laneSummaries.map { l =>
       f"${l.lane}%-7s${l.totalClustersRaw / 1E6}%12.2fM${l.totalClustersPF / 1E6}%12.2fM${l.pctPFClusters}%10.2f"
     }
+
+    val indexSwapHeader =
+      "!!!Index swaps!!!:\nLane   Barcode            Count           %          OtherLanes"
+    val indexSwapLines: Seq[String] = root.laneSummaries
+      .map { l =>
+        l.indexSwaps
+          .map {
+            case IndexSwap(barcode, count, fraction, otherLanes) =>
+              f"${l.lane}%-7s$barcode%-12s$count%12s${fraction * 100}%12.2f%%${otherLanes.mkString(",")}%-20s"
+          }
+          .mkString("\n")
+      }
+      .filterNot(_.isEmpty)
+
+    val indexSwapSection =
+      if (indexSwapLines.nonEmpty) {
+        indexSwapHeader + "\n" + indexSwapLines.mkString("\n") + "\n\n"
+      } else ""
+
     val barcodeHeader =
-      "Unknown barcodes:\nLane   Barcode            Count"
+      "Unknown barcodes:\nLane   Barcode            Count           %"
     val barcodesLines = root.laneSummaries.map { l =>
       l.topUnknownBarcodes
         .map {
-          case (barcode, count) => f"${l.lane}%-7s$barcode%-12s$count%12s"
+          case (barcode, count, fraction) =>
+            f"${l.lane}%-7s$barcode%-12s$count%12s${fraction * 100}%12.2f%%"
         }
         .mkString("\n")
     }
@@ -254,7 +294,7 @@ object DemultiplexingSummary {
 
     s"RunId: ${root.runId}\n\n" + laneSummaryHeader + "\n" + laneSummaryLines
       .mkString("\n") + "\n\n" + sampleHeader + "\n" + sampleLines.mkString(
-      "\n") + "\n\n" + barcodeHeader + "\n" + barcodesLines
+      "\n") + "\n\n" + indexSwapSection + barcodeHeader + "\n" + barcodesLines
       .mkString("\n")
 
   }

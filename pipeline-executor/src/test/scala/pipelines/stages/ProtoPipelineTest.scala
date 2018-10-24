@@ -81,7 +81,9 @@ class ProtopipelineTestSuite
         val markduplicatesFolder =
           new File(
             basePath.getAbsolutePath + s"/projects/project1/whateverRunId/intermediate/")
-        new File(markduplicatesFolder, "project1.GIB.whateverRunId.mdup.bam.stderr").canRead shouldBe true
+        new File(
+          markduplicatesFolder,
+          "project1.GIB.whateverRunId.mdup.bam.stderr").canRead shouldBe true
         new File(
           markduplicatesFolder,
           "project1.GIB.whateverRunId.mdup.markDuplicateMetrics").canRead shouldBe true
@@ -98,8 +100,9 @@ class ProtopipelineTestSuite
         new File(
           bqsrApplyFolderForProject1,
           "project1.GIB.whateverRunId.mdup.sorted.bqsr.apply.stderr").canRead shouldBe true
-        new File(bqsrApplyFolderForProject1,
-                 "project1.GIB.whateverRunId.mdup.sorted.bqsr.bai").canRead shouldBe true
+        new File(
+          bqsrApplyFolderForProject1,
+          "project1.GIB.whateverRunId.mdup.sorted.bqsr.bai").canRead shouldBe true
         val project1RecalibratedBam =
           new File(bqsrApplyFolderForProject1,
                    "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam")
@@ -114,7 +117,9 @@ class ProtopipelineTestSuite
           "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam.alignment_summary_metrics").canRead shouldBe true
 
         And("hybridization selection metrics should be present")
-        new File(qcFolder, "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam.hsMetrics").canRead shouldBe true
+        new File(
+          qcFolder,
+          "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam.hsMetrics").canRead shouldBe true
 
         And("project3 should not be demultiplexed")
         val project3Folder =
