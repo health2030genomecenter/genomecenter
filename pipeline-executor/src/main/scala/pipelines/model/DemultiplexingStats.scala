@@ -96,6 +96,15 @@ object DemultiplexingSummary {
           unknownBarcodes.Barcodes.toSeq.sortBy(_._2).reverse.take(20)
         }
         .getOrElse(Nil)
+        .map{ case (idx,count) =>
+          (idx,count,count/conversionResultOfLane.TotalClustersPF.toDouble)
+        }
+
+       val indexSwaps = {
+         val total = conversionResultOfLane.TotalClustersPF.toDouble
+         val frequentUnknownBarcodes = top20UnknownBarcodes.filter(_._3 >= 0.01)
+         frequentUnknownBarcodes
+       } 
       DemultiplexingLaneSummary(
         lane = lane,
         totalClustersRaw = conversionResultOfLane.TotalClustersRaw,
@@ -189,8 +198,16 @@ object DemultiplexingSummary {
       totalClustersRaw: Long,
       totalClustersPF: Long,
       pctPFClusters: Double,
-      topUnknownBarcodes: Seq[(String, Long)]
+      topUnknownBarcodes: Seq[(String, Long)],
+      indexSwaps: Seq[IndexSwap]
   )
+
+  case class IndexSwap {
+    indexSequence: String,
+    count: Long,
+    fractionOfLane: Double,
+    presentInOtherLanes: Seq[Lane]
+  }
 
   case class DemultiplexingSampleSummary(
       project: Project,
