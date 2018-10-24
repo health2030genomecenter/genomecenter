@@ -140,6 +140,11 @@ GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,,,001
 
 trait TestHelpers {
 
+  def fetchReference(fasta: File)(implicit tsc: TaskSystemComponents) = {
+    val liftedFasta = await(SharedFile(fasta, "referenceFasta.fasta"))
+    ReferenceFasta(liftedFasta)
+  }
+
   def fetchIndexedReference(fasta: File)(implicit tsc: TaskSystemComponents) = {
     val liftedFasta = await(SharedFile(fasta, "referenceFasta.fasta"))
     val indexFiles = List(
@@ -167,6 +172,28 @@ trait TestHelpers {
                    "referenceFasta.fasta.sa"))
     )
     IndexedReferenceFasta(liftedFasta, indexFiles.toSet)
+
+  }
+
+  def fetchStarIndexedReference(
+      fasta: File,
+      genomeFolder: File,
+      readLength: Int)(implicit tsc: TaskSystemComponents) = {
+    val liftedFasta = await(SharedFile(fasta, "referenceFasta.fasta"))
+    val indexFiles = List(
+      new File(genomeFolder, "chrLength.txt"),
+      new File(genomeFolder, "chrNameLength.txt"),
+      new File(genomeFolder, "chrName.txt"),
+      new File(genomeFolder, "chrStart.txt"),
+      new File(genomeFolder, "Genome"),
+      new File(genomeFolder, "genomeParameters.txt"),
+      new File(genomeFolder, "SA"),
+      new File(genomeFolder, "SAindex")
+    )
+    StarIndexedReferenceFasta(
+      liftedFasta,
+      readLength,
+      indexFiles.toSet.map((f: File) => await(SharedFile(f, f.getName))))
 
   }
 
