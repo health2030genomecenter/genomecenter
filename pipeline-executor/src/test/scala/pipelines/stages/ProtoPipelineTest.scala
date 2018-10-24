@@ -142,6 +142,15 @@ class ProtopipelineTestSuite
         And("project1 alignment should not reexecute")
         project1RecalibratedBam.lastModified shouldBe project1Timestamp
 
+        And("delivery folder should be present")
+        val deliverablesFolder =
+          new File(basePath.getAbsolutePath + "/deliverables")
+        deliverablesFolder.canRead shouldBe true
+        println(new File(
+          deliverablesFolder.getAbsolutePath + "/project1.whateverRunId.all.deliverables.list"))
+        new File(
+          deliverablesFolder.getAbsolutePath + "/project1.whateverRunId.all.deliverables.list").canRead shouldBe true
+
       }
 
     }
@@ -254,7 +263,7 @@ sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
                              samples = Set.empty,
                              lanes = Set.empty,
                              projects = Set.empty),
-      globalIndexSet = globalIndexSetFilePath
+      globalIndexSet = Some(globalIndexSetFilePath)
     )
 
     val (testConfig, basePath) = makeTestConfig

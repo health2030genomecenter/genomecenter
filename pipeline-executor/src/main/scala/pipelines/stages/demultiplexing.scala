@@ -53,6 +53,14 @@ object Demultiplexing {
       scala.io.Source.fromString(string).getLines.filter(_.nonEmpty).toSet
     }
 
+  def readGlobalIndexSetFromClassPath = {
+    val s = scala.io.Source
+      .fromInputStream(getClass.getResourceAsStream("/truseq_index.txt"))
+    val r = s.getLines.filter(_.nonEmpty).toSet
+    s.close
+    r
+  }
+
   val allLanes =
     AsyncTask[DemultiplexingInput, DemultiplexedReadData]("__demultiplex", 2) {
       runFolder => implicit computationEnvironment =>
@@ -70,7 +78,7 @@ object Demultiplexing {
               sampleSheet <- runFolder.sampleSheet.parse
               globalIndexSet <- runFolder.globalIndexSet
                 .map(sf => parseGlobalIndexSet(sf.source))
-                .getOrElse(Future.successful(Set.empty[String]))
+                .getOrElse(Future.successful(readGlobalIndexSetFromClassPath))
 
               lanes = {
                 val lanes = sampleSheet.lanes

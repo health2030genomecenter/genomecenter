@@ -37,9 +37,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       reference <- ProtoPipeline.fetchReference(r.runConfiguration)
       knownSites <- ProtoPipeline.fetchKnownSitesFiles(r.runConfiguration)
       sampleSheet <- ProtoPipeline.fetchSampleSheet(r.runConfiguration)
-      globalIndexSet <- ProtoPipeline.fetchFile(
-        "references",
-        r.runConfiguration.globalIndexSet)
+      globalIndexSet <- ProtoPipeline.fetchGlobalIndexSet(r.runConfiguration)
       selectionTargetIntervals <- ProtoPipeline.fetchTargetIntervals(
         r.runConfiguration)
 
@@ -49,7 +47,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                             r.runFolderPath,
                             sampleSheet,
                             r.runConfiguration.extraBcl2FastqArguments,
-                            Some(globalIndexSet)))(ResourceConfig.minimal)
+                            globalIndexSet))(ResourceConfig.minimal)
 
       perSampleFastQs = ProtoPipeline
         .groupBySample(demultiplexed.withoutUndetermined,
@@ -267,6 +265,14 @@ object ProtoPipeline extends StrictLogging {
       }
     }
   }
+
+  private def fetchGlobalIndexSet(runConfiguration: RunConfiguration)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) =
+    runConfiguration.globalIndexSet match {
+      case None       => Future.successful(None)
+      case Some(path) => fetchFile("references", path).map(Some(_))
+    }
 
   private def fetchFile(folderName: String, path: String)(
       implicit tsc: TaskSystemComponents) = {

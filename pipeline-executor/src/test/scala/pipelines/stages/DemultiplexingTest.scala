@@ -30,6 +30,18 @@ class DemultiplexingTestSuite
     println(DemultiplexingSummary.renderAsTable(summaryStat))
   }
 
+  test("index swap is reported") {
+
+    val rawStats = io.circe.parser
+      .decode[DemultiplexingStats.Root](statsFileContent)
+      .right
+      .get
+    val summaryStat =
+      DemultiplexingSummary.fromStats(rawStats, Map(), Set("GCCAAT"))
+    summaryStat.laneSummaries.head.indexSwaps.head shouldBe DemultiplexingSummary
+      .IndexSwap("GCCAAT", 140860, 0.27249970014586455, List())
+  }
+
   test("Demultiplexing stage should demultiplex a simple run") {
     new Fixture {
 
