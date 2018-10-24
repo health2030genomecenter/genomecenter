@@ -12,6 +12,6 @@ docker cp -a . $NAME:/opt/
 
 # docker cp -a $GC_TESTFOLDER $NAME:/opt/testdata
 
-docker exec -it $NAME /bin/bash -c "cd /opt && GC_TESTFOLDER=/opt/testdata/ sbt -J-Dsbt.io.jdktimestamps=true 'testOnly *DemultiplexingTestSuite' ; bash"
+docker exec -it $NAME /bin/bash -c "cd /opt && GC_TESTFOLDER=/opt/testdata/ sbt -J-Dsbt.io.jdktimestamps=true 'test' ; bash"
 
 docker rm -f -v $NAME
