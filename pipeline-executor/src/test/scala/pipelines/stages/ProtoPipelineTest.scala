@@ -146,8 +146,6 @@ class ProtopipelineTestSuite
         val deliverablesFolder =
           new File(basePath.getAbsolutePath + "/deliverables")
         deliverablesFolder.canRead shouldBe true
-        println(new File(
-          deliverablesFolder.getAbsolutePath + "/project1.whateverRunId.all.deliverables.list"))
         new File(
           deliverablesFolder.getAbsolutePath + "/project1.whateverRunId.all.deliverables.list").canRead shouldBe true
 
