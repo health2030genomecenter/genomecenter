@@ -39,7 +39,9 @@ case class RunConfiguration(
     /* Number assigned by bcl2fastq, if any */
     umi: Option[Int],
     wesSelector: Selector,
-    globalIndexSet: Option[String]
+    rnaSelector: Selector,
+    globalIndexSet: Option[String],
+    geneModelGtf: String
 )
 
 case class RunfolderReadyForProcessing(runId: String,
@@ -197,6 +199,8 @@ object RunConfiguration {
           umi =
             config.getIntList("umiReadNumber").asScala.headOption.map(_.toInt),
           wesSelector = getSelector("wes"),
+          rnaSelector = getSelector("rna"),
+          geneModelGtf = config.getString("geneModelGtf"),
           globalIndexSet =
             if (config.hasPath("globalIndexSet"))
               Some(config.getString("globalIndexSet"))

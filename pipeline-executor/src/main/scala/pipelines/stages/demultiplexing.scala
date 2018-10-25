@@ -133,7 +133,7 @@ object Demultiplexing {
     }
 
   val fastqFileNameRegex =
-    "^([a-zA-Z0-9_\\-\\/]+/)?([a-zA-Z0-9_-]+)_S([0-9]+)_L([0-9]*)_(R[12])_001.fastq.gz$".r
+    "^([a-zA-Z0-9_\\-\\/]+/)?([a-zA-Z0-9_-]+)_S([0-9]+)_L([0-9]*)_R([0-9])_001.fastq.gz$".r
 
   val perLane =
     AsyncTask[DemultiplexSingleLaneInput, DemultiplexedReadData](
@@ -205,7 +205,7 @@ object Demultiplexing {
                                             sampleSheetSampleId,
                                             RunId(runId),
                                             parsedLane,
-                                            ReadType(read),
+                                            ReadType(read.toInt),
                                             FastQ(fastq, numberOfReads.get)))
                 } else {
                   val numberOfReads = for {
@@ -218,7 +218,7 @@ object Demultiplexing {
                                             SampleId("Undetermined"),
                                             RunId(runId),
                                             Lane(lane.toInt),
-                                            ReadType(read),
+                                            ReadType(read.toInt),
                                             FastQ(fastq, numberOfReads.get)))
                 }
               case _ =>

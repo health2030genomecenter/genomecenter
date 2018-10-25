@@ -28,9 +28,9 @@ package object model {
     stringCodec[SampleNameTag]
 
   trait ReadTypeTag
-  type ReadType = String @@ ReadTypeTag
-  def ReadType(s: String): ReadType = tag[ReadTypeTag][String](s)
-  implicit val (readTypeEncoder, readTypeDecoder) = stringCodec[ReadTypeTag]
+  type ReadType = Int @@ ReadTypeTag
+  def ReadType(s: Int): ReadType = tag[ReadTypeTag][Int](s)
+  implicit val (readTypeEncoder, readTypeDecoder) = intCodec[ReadTypeTag]
 
   trait IndexTag
   type Index = String @@ IndexTag

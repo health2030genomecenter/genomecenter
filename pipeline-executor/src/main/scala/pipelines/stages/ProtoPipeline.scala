@@ -33,11 +33,16 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     def inDeliverablesFolder[T](f: TaskSystemComponents => T) =
       tsc.withFilePrefix(Seq("deliverables"))(f)
 
+    val readLengths = ProtoPipeline.parseReadLengthFromRunInfo(r)
+
+    logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
+
     for {
       reference <- ProtoPipeline.fetchReference(r.runConfiguration)
       knownSites <- ProtoPipeline.fetchKnownSitesFiles(r.runConfiguration)
       sampleSheet <- ProtoPipeline.fetchSampleSheet(r.runConfiguration)
       globalIndexSet <- ProtoPipeline.fetchGlobalIndexSet(r.runConfiguration)
+      gtf <- ProtoPipeline.fetchGenemodel(r.runConfiguration)
       selectionTargetIntervals <- ProtoPipeline.fetchTargetIntervals(
         r.runConfiguration)
 
@@ -60,13 +65,19 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         r.runConfiguration.wesSelector,
         perSampleFastQs)
 
+      samplesForRNASeqAnalysis = ProtoPipeline.select(
+        r.runConfiguration.rnaSelector,
+        perSampleFastQs)
+
       _ = {
         logger.info(
           s"Demultiplexed samples from run ${r.runId} : $perSampleFastQs")
         logger.info(s"WES samples from run ${r.runId} : $samplesForWESAnalysis")
+        logger.info(
+          s"RNASEQ samples from run ${r.runId} : $samplesForRNASeqAnalysis")
       }
 
-      perSampleResults <- ProtoPipeline.allSamples(
+      wesAnalysis = ProtoPipeline.allSamplesWES(
         PerSamplePipelineInput(
           samplesForWESAnalysis.toSet,
           reference,
@@ -74,9 +85,20 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           selectionTargetIntervals
         ))(ResourceConfig.minimal)
 
+      rnaSeqAnalysis = ProtoPipeline.allSamplesRNASeq(
+        PerSamplePipelineInputRNASeq(
+          samplesForRNASeqAnalysis.toSet,
+          reference,
+          gtf,
+          readLengths.toSeq.toSet
+        ))(ResourceConfig.minimal)
+
+      perSampleResultsWES <- wesAnalysis
+      perSampleResultsRNA <- rnaSeqAnalysis
+
       fastpReports <- fastpReports
 
-      sampleQCs = extractQCFiles(perSampleResults, fastpReports)
+      sampleQCs = extractQCFiles(perSampleResultsWES, fastpReports)
 
       _ <- inRunQCFolder { implicit tsc =>
         AlignmentQC.runQCTable(RunQCTableInput(RunId(r.runId), sampleQCs))(
@@ -89,7 +111,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
             RunId(r.runId),
             r.runConfiguration.processingId,
             perSampleFastQs.toSet,
-            perSampleResults.samples
+            perSampleResultsWES.samples
           ))(ResourceConfig.minimal)
       }
 
@@ -144,6 +166,13 @@ case class PerSamplePipelineInput(demultiplexed: Set[PerSampleFastQ],
       demultiplexed.toSeq.flatMap(_.files) ++ reference.files ++ knownSites
         .flatMap(_.files) ++ selectionTargetIntervals.files: _*)
 
+case class PerSamplePipelineInputRNASeq(demultiplexed: Set[PerSampleFastQ],
+                                        reference: ReferenceFasta,
+                                        gtf: GTFFile,
+                                        readLengths: Set[(ReadType, Int)])
+    extends WithSharedFiles(
+      demultiplexed.toSeq.flatMap(_.files) ++ reference.files ++ gtf.files: _*)
+
 case class SingleSamplePipelineInput(demultiplexed: PerSampleFastQ,
                                      knownSites: Set[VCF],
                                      indexedReference: IndexedReferenceFasta,
@@ -163,6 +192,10 @@ case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files: _*)
 
 case class PerSamplePipelineResult(samples: Set[SingleSamplePipelineResult])
+    extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
+
+case class PerSamplePipelineResultRNASeq(
+    samples: Set[BamWithSampleMetadataPerLane])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object ProtoPipeline extends StrictLogging {
@@ -201,16 +234,13 @@ object ProtoPipeline extends StrictLogging {
               .map(_._2)
               .map { (fqsInLane: Set[FastQWithSampleMetadata]) =>
                 val maybeRead1 =
-                  selectReadType(fqsInLane.toSeq,
-                                 ReadType("R" + readAssignment._1))
+                  selectReadType(fqsInLane.toSeq, ReadType(readAssignment._1))
 
                 val maybeRead2 =
-                  selectReadType(fqsInLane.toSeq,
-                                 ReadType("R" + readAssignment._2))
+                  selectReadType(fqsInLane.toSeq, ReadType(readAssignment._2))
 
                 val maybeUmi = umi.flatMap(umiReadNumber =>
-                  selectReadType(fqsInLane.toSeq,
-                                 ReadType("R" + umiReadNumber)))
+                  selectReadType(fqsInLane.toSeq, ReadType(umiReadNumber)))
 
                 val lane = {
                   val distinctLanesInGroup = fqsInLane.map(_.lane)
@@ -273,6 +303,10 @@ object ProtoPipeline extends StrictLogging {
       case None       => Future.successful(None)
       case Some(path) => fetchFile("references", path).map(Some(_))
     }
+  private def fetchGenemodel(runConfiguration: RunConfiguration)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) =
+    fetchFile("references", runConfiguration.geneModelGtf).map(GTFFile(_))
 
   private def fetchFile(folderName: String, path: String)(
       implicit tsc: TaskSystemComponents) = {
@@ -325,7 +359,7 @@ object ProtoPipeline extends StrictLogging {
     }
   }
 
-  val singleSample =
+  val singleSampleWES =
     AsyncTask[SingleSamplePipelineInput, SingleSamplePipelineResult](
       "__persample-single",
       1) {
@@ -412,7 +446,7 @@ object ProtoPipeline extends StrictLogging {
 
     }
 
-  val allSamples =
+  val allSamplesWES =
     AsyncTask[PerSamplePipelineInput, PerSamplePipelineResult](
       "__persample-allsamples",
       1) {
@@ -430,7 +464,7 @@ object ProtoPipeline extends StrictLogging {
 
                 processedSamples <- Future
                   .traverse(demultiplexed.toSeq) { perSampleFastQs =>
-                    ProtoPipeline.singleSample(
+                    ProtoPipeline.singleSampleWES(
                       SingleSamplePipelineInput(perSampleFastQs,
                                                 knownSites,
                                                 indexedFasta,
@@ -443,6 +477,50 @@ object ProtoPipeline extends StrictLogging {
 
     }
 
+  val allSamplesRNASeq =
+    AsyncTask[PerSamplePipelineInputRNASeq, PerSamplePipelineResultRNASeq](
+      "__rna-persample-allsamples",
+      1) {
+      case PerSamplePipelineInputRNASeq(demultiplexed,
+                                        referenceFasta,
+                                        gtf,
+                                        readLengths) =>
+        implicit computationEnvironment =>
+          releaseResources
+          computationEnvironment.withFilePrefix(Seq("projects")) {
+            implicit computationEnvironment =>
+              val allLanesOfAllSamples = demultiplexed.toSeq.flatMap {
+                perSampleFastQs =>
+                  perSampleFastQs.lanes.map(lane => (perSampleFastQs, lane))
+              }
+
+              for {
+                indexedFasta <- StarAlignment.indexReference(referenceFasta)(
+                  ResourceConfig.createStarIndex)
+
+                processedSamples <- Future
+                  .traverse(allLanesOfAllSamples) {
+                    case (meta, lane) =>
+                      StarAlignment.alignSingleLane(
+                        PerLaneStarAlignmentInput(
+                          read1 = lane.read1,
+                          read2 = lane.read2,
+                          project = meta.project,
+                          sampleId = meta.sampleId,
+                          runId = meta.runId,
+                          lane = lane.lane,
+                          reference = indexedFasta,
+                          gtf = gtf.file,
+                          readLength = readLengths.map(_._2).max
+                        ))(ResourceConfig.starAlignment)
+
+                  }
+
+              } yield PerSamplePipelineResultRNASeq(processedSamples.toSet)
+          }
+
+    }
+
   def select(selector: Selector, samples: Seq[PerSampleFastQ]) =
     samples.filter { sample =>
       val lanes = sample.lanes.map { fqLane =>
@@ -451,6 +529,20 @@ object ProtoPipeline extends StrictLogging {
       lanes.exists(selector.isSelected)
 
     }
+
+  def parseReadLengthFromRunInfo(
+      run: RunfolderReadyForProcessing): Map[ReadType, Int] = {
+    // <Read Number="1" NumCycles="50" IsIndexedRead="N" />
+    val regexp =
+      """^\s*<Read Number="([0-9]+)" NumCycles="([0-9]+)" IsIndexedRead="N" />\s*$""".r
+    val runInfoLines = fileutils.openSource(
+      new File(run.runFolderPath + "/RunInfo.xml"))(_.getLines.toList)
+    runInfoLines.collect {
+      case regexp(readNumber, readLength) =>
+        ReadType(readNumber.toInt) -> readLength.toInt
+    }.toMap
+
+  }
 
 }
 
@@ -480,4 +572,18 @@ object SingleSamplePipelineResult {
     deriveEncoder[SingleSamplePipelineResult]
   implicit val decoder: Decoder[SingleSamplePipelineResult] =
     deriveDecoder[SingleSamplePipelineResult]
+}
+
+object PerSamplePipelineInputRNASeq {
+  implicit val encoder: Encoder[PerSamplePipelineInputRNASeq] =
+    deriveEncoder[PerSamplePipelineInputRNASeq]
+  implicit val decoder: Decoder[PerSamplePipelineInputRNASeq] =
+    deriveDecoder[PerSamplePipelineInputRNASeq]
+}
+
+object PerSamplePipelineResultRNASeq {
+  implicit val encoder: Encoder[PerSamplePipelineResultRNASeq] =
+    deriveEncoder[PerSamplePipelineResultRNASeq]
+  implicit val decoder: Decoder[PerSamplePipelineResultRNASeq] =
+    deriveDecoder[PerSamplePipelineResultRNASeq]
 }

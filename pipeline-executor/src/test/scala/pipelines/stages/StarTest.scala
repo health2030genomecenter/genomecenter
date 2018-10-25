@@ -19,14 +19,8 @@ class StarAlignmentTestSuite
       withTaskSystem(testConfig) { implicit ts =>
         val fasta = fetchReference(referenceFile)
 
-        val input =
-          CreateStarIndexInput(
-            fasta,
-            100
-          )
-
         val result =
-          await(StarAlignment.indexReference(input)(ResourceRequest(1, 500)))
+          await(StarAlignment.indexReference(fasta)(ResourceRequest(1, 500)))
 
         result.indexFiles.size shouldBe 8
         import scala.concurrent.ExecutionContext.Implicits.global
@@ -44,7 +38,7 @@ class StarAlignmentTestSuite
 
       withTaskSystem(testConfig) { implicit ts =>
         val indexedFasta =
-          fetchStarIndexedReference(referenceFile, genomeFolder, 151)
+          fetchStarIndexedReference(referenceFile, genomeFolder)
 
         val input =
           PerLaneStarAlignmentInput(

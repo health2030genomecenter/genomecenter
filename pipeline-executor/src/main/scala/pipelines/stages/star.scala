@@ -13,13 +13,6 @@ import fileutils.TempFile
 import scala.concurrent.{Future, ExecutionContext}
 import java.io.File
 
-case class CreateStarIndexInput(
-    fasta: ReferenceFasta,
-    readLength: Int
-) extends WithSharedFiles(
-      fasta.files: _*
-    )
-
 case class PerLaneStarAlignmentInput(
     read1: FastQ,
     read2: FastQ,
@@ -34,7 +27,6 @@ case class PerLaneStarAlignmentInput(
       Seq(read1.file, read2.file, reference.fasta, gtf): _*)
 
 case class StarIndexedReferenceFasta(fasta: SharedFile,
-                                     readLength: Int,
                                      indexFiles: Set[SharedFile])
     extends WithSharedFiles(fasta) {
   def genomeFolder(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
@@ -47,9 +39,8 @@ case class StarIndexedReferenceFasta(fasta: SharedFile,
 object StarAlignment {
 
   val indexReference =
-    AsyncTask[CreateStarIndexInput, StarIndexedReferenceFasta]("__star-index",
-                                                               1) {
-      case CreateStarIndexInput(ReferenceFasta(fasta), readLength) =>
+    AsyncTask[ReferenceFasta, StarIndexedReferenceFasta]("__star-index", 1) {
+      case ReferenceFasta(fasta) =>
         implicit computationEnvironment =>
           val starExecutable = extractStarExecutable()
 
@@ -89,13 +80,11 @@ object StarAlignment {
                 indexFiles <- Future
                   .traverse(indexFiles)(f => SharedFile(f, f.getName))
                   .map(_.toSet)
-                _ <- SharedFile(
-                  tmpStdOut,
-                  name = fasta.name + readLength + ".star.index.stdout")
-                _ <- SharedFile(
-                  tmpStdErr,
-                  name = fasta.name + readLength + ".star.index.stderr")
-              } yield StarIndexedReferenceFasta(fasta, readLength, indexFiles)
+                _ <- SharedFile(tmpStdOut,
+                                name = fasta.name + ".star.index.stdout")
+                _ <- SharedFile(tmpStdErr,
+                                name = fasta.name + ".star.index.stderr")
+              } yield StarIndexedReferenceFasta(fasta, indexFiles)
             }
           } yield result
 
@@ -218,13 +207,6 @@ object StarAlignment {
       .getAbsolutePath
   }
 
-}
-
-object CreateStarIndexInput {
-  implicit val encoder: Encoder[CreateStarIndexInput] =
-    deriveEncoder[CreateStarIndexInput]
-  implicit val decoder: Decoder[CreateStarIndexInput] =
-    deriveDecoder[CreateStarIndexInput]
 }
 
 object StarIndexedReferenceFasta {

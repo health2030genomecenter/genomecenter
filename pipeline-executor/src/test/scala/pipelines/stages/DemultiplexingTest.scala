@@ -85,7 +85,7 @@ class DemultiplexingTestSuite
       result.get.fastqs.toList.map(_.sampleId).toSet shouldBe Set(
         "Undetermined",
         "GIB")
-      result.get.fastqs.toList.map(_.readType).toSet shouldBe Set("R2", "R1")
+      result.get.fastqs.toList.map(_.readType).toSet shouldBe Set(2,1)
       result.get.fastqs.toList.map(_.lane).toSet shouldBe Set(1)
 
     }
@@ -175,10 +175,8 @@ trait TestHelpers {
 
   }
 
-  def fetchStarIndexedReference(
-      fasta: File,
-      genomeFolder: File,
-      readLength: Int)(implicit tsc: TaskSystemComponents) = {
+  def fetchStarIndexedReference(fasta: File, genomeFolder: File)(
+      implicit tsc: TaskSystemComponents) = {
     val liftedFasta = await(SharedFile(fasta, "referenceFasta.fasta"))
     val indexFiles = List(
       new File(genomeFolder, "chrLength.txt"),
@@ -192,7 +190,6 @@ trait TestHelpers {
     )
     StarIndexedReferenceFasta(
       liftedFasta,
-      readLength,
       indexFiles.toSet.map((f: File) => await(SharedFile(f, f.getName))))
 
   }

@@ -32,6 +32,11 @@ object ResourceConfig {
   def indexReference(implicit tsc: TaskSystemComponents) =
     parse("indexReference")
 
+  def createStarIndex(implicit tsc: TaskSystemComponents) =
+    parse("createStarIndex")
+  def starAlignment(implicit tsc: TaskSystemComponents) =
+    parse("starAlignment")
+
   def trainBqsr(implicit tsc: TaskSystemComponents) =
     parse("trainBqsr")
 

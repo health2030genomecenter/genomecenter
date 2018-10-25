@@ -110,6 +110,8 @@ case class BQSRTable(file: SharedFile) extends WithSharedFiles(file)
 
 case class BedFile(file: SharedFile) extends WithSharedFiles(file)
 
+case class GTFFile(file: SharedFile) extends WithSharedFiles(file)
+
 //
 // Codecs from here on
 //
@@ -231,4 +233,11 @@ object CoordinateSortedBamWithSampleMetadata {
     deriveEncoder[CoordinateSortedBamWithSampleMetadata]
   implicit val decoder: Decoder[CoordinateSortedBamWithSampleMetadata] =
     deriveDecoder[CoordinateSortedBamWithSampleMetadata]
+}
+
+object GTFFile {
+  implicit val encoder: Encoder[GTFFile] =
+    deriveEncoder[GTFFile]
+  implicit val decoder: Decoder[GTFFile] =
+    deriveDecoder[GTFFile]
 }

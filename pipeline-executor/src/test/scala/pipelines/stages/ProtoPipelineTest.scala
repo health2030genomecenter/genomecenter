@@ -246,6 +246,11 @@ sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       fileutils.openFileWriter(_.write(sampleSheet2.sampleSheetContent))._1
     val runFolderPath = extractRunFolderTestData
 
+    val gtfFile = new File(
+      getClass
+        .getResource("/short.gtf")
+        .getFile)
+
     val runConfiguration = RunConfiguration(
       processingId = ProcessingId("all"),
       automatic = true,
@@ -261,7 +266,9 @@ sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
                              samples = Set.empty,
                              lanes = Set.empty,
                              projects = Set.empty),
-      globalIndexSet = Some(globalIndexSetFilePath)
+      rnaSelector = Selector.empty,
+      globalIndexSet = Some(globalIndexSetFilePath),
+      geneModelGtf = gtfFile.getAbsolutePath
     )
 
     val (testConfig, basePath) = makeTestConfig
