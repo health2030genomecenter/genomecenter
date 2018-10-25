@@ -174,12 +174,14 @@ object DemultiplexingSummary {
         }
 
       val indexSwaps = {
-        val frequentUnknownBarcodes = top20UnknownBarcodes.filter(_._3 >= 0.01)
+        val frequentUnknownBarcodes = top20UnknownBarcodes.filter(_._3 >= 0.001)
         val indicesInFlowcell: Set[String] =
-          sampleSummaries.map(_.indexSequence).toSet
+          sampleSummaries.flatMap(_.indexSequence.split("+").toList).toSet
         val candidateIndexSwaps = frequentUnknownBarcodes.filter {
           case (idx: String, _, _) =>
-            indicesInFlowcell.contains(idx) || globalIndexSet.contains(idx)
+            val splitted = idx.split("+")
+            splitted.exists(idx =>
+              indicesInFlowcell.contains(idx) || globalIndexSet.contains(idx))
         }
         candidateIndexSwaps.map {
           case (idx, count, fraction) =>
