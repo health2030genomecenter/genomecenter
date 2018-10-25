@@ -174,7 +174,7 @@ object BWAAlignment {
 
               Exec.bash(logDiscriminator = "sortbam.sort",
                         onError = Exec.ThrowIfNonZero)(
-                s"""java ${JVM.serial} $maxHeap $javaTmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
+                s"""java ${JVM.g1} $maxHeap $javaTmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
                 --INPUT ${localBam.getAbsolutePath} \\
                 --OUTPUT ${tmpSorted.getAbsolutePath} \\
                 --SORT_ORDER coordinate \\
@@ -405,7 +405,7 @@ object BWAAlignment {
         java ${JVM.serial} -Xmx2G $tmpDir -jar $umiProcessor $umi \\
               2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                  \\
-        java ${JVM.serial} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
+        java ${JVM.g1} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
                 --INPUT /dev/stdin/ \\
                 --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
                 --SORT_ORDER queryname \\
