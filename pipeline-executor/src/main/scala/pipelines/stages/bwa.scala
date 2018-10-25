@@ -143,6 +143,8 @@ object BWAAlignment {
                                      runId,
                                      alignedLanes.map(_.bam)))(
               ResourceConfig.picardMergeAndMarkDuplicates)
+            _ <- Future.traverse(alignedLanes.map(_.bam))(_.file.delete)
+
           } yield merged
     }
 
@@ -257,6 +259,7 @@ object BWAAlignment {
           --METRICS_FILE ${tmpMetricsFile.getAbsolutePath} \\
           --OPTICAL_DUPLICATE_PIXEL_DISTANCE=250 \\
           --CREATE_INDEX false \\
+          --COMPRESSION_LEVEL 1 \\
           --MAX_RECORDS_IN_RAM 0 \\
           --TMP_DIR $tempFolder \\
           > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
@@ -281,7 +284,6 @@ object BWAAlignment {
                 bam <- SharedFile(tmpDuplicateMarkedBam,
                                   name = nameStub + ".mdup.bam",
                                   deleteFile = true)
-                _ <- Future.traverse(bams)(_.file.delete)
               } yield
                 MarkDuplicateResult(
                   BamWithSampleMetadata(project, sampleId, runId, Bam(bam)),

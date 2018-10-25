@@ -382,6 +382,8 @@ object ProtoPipeline extends StrictLogging {
                 ApplyBQSRInput(coordinateSorted, indexedReference, table))(
                 ResourceConfig.applyBqsr)
             }
+            _ <- coordinateSorted.bam.delete
+            _ <- coordinateSorted.bai.delete
 
             alignmentQC <- intoQCFolder { implicit computationEnvironment =>
               AlignmentQC.general(

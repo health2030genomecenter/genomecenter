@@ -117,8 +117,6 @@ object BaseQualityScoreRecalibration {
                 recalibrated <- SharedFile(outputBam,
                                            outputFileNameRoot + "bqsr.bam",
                                            deleteFile = true)
-                _ <- bam.bam.delete
-                _ <- bam.bai.delete
               } yield {
                 CoordinateSortedBam(recalibrated, bai)
               }
