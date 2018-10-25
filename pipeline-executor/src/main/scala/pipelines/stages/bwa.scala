@@ -248,7 +248,7 @@ object BWAAlignment {
 
               val inputFlags = localBams
                 .map(_.getAbsolutePath)
-                .mkString("--INPUT ", "--INPUT ", "")
+                .mkString("--INPUT ", " --INPUT ", "")
 
               val bashScript = s"""
         java ${JVM.serial} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar MarkDuplicates \\
