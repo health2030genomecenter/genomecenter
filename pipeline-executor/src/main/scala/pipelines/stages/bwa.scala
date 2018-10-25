@@ -154,7 +154,7 @@ object BWAAlignment {
 
           val tempFolder =
             TempFile
-              .createTempFolder(".markDuplicateTempFolder")
+              .createTempFolder(".sortTempFolder")
               .getAbsolutePath
           val tmpSorted = TempFile.createTempFile(".bam")
           val tmpStdOut = TempFile.createTempFile(".stdout")
