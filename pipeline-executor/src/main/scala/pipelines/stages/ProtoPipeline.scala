@@ -532,18 +532,24 @@ object ProtoPipeline extends StrictLogging {
 
   def parseReadLengthFromRunInfo(
       run: RunfolderReadyForProcessing): Map[ReadType, Int] = {
-    // <Read Number="1" NumCycles="50" IsIndexedRead="N" />
-    val regexp =
-      """^\s*<Read Number="([0-9]+)" NumCycles="([0-9]+)" IsIndexedRead="N" />\s*$""".r
-    val runInfoLines = fileutils.openSource(
-      new File(run.runFolderPath + "/RunInfo.xml"))(_.getLines.toList)
-    runInfoLines.collect {
-      case regexp(readNumber, readLength) =>
-        ReadType(readNumber.toInt) -> readLength.toInt
-    }.toMap
-
+    val content = fileutils.openSource(
+      new File(run.runFolderPath + "/RunInfo.xml"))(_.mkString)
+    parseReadLength(content)
   }
 
+  def parseReadLength(s: String) = {
+    val root = scala.xml.XML.loadString(s)
+    (root \ "Run" \ "Reads" \ "Read")
+      .map { node =>
+        (node \@ "Number", node \@ "NumCycles")
+      }
+      .map {
+        case (number, cycles) =>
+          ReadType(number.toInt) -> cycles.toInt
+      }
+      .toMap
+
+  }
 }
 
 object SingleSamplePipelineInput {

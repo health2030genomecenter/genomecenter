@@ -20,6 +20,14 @@ class ProtopipelineTestSuite
     with GivenWhenThen
     with TestHelpers {
 
+  test("parse RunInfo.xml") {
+    new Fixture {
+      ProtoPipeline.parseReadLength(runInfoContent) shouldBe Map(1 -> 50,
+                                                                 2 -> 7,
+                                                                 3 -> 50)
+    }
+  }
+
   test("Prototype pipeline should create bam files per sample") {
     new Fixture {
 
@@ -272,5 +280,30 @@ sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
     )
 
     val (testConfig, basePath) = makeTestConfig
+
+    val runInfoContent =
+      """<?xml version="1.0"?>
+<RunInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="2">
+  <Run Id="141008_7001253F_0202_AC5E7AANXX" Number="202">
+    <Flowcell>C5E7AANXX</Flowcell>
+    <Instrument>7001253F</Instrument>
+    <Date>141008</Date>
+    <Reads>
+      <Read Number="1" NumCycles="50" IsIndexedRead="N" />
+      <Read Number="2" NumCycles="7" IsIndexedRead="Y" />
+      <Read Number="3" NumCycles="50" IsIndexedRead="N" />
+    </Reads>
+    <FlowcellLayout LaneCount="8" SurfaceCount="2" SwathCount="3" TileCount="16" />
+    <AlignToPhiX>
+      <Lane>3</Lane>
+      <Lane>4</Lane>
+      <Lane>5</Lane>
+      <Lane>6</Lane>
+      <Lane>7</Lane>
+      <Lane>8</Lane>
+    </AlignToPhiX>
+  </Run>
+</RunInfo>
+"""
   }
 }
