@@ -30,7 +30,6 @@ case class IndexedReferenceFasta(fasta: SharedFile, indexFiles: Set[SharedFile])
 
 case class FastQWithSampleMetadata(project: Project,
                                    sampleId: SampleId,
-                                   runId: RunId,
                                    lane: Lane,
                                    readType: ReadType,
                                    fastq: FastQ)

@@ -26,6 +26,11 @@ case class PerLaneStarAlignmentInput(
 ) extends WithSharedFiles(
       Seq(read1.file, read2.file, reference.fasta, gtf): _*)
 
+case class StarResult(
+    finalLog: SharedFile,
+    bam: BamWithSampleMetadataPerLane
+) extends WithSharedFiles(bam.files :+ finalLog: _*)
+
 case class StarIndexedReferenceFasta(fasta: SharedFile,
                                      indexFiles: Set[SharedFile])
     extends WithSharedFiles(fasta) {
@@ -90,9 +95,7 @@ object StarAlignment {
 
     }
   val alignSingleLane =
-    AsyncTask[PerLaneStarAlignmentInput, BamWithSampleMetadataPerLane](
-      "__star-perlane",
-      1) {
+    AsyncTask[PerLaneStarAlignmentInput, StarResult]("__star-perlane", 1) {
       case PerLaneStarAlignmentInput(read1,
                                      read2,
                                      project,
@@ -179,15 +182,17 @@ object StarAlignment {
                 _ <- SharedFile(tmpStdErr, name = nameStub + ".star.bam.stderr")
                 _ <- SharedFile(expectedLog,
                                 name = nameStub + ".star.bam.Log.out")
-                _ <- SharedFile(expectedFinalLog,
-                                name = nameStub + ".star.bam.Log.final.out")
+                finalLogFile <- SharedFile(
+                  expectedFinalLog,
+                  name = nameStub + ".star.bam.Log.final.out")
                 bam <- SharedFile(tmpCleanBam, name = nameStub + ".star.bam")
               } yield
-                BamWithSampleMetadataPerLane(project,
-                                             sampleId,
-                                             runId,
-                                             lane,
-                                             Bam(bam))
+                StarResult(finalLogFile,
+                           BamWithSampleMetadataPerLane(project,
+                                                        sampleId,
+                                                        runId,
+                                                        lane,
+                                                        Bam(bam)))
             }
           } yield result
 
@@ -221,4 +226,11 @@ object PerLaneStarAlignmentInput {
     deriveEncoder[PerLaneStarAlignmentInput]
   implicit val decoder: Decoder[PerLaneStarAlignmentInput] =
     deriveDecoder[PerLaneStarAlignmentInput]
+}
+
+object StarResult {
+  implicit val encoder: Encoder[StarResult] =
+    deriveEncoder[StarResult]
+  implicit val decoder: Decoder[StarResult] =
+    deriveDecoder[StarResult]
 }

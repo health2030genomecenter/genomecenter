@@ -56,7 +56,7 @@ class StarAlignmentTestSuite
         val result =
           await(StarAlignment.alignSingleLane(input)(ResourceRequest(1, 500)))
 
-        val bamFile = await(result.bam.file.file)
+        val bamFile = await(result.bam.bam.file.file)
         recordsInBamFile(bamFile) shouldBe 17876
 
       }

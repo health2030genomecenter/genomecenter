@@ -33,6 +33,43 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     def inDeliverablesFolder[T](f: TaskSystemComponents => T) =
       tsc.withFilePrefix(Seq("deliverables"))(f)
 
+    def inDemultiplexingFolder[T](
+        runId: RunId,
+        demultiplexingId: DemultiplexingId)(f: TaskSystemComponents => T) =
+      tsc.withFilePrefix(Seq("demultiplexing", runId, demultiplexingId))(f)
+
+    def executeDemultiplexing =
+      Future
+        .traverse(r.runConfiguration.demultiplexingRuns.toSeq) {
+          demultiplexingConfig =>
+            inDemultiplexingFolder(r.runId,
+                                   demultiplexingConfig.demultiplexingId) {
+              implicit tsc =>
+                for {
+                  globalIndexSet <- ProtoPipeline.fetchGlobalIndexSet(
+                    r.runConfiguration)
+                  sampleSheet <- ProtoPipeline.fetchSampleSheet(
+                    demultiplexingConfig.sampleSheet)
+
+                  demultiplexed <- Demultiplexing.allLanes(
+                    DemultiplexingInput(
+                      r.runFolderPath,
+                      sampleSheet,
+                      demultiplexingConfig.extraBcl2FastqArguments,
+                      globalIndexSet))(ResourceConfig.minimal)
+
+                  perSampleFastQs = ProtoPipeline
+                    .groupBySample(demultiplexed.withoutUndetermined,
+                                   demultiplexingConfig.readAssignment,
+                                   demultiplexingConfig.umi,
+                                   r.runId)
+
+                } yield perSampleFastQs
+
+            }
+        }
+        .map(_.flatten)
+
     val readLengths = ProtoPipeline.parseReadLengthFromRunInfo(r)
 
     logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
@@ -40,24 +77,11 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     for {
       reference <- ProtoPipeline.fetchReference(r.runConfiguration)
       knownSites <- ProtoPipeline.fetchKnownSitesFiles(r.runConfiguration)
-      sampleSheet <- ProtoPipeline.fetchSampleSheet(r.runConfiguration)
-      globalIndexSet <- ProtoPipeline.fetchGlobalIndexSet(r.runConfiguration)
       gtf <- ProtoPipeline.fetchGenemodel(r.runConfiguration)
       selectionTargetIntervals <- ProtoPipeline.fetchTargetIntervals(
         r.runConfiguration)
 
-      demultiplexed <- Demultiplexing.allLanes(
-        DemultiplexingInput(r.runConfiguration.processingId,
-                            RunId(r.runId),
-                            r.runFolderPath,
-                            sampleSheet,
-                            r.runConfiguration.extraBcl2FastqArguments,
-                            globalIndexSet))(ResourceConfig.minimal)
-
-      perSampleFastQs = ProtoPipeline
-        .groupBySample(demultiplexed.withoutUndetermined,
-                       r.runConfiguration.readAssignment,
-                       r.runConfiguration.umi)
+      perSampleFastQs <- executeDemultiplexing
 
       fastpReports = startFastpReports(perSampleFastQs)
 
@@ -108,8 +132,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       _ <- inDeliverablesFolder { implicit tsc =>
         Delivery.collectDeliverables(
           CollectDeliverablesInput(
-            RunId(r.runId),
-            r.runConfiguration.processingId,
+            r.runId,
             perSampleFastQs.toSet,
             perSampleResultsWES.samples
           ))(ResourceConfig.minimal)
@@ -194,8 +217,7 @@ case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
 case class PerSamplePipelineResult(samples: Set[SingleSamplePipelineResult])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
-case class PerSamplePipelineResultRNASeq(
-    samples: Set[BamWithSampleMetadataPerLane])
+case class PerSamplePipelineResultRNASeq(samples: Set[StarResult])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object ProtoPipeline extends StrictLogging {
@@ -219,14 +241,15 @@ object ProtoPipeline extends StrictLogging {
     */
   def groupBySample(demultiplexed: DemultiplexedReadData,
                     readAssignment: (Int, Int),
-                    umi: Option[Int]): Seq[PerSampleFastQ] =
+                    umi: Option[Int],
+                    runId: RunId): Seq[PerSampleFastQ] =
     demultiplexed.fastqs
       .groupBy { fq =>
-        (fq.project, fq.sampleId, fq.runId)
+        (fq.project, fq.sampleId)
       }
       .toSeq
       .map {
-        case ((project, sampleId, runId), perSampleFastQs) =>
+        case ((project, sampleId), perSampleFastQs) =>
           val perLaneFastQs =
             perSampleFastQs
               .groupBy(_.lane)
@@ -279,11 +302,10 @@ object ProtoPipeline extends StrictLogging {
     }
   }
 
-  private def fetchSampleSheet(runConfiguration: RunConfiguration)(
-      implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) = {
+  private def fetchSampleSheet(path: String)(implicit tsc: TaskSystemComponents,
+                                             ec: ExecutionContext) = {
     tsc.withFilePrefix(Seq("sampleSheets")) { implicit tsc =>
-      val file = new File(runConfiguration.sampleSheet)
+      val file = new File(path)
       val fileName = file.getName
       logger.debug(s"Fetching sample sheet $file")
       SharedFile(file, fileName).map(SampleSheetFile(_)).andThen {

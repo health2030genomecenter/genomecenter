@@ -12,6 +12,7 @@ import akka.stream.ActorMaterializer
 import akka.testkit.{TestKit, TestProbe}
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.model._
 import fileutils._
 
 class FolderWatcherEventSourceTest
@@ -35,18 +36,10 @@ class FolderWatcherEventSourceTest
       tmpFile
     }
 
-    // config.getBoolean("automatic"),
-    //       referenceFasta = config.getString("referenceFasta"),
-    //       targetIntervals = config.getString("targetIntervals"),
-    //       bqsrKnownSites = config.getStringList("bqsr.knownSites").asScala.toSet,
-    //       extraBcl2FastqArguments =
-    //         config.getStringList("extraBcl2FastqArguments").asScala,
-    //       sampleSheet = config.getString("sampleSheet")
-
     val fileNameToWatch = "something"
     val configurationFile = "config-runid"
     val configurationFileContent =
-      "geneModelGtf=b\nglobalIndexSet=b\nprocessingId=b\nreadAssignment=[1,1]\numiReadNumber=[1]\nautomatic=true\nsampleSheet=b\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\nextraBcl2FastqArguments=[]"
+      "geneModelGtf=b\nglobalIndexSet=b\nautomatic=true\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\ndemultiplexing=[]"
     val runConfiguration = RunConfiguration(configurationFileContent)
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)
@@ -73,7 +66,7 @@ class FolderWatcherEventSourceTest
     openFileWriter(watchedFile)(_ => ())
     Then("the source should emit and the sample sheet should be read")
     probe.expectMsg(
-      RunfolderReadyForProcessing(runId,
+      RunfolderReadyForProcessing(RunId(runId),
                                   runFolder.getAbsolutePath,
                                   runConfiguration.right.get))
     When("the watched file is deleted")

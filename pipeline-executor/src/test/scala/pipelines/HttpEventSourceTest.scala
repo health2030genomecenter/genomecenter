@@ -20,6 +20,7 @@ import akka.http.scaladsl.model.{
 }
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.model._
 import fileutils._
 
 class HttpEventSourceTest
@@ -46,7 +47,7 @@ class HttpEventSourceTest
     val fileNameToWatch = "something"
     val runConfigurationFileName = "config-runid"
     val runConfigurationFileContent =
-      "geneModelGtf=b\nglobalIndexSet=b\nprocessingId=b\nreadAssignment=[1,1]\numiReadNumber=[1]\nautomatic=true\nsampleSheet=b\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\nextraBcl2FastqArguments=[]"
+      "geneModelGtf=b\nglobalIndexSet=b\nautomatic=true\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\ndemultiplexing=[]"
 
     val runConfiguration = RunConfiguration(runConfigurationFileContent)
     val runId = "runid"
@@ -84,7 +85,7 @@ class HttpEventSourceTest
       status shouldEqual StatusCodes.OK
       Then("the source should emit")
       probe.expectMsg(
-        RunfolderReadyForProcessing(runId,
+        RunfolderReadyForProcessing(RunId(runId),
                                     runFolder.getAbsolutePath,
                                     runConfiguration.right.get))
       When("the watched file is deleted")

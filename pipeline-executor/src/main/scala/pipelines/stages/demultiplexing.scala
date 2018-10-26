@@ -18,8 +18,6 @@ import scala.concurrent.ExecutionContext
 import java.io.File
 
 case class DemultiplexingInput(
-    processingId: ProcessingId,
-    runId: RunId,
     runFolderPath: String,
     sampleSheet: SampleSheetFile,
     extraBcl2FastqCliArguments: Seq[String],
@@ -65,71 +63,60 @@ object Demultiplexing {
     AsyncTask[DemultiplexingInput, DemultiplexedReadData]("__demultiplex", 2) {
       runFolder => implicit computationEnvironment =>
         releaseResources
-        computationEnvironment.withFilePrefix(Seq("demultiplex")) {
-          implicit computationEnvironment =>
-            implicit val actorMaterializer =
-              computationEnvironment.components.actorMaterializer
+        implicit val actorMaterializer =
+          computationEnvironment.components.actorMaterializer
 
-            def intoRunIdFolder[T] =
-              appendToFilePrefix[T](
-                Seq(runFolder.runId, runFolder.processingId))
+        for {
+          sampleSheet <- runFolder.sampleSheet.parse
+          globalIndexSet <- runFolder.globalIndexSet
+            .map(sf => parseGlobalIndexSet(sf.source))
+            .getOrElse(Future.successful(readGlobalIndexSetFromClassPath))
 
-            for {
-              sampleSheet <- runFolder.sampleSheet.parse
-              globalIndexSet <- runFolder.globalIndexSet
-                .map(sf => parseGlobalIndexSet(sf.source))
-                .getOrElse(Future.successful(readGlobalIndexSetFromClassPath))
+          lanes = {
+            val lanes = sampleSheet.lanes
+            if (lanes.isEmpty) {
+              log.error("No lanes in the sample sheet!")
+            }
+            lanes
+          }
 
-              lanes = {
-                val lanes = sampleSheet.lanes
-                if (lanes.isEmpty) {
-                  log.error("No lanes in the sample sheet!")
-                }
-                lanes
+          demultiplexedLanes <- Future.traverse(lanes) { lane =>
+            perLane(DemultiplexSingleLaneInput(runFolder, lane))(
+              ResourceConfig.bcl2fastq)
+          }
+
+          perLaneStats <- Future.traverse(demultiplexedLanes)(_.stats.get)
+
+          mergedStats = perLaneStats
+            .reduce { (x, y) =>
+              val merged = (x ++ y)
+              merged match {
+                case Left(error) =>
+                  log.error(x.toString)
+                  log.error(y.toString)
+                  throw new RuntimeException(s"Can't merge because $error")
+                case Right(merged) => merged
               }
+            }
 
-              demultiplexedLanes <- Future.traverse(lanes) { lane =>
-                perLane(DemultiplexSingleLaneInput(runFolder, lane))(
-                  ResourceConfig.bcl2fastq)
-              }
+          mergedStatsInFile <- for {
+            _ <- {
+              val tableAsString =
+                DemultiplexingSummary.renderAsTable(
+                  DemultiplexingSummary.fromStats(
+                    mergedStats,
+                    sampleToProjectMap(demultiplexedLanes),
+                    globalIndexSet))
+              SharedFile(
+                Source.single(ByteString(tableAsString.getBytes("UTF-8"))),
+                name = "stats.table")
+            }
+            mergedStatsEValue <- EValue.apply(mergedStats, "Stats.json")
+          } yield mergedStatsEValue
+        } yield
+          DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet,
+                                mergedStatsInFile)
 
-              perLaneStats <- Future.traverse(demultiplexedLanes)(_.stats.get)
-
-              mergedStats = perLaneStats
-                .reduce { (x, y) =>
-                  val merged = (x ++ y)
-                  merged match {
-                    case Left(error) =>
-                      log.error(x.toString)
-                      log.error(y.toString)
-                      throw new RuntimeException(s"Can't merge because $error")
-                    case Right(merged) => merged
-                  }
-                }
-
-              mergedStatsInFile <- intoRunIdFolder {
-                implicit computationEnvironment =>
-                  for {
-                    _ <- {
-                      val tableAsString =
-                        DemultiplexingSummary.renderAsTable(
-                          DemultiplexingSummary.fromStats(
-                            mergedStats,
-                            sampleToProjectMap(demultiplexedLanes),
-                            globalIndexSet))
-                      SharedFile(Source.single(
-                                   ByteString(tableAsString.getBytes("UTF-8"))),
-                                 name = runFolder.runId + ".stats.table")
-                    }
-                    mergedStatsEValue <- EValue.apply(
-                      mergedStats,
-                      runFolder.runId + ".Stats.json")
-                  } yield mergedStatsEValue
-              }
-            } yield
-              DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet,
-                                    mergedStatsInFile)
-        }
     }
 
   val fastqFileNameRegex =
@@ -140,12 +127,7 @@ object Demultiplexing {
       "__demultiplex-per-lane",
       5) {
       case DemultiplexSingleLaneInput(
-          DemultiplexingInput(processingId,
-                              runId,
-                              runFolderPath,
-                              sampleSheet,
-                              extraArguments,
-                              _),
+          DemultiplexingInput(runFolderPath, sampleSheet, extraArguments, _),
           laneToProcess
           ) =>
         implicit computationEnvironment =>
@@ -203,7 +185,6 @@ object Demultiplexing {
                   Some(
                     FastQWithSampleMetadata(sampleSheetProject,
                                             sampleSheetSampleId,
-                                            RunId(runId),
                                             parsedLane,
                                             ReadType(read.toInt),
                                             FastQ(fastq, numberOfReads.get)))
@@ -216,7 +197,6 @@ object Demultiplexing {
                   Some(
                     FastQWithSampleMetadata(Project("NA"),
                                             SampleId("Undetermined"),
-                                            RunId(runId),
                                             Lane(lane.toInt),
                                             ReadType(read.toInt),
                                             FastQ(fastq, numberOfReads.get)))
@@ -262,7 +242,7 @@ object Demultiplexing {
               }
 
               val (_, _, exitCode) =
-                Exec.bash(logDiscriminator = "bcl2fastq." + runId)(bashCommand)
+                Exec.bash(logDiscriminator = "bcl2fastq")(bashCommand)
               if (exitCode != 0) {
                 val stdErrContents = fileutils.openSource(stderr)(_.mkString)
                 log.error(
@@ -275,11 +255,8 @@ object Demultiplexing {
 
               Files.list(outputFolder, "**.fastq.gz") :+ statsFile
 
-            }(
-              computationEnvironment.components
-                .withChildPrefix(runId)
-                .withChildPrefix(processingId)
-                .withChildPrefix(laneToProcess.toString))
+            }(computationEnvironment.components
+              .withChildPrefix(laneToProcess.toString))
 
             statsFileContent <- fastQAndStatFiles.last.source
               .runFold(ByteString.empty)(_ ++ _)

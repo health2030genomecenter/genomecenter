@@ -144,17 +144,13 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
       .tick(
         1 seconds,
         2 seconds,
-        RunfolderReadyForProcessing("fake",
+        RunfolderReadyForProcessing(RunId("fake"),
                                     "fakePath",
-                                    RunConfiguration(ProcessingId("all"),
-                                                     false,
-                                                     "fake",
+                                    RunConfiguration(false,
+                                                     Set.empty,
                                                      "fake",
                                                      "fake",
                                                      Set(),
-                                                     Nil,
-                                                     (1, 2),
-                                                     None,
                                                      Selector.empty,
                                                      Selector.empty,
                                                      None,
@@ -166,7 +162,7 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
         case (run, idx) =>
           if (uniform) run
           else
-            run.copy(runId = run.runId + idx)
+            run.copy(runId = RunId(run.runId + idx))
       }
 }
 

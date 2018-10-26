@@ -10,6 +10,7 @@ import org.gc.pipelines.util.Exec
 import org.gc.pipelines.model._
 import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
+  DemultiplexingConfiguration,
   RunConfiguration,
   Selector
 }
@@ -137,13 +138,10 @@ class ProtopipelineTestSuite
         And("runQC file should be present")
         new File(basePath.getAbsolutePath + s"/runQC/$runId.qc.table").canRead shouldBe true
 
-        When("executing the same runfolder with a different sample sheet")
+        When("executing the same runfolder again")
 
-        scala.concurrent.Await.result(
-          pipeline.execute(
-            run.copy(runConfiguration = run.runConfiguration.copy(
-              sampleSheet = sampleSheetFile2.getAbsolutePath))),
-          atMost = 400000 seconds)
+        scala.concurrent.Await.result(pipeline.execute(run),
+                                      atMost = 400000 seconds)
 
         Then("project3 should be demultiplexed")
         project3Folder.canRead shouldBe true
@@ -191,7 +189,7 @@ class ProtopipelineTestSuite
         .getResource("/example.vcf")
         .getFile)
 
-    val runId = "whateverRunId"
+    val runId = RunId("whateverRunId")
     val sampleSheet = SampleSheet(
       s"""[Header],,,,,,,,,,
 IEMFileVersion,5,,,,,,,,,
@@ -260,16 +258,32 @@ sample2,sample2,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
         .getFile)
 
     val runConfiguration = RunConfiguration(
-      processingId = ProcessingId("all"),
       automatic = true,
-      sampleSheet = sampleSheetFile.getAbsolutePath,
+      demultiplexingRuns = Set(
+        DemultiplexingConfiguration(
+          demultiplexingId = DemultiplexingId("demultiplexOnce"),
+          sampleSheet = sampleSheetFile.getAbsolutePath,
+          extraBcl2FastqArguments = Seq("--tiles",
+                                        "s_1_1101",
+                                        "--use-bases-mask",
+                                        "y75n,i6n*,n10,y75n"),
+          readAssignment = (1, 2),
+          umi = None
+        ),
+        DemultiplexingConfiguration(
+          demultiplexingId = DemultiplexingId("demultiplexTwice"),
+          sampleSheet = sampleSheetFile2.getAbsolutePath,
+          extraBcl2FastqArguments = Seq("--tiles",
+                                        "s_1_1101",
+                                        "--use-bases-mask",
+                                        "y75n,i6n*,n10,y75n"),
+          readAssignment = (1, 2),
+          umi = None
+        )
+      ),
       referenceFasta = referenceFasta,
       targetIntervals = targetIntervals,
       bqsrKnownSites = Set(knownSitesVCF.getAbsolutePath),
-      extraBcl2FastqArguments =
-        Seq("--tiles", "s_1_1101", "--use-bases-mask", "y75n,i6n*,n10,y75n"),
-      readAssignment = (1, 2),
-      umi = None,
       wesSelector = Selector(runIds = Set(RunId(runId)),
                              samples = Set.empty,
                              lanes = Set.empty,

@@ -11,7 +11,6 @@ import akka.util.ByteString
 
 case class CollectDeliverablesInput(
     runId: RunId,
-    processingId: ProcessingId,
     fastqs: Set[PerSampleFastQ],
     bams: Set[SingleSamplePipelineResult]
 ) extends WithSharedFiles(
@@ -50,11 +49,11 @@ object Delivery {
     AsyncTask[CollectDeliverablesInput, DeliverableList](
       "__collectdeliverables",
       1) {
-      case CollectDeliverablesInput(runId,
-                                    processingId,
-                                    fastqs,
-                                    singleSampleResults) =>
+      case CollectDeliverablesInput(runId, fastqs, singleSampleResults) =>
         implicit computationEnvironment =>
+          def inProjectFolder[T](project: Project) =
+            appendToFilePrefix[T](Seq(project))
+
           val collectedFastqs: Map[Project, Seq[SharedFile]] =
             extractFastqList(fastqs)
 
@@ -78,9 +77,11 @@ object Delivery {
                   Source.single(ByteString(pathList.sorted.mkString("\n")))
 
                 for {
-                  pathListFile <- SharedFile(
-                    source,
-                    project + "." + runId + "." + processingId + ".deliverables.list")
+                  pathListFile <- inProjectFolder(project) {
+                    implicit computationEnvironment =>
+                      SharedFile(source,
+                                 project + "." + runId + ".deliverables.list")
+                  }
                 } yield (project, pathListFile)
             }
           } yield DeliverableList(fileList)
