@@ -12,9 +12,10 @@ import akka.util.ByteString
 case class CollectDeliverablesInput(
     runId: RunId,
     fastqs: Set[PerSampleFastQ],
-    bams: Set[SingleSamplePipelineResult]
+    wesBams: Set[SingleSamplePipelineResult],
+    rnaSeqBams: Set[StarResult]
 ) extends WithSharedFiles(
-      fastqs.toSeq.flatMap(_.files) ++ bams.toSeq.flatMap(_.files): _*)
+      fastqs.toSeq.flatMap(_.files) ++ wesBams.toSeq.flatMap(_.files): _*)
 
 case class DeliverableList(lists: Seq[(Project, SharedFile)])
     extends WithSharedFiles(lists.map(_._2): _*)
@@ -45,11 +46,20 @@ object Delivery {
           (project, pairs.map(_._2))
       }
 
+  def extractBamListFromRnaSeqResults(rnaSeqResults: Set[StarResult]) =
+    rnaSeqResults.toSeq
+      .map { case StarResult(_, bam) => (bam.project, bam.bam.file) }
+      .groupBy { case (project, _) => project }
+      .map {
+        case (project, pairs) =>
+          (project, pairs.map(_._2))
+      }
+
   val collectDeliverables =
     AsyncTask[CollectDeliverablesInput, DeliverableList](
       "__collectdeliverables",
       1) {
-      case CollectDeliverablesInput(runId, fastqs, singleSampleResults) =>
+      case CollectDeliverablesInput(runId, fastqs, wesResults, rnaSeqResults) =>
         implicit computationEnvironment =>
           def inProjectFolder[T](project: Project) =
             appendToFilePrefix[T](Seq(project))
@@ -58,10 +68,17 @@ object Delivery {
             extractFastqList(fastqs)
 
           val collectedCoordinateSortedBams: Map[Project, Seq[SharedFile]] =
-            extractBamList(singleSampleResults)
+            extractBamList(wesResults)
 
-          val collectedFiles = tasks.util
-            .addMaps(collectedFastqs, collectedCoordinateSortedBams)(_ ++ _)
+          val collectedRnaSeqBam: Map[Project, Seq[SharedFile]] =
+            extractBamListFromRnaSeqResults(rnaSeqResults)
+
+          val collectedFiles = List(collectedRnaSeqBam,
+                                    collectedCoordinateSortedBams,
+                                    collectedFastqs)
+            .reduce(
+              tasks.util
+                .addMaps(_, _)(_ ++ _))
             .toSeq
 
           for {

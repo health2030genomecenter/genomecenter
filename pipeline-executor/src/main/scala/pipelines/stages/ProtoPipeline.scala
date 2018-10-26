@@ -139,7 +139,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           CollectDeliverablesInput(
             r.runId,
             perSampleFastQs.toSet,
-            perSampleResultsWES.samples
+            perSampleResultsWES.samples,
+            perSampleResultsRNA.samples
           ))(ResourceConfig.minimal)
       }
 
@@ -524,32 +525,35 @@ object ProtoPipeline extends StrictLogging {
               def inProjectFolder[T](project: Project, run: RunId) =
                 appendToFilePrefix[T](Seq(project, run))
 
-              for {
-                indexedFasta <- StarAlignment.indexReference(referenceFasta)(
-                  ResourceConfig.createStarIndex)
+              if (allLanesOfAllSamples.isEmpty)
+                Future.successful(PerSamplePipelineResultRNASeq(Set.empty))
+              else
+                for {
+                  indexedFasta <- StarAlignment.indexReference(referenceFasta)(
+                    ResourceConfig.createStarIndex)
 
-                processedSamples <- Future
-                  .traverse(allLanesOfAllSamples) {
-                    case (meta, lane) =>
-                      inProjectFolder(meta.project, meta.runId) {
-                        implicit computationEnvironment =>
-                          StarAlignment.alignSingleLane(
-                            PerLaneStarAlignmentInput(
-                              read1 = lane.read1,
-                              read2 = lane.read2,
-                              project = meta.project,
-                              sampleId = meta.sampleId,
-                              runId = meta.runId,
-                              lane = lane.lane,
-                              reference = indexedFasta,
-                              gtf = gtf.file,
-                              readLength = readLengths.map(_._2).max
-                            ))(ResourceConfig.starAlignment)
-                      }
+                  processedSamples <- Future
+                    .traverse(allLanesOfAllSamples) {
+                      case (meta, lane) =>
+                        inProjectFolder(meta.project, meta.runId) {
+                          implicit computationEnvironment =>
+                            StarAlignment.alignSingleLane(
+                              PerLaneStarAlignmentInput(
+                                read1 = lane.read1,
+                                read2 = lane.read2,
+                                project = meta.project,
+                                sampleId = meta.sampleId,
+                                runId = meta.runId,
+                                lane = lane.lane,
+                                reference = indexedFasta,
+                                gtf = gtf.file,
+                                readLength = readLengths.map(_._2).max
+                              ))(ResourceConfig.starAlignment)
+                        }
 
-                  }
+                    }
 
-              } yield PerSamplePipelineResultRNASeq(processedSamples.toSet)
+                } yield PerSamplePipelineResultRNASeq(processedSamples.toSet)
           }
 
     }
