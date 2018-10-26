@@ -31,9 +31,8 @@ case class StarIndexedReferenceFasta(fasta: SharedFile,
     extends WithSharedFiles(fasta) {
   def genomeFolder(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
-      _ <- Future.traverse(indexFiles)(_.file)
-      fasta <- fasta.file
-    } yield fasta.getParent
+      indexFiles <- Future.traverse(indexFiles)(_.file)
+    } yield indexFiles.head.getParent
 }
 
 object StarAlignment {
@@ -78,7 +77,8 @@ object StarAlignment {
 
               for {
                 indexFiles <- Future
-                  .traverse(indexFiles)(f => SharedFile(f, f.getName))
+                  .traverse(indexFiles)(f =>
+                    SharedFile(f, fasta.name + ".star/" + f.getName))
                   .map(_.toSet)
                 _ <- SharedFile(tmpStdOut,
                                 name = fasta.name + ".star.index.stdout")
@@ -175,13 +175,13 @@ object StarAlignment {
               val expectedFinalLog = new File(tmpStarFolder, "Log.final.out")
 
               for {
-                _ <- SharedFile(tmpStdOut, name = nameStub + ".bam.stdout")
-                _ <- SharedFile(tmpStdErr, name = nameStub + ".bam.stderr")
+                _ <- SharedFile(tmpStdOut, name = nameStub + ".star.bam.stdout")
+                _ <- SharedFile(tmpStdErr, name = nameStub + ".star.bam.stderr")
                 _ <- SharedFile(expectedLog,
-                                name = nameStub + ".bam.star.Log.out")
+                                name = nameStub + ".star.bam.Log.out")
                 _ <- SharedFile(expectedFinalLog,
-                                name = nameStub + ".bam.star.Log.final.out")
-                bam <- SharedFile(tmpCleanBam, name = nameStub + ".bam")
+                                name = nameStub + ".star.bam.Log.final.out")
+                bam <- SharedFile(tmpCleanBam, name = nameStub + ".star.bam")
               } yield
                 BamWithSampleMetadataPerLane(project,
                                              sampleId,

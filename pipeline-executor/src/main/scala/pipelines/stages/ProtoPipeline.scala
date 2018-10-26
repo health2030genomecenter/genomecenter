@@ -494,6 +494,9 @@ object ProtoPipeline extends StrictLogging {
                   perSampleFastQs.lanes.map(lane => (perSampleFastQs, lane))
               }
 
+              def inProjectFolder[T](project: Project, run: RunId) =
+                appendToFilePrefix[T](Seq(project, run))
+
               for {
                 indexedFasta <- StarAlignment.indexReference(referenceFasta)(
                   ResourceConfig.createStarIndex)
@@ -501,18 +504,21 @@ object ProtoPipeline extends StrictLogging {
                 processedSamples <- Future
                   .traverse(allLanesOfAllSamples) {
                     case (meta, lane) =>
-                      StarAlignment.alignSingleLane(
-                        PerLaneStarAlignmentInput(
-                          read1 = lane.read1,
-                          read2 = lane.read2,
-                          project = meta.project,
-                          sampleId = meta.sampleId,
-                          runId = meta.runId,
-                          lane = lane.lane,
-                          reference = indexedFasta,
-                          gtf = gtf.file,
-                          readLength = readLengths.map(_._2).max
-                        ))(ResourceConfig.starAlignment)
+                      inProjectFolder(meta.project, meta.runId) {
+                        implicit computationEnvironment =>
+                          StarAlignment.alignSingleLane(
+                            PerLaneStarAlignmentInput(
+                              read1 = lane.read1,
+                              read2 = lane.read2,
+                              project = meta.project,
+                              sampleId = meta.sampleId,
+                              runId = meta.runId,
+                              lane = lane.lane,
+                              reference = indexedFasta,
+                              gtf = gtf.file,
+                              readLength = readLengths.map(_._2).max
+                            ))(ResourceConfig.starAlignment)
+                      }
 
                   }
 
