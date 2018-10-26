@@ -85,7 +85,7 @@ class DemultiplexingTestSuite
       result.get.fastqs.toList.map(_.sampleId).toSet shouldBe Set(
         "Undetermined",
         "GIB")
-      result.get.fastqs.toList.map(_.readType).toSet shouldBe Set(2,1)
+      result.get.fastqs.toList.map(_.readType).toSet shouldBe Set(2, 1)
       result.get.fastqs.toList.map(_.lane).toSet shouldBe Set(1)
 
     }
