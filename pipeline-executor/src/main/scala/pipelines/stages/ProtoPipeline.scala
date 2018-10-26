@@ -27,8 +27,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
   def execute(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents) = {
 
-    def inRunQCFolder[T](f: TaskSystemComponents => T) =
-      tsc.withFilePrefix(Seq("runQC"))(f)
+    def inRunQCFolder[T](runId: RunId)(f: TaskSystemComponents => T) =
+      tsc.withFilePrefix(Seq("runQC", runId))(f)
 
     def inDeliverablesFolder[T](f: TaskSystemComponents => T) =
       tsc.withFilePrefix(Seq("deliverables"))(f)
@@ -122,10 +122,15 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
       fastpReports <- fastpReports
 
-      sampleQCs = extractQCFiles(perSampleResultsWES, fastpReports)
+      sampleQCsWES = extractQCFiles(perSampleResultsWES, fastpReports)
 
-      _ <- inRunQCFolder { implicit tsc =>
-        AlignmentQC.runQCTable(RunQCTableInput(RunId(r.runId), sampleQCs))(
+      _ <- inRunQCFolder(r.runId) { implicit tsc =>
+        AlignmentQC.runQCTable(RunQCTableInput(RunId(r.runId), sampleQCsWES))(
+          ResourceConfig.minimal)
+      }
+      _ <- inRunQCFolder(r.runId) { implicit tsc =>
+        RunQCRNA.runQCTable(
+          RunQCTableRNAInput(r.runId, perSampleResultsRNA.samples))(
           ResourceConfig.minimal)
       }
 
