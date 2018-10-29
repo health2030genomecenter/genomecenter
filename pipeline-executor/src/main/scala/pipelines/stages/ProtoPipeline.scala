@@ -161,6 +161,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         sample.targetSelectionQC.hsMetrics,
         sample.duplicationQC.markDuplicateMetrics,
         fastpReportsOfSample,
+        sample.wgsQC.wgsMetrics,
         sample.project,
         sample.sampleId,
         sample.runId
@@ -216,9 +217,10 @@ case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
                                       runId: RunId,
                                       alignmentQC: AlignmentQCResult,
                                       duplicationQC: DuplicationQCResult,
-                                      targetSelectionQC: SelectionQCResult)
+                                      targetSelectionQC: SelectionQCResult,
+                                      wgsQC: CollectWholeGenomeMetricsResult)
     extends WithSharedFiles(
-      bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files: _*)
+      bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files: _*)
 
 case class PerSamplePipelineResult(samples: Set[SingleSamplePipelineResult])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
@@ -433,15 +435,16 @@ object ProtoPipeline extends StrictLogging {
 
             _ <- alignedSample.bam.file.delete
 
-            table <- intoIntermediateFolder { implicit computationEnvironment =>
-              BaseQualityScoreRecalibration.trainBQSR(
-                TrainBQSRInput(coordinateSorted,
-                               indexedReference,
-                               knownSites.toSet))(ResourceConfig.trainBqsr)
+            bqsrTable <- intoIntermediateFolder {
+              implicit computationEnvironment =>
+                BaseQualityScoreRecalibration.trainBQSR(
+                  TrainBQSRInput(coordinateSorted,
+                                 indexedReference,
+                                 knownSites.toSet))(ResourceConfig.trainBqsr)
             }
             recalibrated <- intoFinalFolder { implicit computationEnvironment =>
               BaseQualityScoreRecalibration.applyBQSR(
-                ApplyBQSRInput(coordinateSorted, indexedReference, table))(
+                ApplyBQSRInput(coordinateSorted, indexedReference, bqsrTable))(
                 ResourceConfig.applyBqsr)
             }
             _ <- coordinateSorted.bam.delete
@@ -460,6 +463,11 @@ object ProtoPipeline extends StrictLogging {
                                    selectionTargetIntervals))(
                   ResourceConfig.minimal)
             }
+            wgsQC <- intoQCFolder { implicit computationEnvironment =>
+              AlignmentQC.wholeGenomeMetrics(
+                CollectWholeGenomeMetricsInput(recalibrated, indexedReference))(
+                ResourceConfig.minimal)
+            }
 
           } yield
             SingleSamplePipelineResult(
@@ -469,7 +477,8 @@ object ProtoPipeline extends StrictLogging {
               sampleId = demultiplexed.sampleId,
               alignmentQC = alignmentQC,
               duplicationQC = duplicationQC,
-              targetSelectionQC = targetSelectionQC
+              targetSelectionQC = targetSelectionQC,
+              wgsQC = wgsQC
             )
 
     }

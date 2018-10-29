@@ -12,7 +12,7 @@ object Html {
     mkDocument(header, lines.mkString("\n"))
   }
 
-  private def mkHeader(elems1: Seq[String], elems: Seq[(String, Boolean)]) =
+  def mkHeader(elems1: Seq[String], elems: Seq[(String, Boolean)]) =
     s"""
           <thead>
             <tr>
@@ -38,7 +38,7 @@ object Html {
           </thead>
           """
 
-  private def line(elems: Seq[(String, Boolean)]) =
+  def line(elems: Seq[(String, Boolean)]) =
     s"""
           <tr>
           ${elems
@@ -51,7 +51,7 @@ object Html {
           </tr>
           """
 
-  private def mkDocument(tableHeader: String, tableLines: String) =
+  def mkDocument(tableHeader: String, tableLines: String) =
     """<!DOCTYPE html><head></head><body><table style="border-collapse: collapse;">""" + tableHeader + "\n<tbody>" + tableLines + "</tbody></table></body>"
 
 }
