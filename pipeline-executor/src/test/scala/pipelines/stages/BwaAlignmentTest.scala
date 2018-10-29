@@ -27,6 +27,7 @@ class BwaAlignmentTestSuite
             sampleId = sampleId,
             runId = runId,
             lane = lane,
+            partition = PartitionId(0),
             reference = indexedFasta,
             umi = None
           )
@@ -72,6 +73,7 @@ class BwaAlignmentTestSuite
             sampleId = sampleId,
             runId = runId,
             lane = lane,
+            partition = PartitionId(0),
             reference = indexedFasta,
             umi = Some(FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L))
           )

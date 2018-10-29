@@ -54,4 +54,11 @@ package object model {
   implicit val (processIdEncoder, processIdDecoder) =
     stringCodec[DemultiplexingIdTag]
 
+  trait PartitionIdTag
+  type PartitionId = Int @@ PartitionIdTag
+  def PartitionId(s: Int): PartitionId =
+    tag[PartitionIdTag][Int](s)
+  implicit val (partitionIdEncoder, partitionIdDecoder) =
+    intCodec[PartitionIdTag]
+
 }

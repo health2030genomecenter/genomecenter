@@ -260,7 +260,7 @@ object ProtoPipeline extends StrictLogging {
         case ((project, sampleId), perSampleFastQs) =>
           val perLaneFastQs =
             perSampleFastQs
-              .groupBy(_.lane)
+              .groupBy(s => (s.lane, s.partition))
               .toSeq
               .map(_._2)
               .map { (fqsInLane: Set[FastQWithSampleMetadata]) =>
@@ -279,10 +279,16 @@ object ProtoPipeline extends StrictLogging {
                   distinctLanesInGroup.head
                 }
 
+                val partition = {
+                  val distinctPartitionsInGroup = fqsInLane.map(_.partition)
+                  assert(distinctPartitionsInGroup.size == 1) // due to groupBy
+                  distinctPartitionsInGroup.head
+                }
+
                 for {
                   read1 <- maybeRead1
                   read2 <- maybeRead2
-                } yield FastQPerLane(lane, read1, read2, maybeUmi)
+                } yield FastQPerLane(lane, read1, read2, maybeUmi, partition)
               }
               .flatten
           PerSampleFastQ(

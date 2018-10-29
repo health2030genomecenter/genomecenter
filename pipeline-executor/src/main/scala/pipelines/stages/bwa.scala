@@ -20,6 +20,7 @@ case class PerLaneBWAAlignmentInput(
     sampleId: SampleId,
     runId: RunId,
     lane: Lane,
+    partition: PartitionId,
     reference: IndexedReferenceFasta,
     umi: Option[FastQ]
 ) extends WithSharedFiles(
@@ -131,6 +132,7 @@ object BWAAlignment {
                                        sampleId,
                                        runId,
                                        lane.lane,
+                                       lane.partition,
                                        reference,
                                        lane.umi))(resourceRequest)
           }
@@ -304,6 +306,7 @@ object BWAAlignment {
                                     sampleId,
                                     runId,
                                     lane,
+                                    partition,
                                     reference,
                                     maybeUmi) =>
         implicit computationEnvironment =>
@@ -466,7 +469,7 @@ object BWAAlignment {
                 s"Deleting intermediate unmapped bam $tmpIntermediateUnmappedBam .")
               tmpIntermediateUnmappedBam.delete
 
-              val nameStub = readGroupName
+              val nameStub = readGroupName + ".part" + partition
 
               for {
                 _ <- SharedFile(tmpStdOut,

@@ -34,7 +34,7 @@ object Fastp {
   val report =
     AsyncTask[FastQPerLaneWithMetadata, FastpReport]("__fastp-report", 1) {
       case FastQPerLaneWithMetadata(
-          FastQPerLane(lane, FastQ(read1, _), FastQ(read2, _), _),
+          FastQPerLane(lane, FastQ(read1, _), FastQ(read2, _), _, partition),
           project,
           sampleId,
           runId) =>
@@ -64,7 +64,7 @@ object Fastp {
               Exec.bash(logDiscriminator = "fastp",
                         onError = Exec.ThrowIfNonZero)(bashScript)
 
-              val nameStub = project + "." + sampleId + "." + runId + "." + lane
+              val nameStub = project + "." + sampleId + "." + runId + "." + lane + ".part" + partition
 
               for {
                 json <- SharedFile(tmpJson,

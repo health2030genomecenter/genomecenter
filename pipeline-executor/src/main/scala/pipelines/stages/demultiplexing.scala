@@ -1,7 +1,7 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Exec, Files, ResourceConfig}
+import org.gc.pipelines.util.{Exec, Files, ResourceConfig, Bgzf}
 
 import scala.concurrent.Future
 import tasks._
@@ -10,10 +10,11 @@ import tasks.circesupport._
 import io.circe._
 import io.circe.generic.semiauto._
 
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.stream.Materializer
 import akka.util.ByteString
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 import java.io.File
 
@@ -66,6 +67,8 @@ object Demultiplexing {
         implicit val actorMaterializer =
           computationEnvironment.components.actorMaterializer
 
+        val threeGigabytes = 3L * 1024L * 1024L * 1024L
+
         for {
           sampleSheet <- runFolder.sampleSheet.parse
           globalIndexSet <- runFolder.globalIndexSet
@@ -81,8 +84,14 @@ object Demultiplexing {
           }
 
           demultiplexedLanes <- Future.traverse(lanes) { lane =>
-            perLane(DemultiplexSingleLaneInput(runFolder, lane))(
-              ResourceConfig.bcl2fastq)
+            for {
+              demultiplexedLane <- perLane(
+                DemultiplexSingleLaneInput(runFolder, lane))(
+                ResourceConfig.bcl2fastq)
+              partitionedLane <- partitionFastq(
+                (demultiplexedLane.withoutUndetermined, threeGigabytes))(
+                ResourceConfig.minimal)
+            } yield partitionedLane
           }
 
           perLaneStats <- Future.traverse(demultiplexedLanes)(_.stats.get)
@@ -116,6 +125,52 @@ object Demultiplexing {
         } yield
           DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet,
                                 mergedStatsInFile)
+
+    }
+
+  val partitionFastq =
+    AsyncTask[(DemultiplexedReadData, Long), DemultiplexedReadData](
+      "__demultiplex-per-lane-partition",
+      1) {
+      case (DemultiplexedReadData(fastqs, stats), max) =>
+        implicit computationEnvironment =>
+          implicit val materializer =
+            computationEnvironment.components.actorMaterializer
+          Future
+            .traverse(fastqs) { fastq =>
+              if (fastq.fastq.file.byteSize <= max)
+                Future.successful(List(fastq))
+              else {
+                val stream = fastq.fastq.file.source
+                  .runWith(
+                    StreamConverters.asInputStream(readTimeout = 30 seconds))
+                val partitions = Bgzf.partition(stream, max)
+                val approximateNumberOfReadsInPartition =
+                  (fastq.fastq.numberOfReads.toDouble / partitions.size).toLong
+                val partitioned = Future.traverse(partitions.zipWithIndex) {
+                  case (file, idx) =>
+                    for {
+                      partition <- SharedFile(
+                        file,
+                        fastq.fastq.file.name
+                          .stripSuffix(".fastq.gz") + ".part" + idx + ".fastq.gz",
+                        true)
+                    } yield
+                      fastq.copy(partition = PartitionId(idx),
+                                 fastq =
+                                   FastQ(partition,
+                                         numberOfReads =
+                                           approximateNumberOfReadsInPartition))
+                }
+
+                for {
+                  partitioned <- partitioned
+                  _ <- fastq.fastq.file.delete
+                } yield partitioned
+
+              }
+            }
+            .map(fastqs => DemultiplexedReadData(fastqs.flatten, stats))
 
     }
 
@@ -187,6 +242,7 @@ object Demultiplexing {
                                             sampleSheetSampleId,
                                             parsedLane,
                                             ReadType(read.toInt),
+                                            PartitionId(0),
                                             FastQ(fastq, numberOfReads.get)))
                 } else {
                   val numberOfReads = for {
@@ -199,6 +255,7 @@ object Demultiplexing {
                                             SampleId("Undetermined"),
                                             Lane(lane.toInt),
                                             ReadType(read.toInt),
+                                            PartitionId(0),
                                             FastQ(fastq, numberOfReads.get)))
                 }
               case _ =>

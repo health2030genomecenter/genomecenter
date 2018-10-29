@@ -32,6 +32,7 @@ case class FastQWithSampleMetadata(project: Project,
                                    sampleId: SampleId,
                                    lane: Lane,
                                    readType: ReadType,
+                                   partition: PartitionId,
                                    fastq: FastQ)
     extends WithSharedFiles(fastq.file)
 
@@ -94,7 +95,8 @@ case class CoordinateSortedBam(bam: SharedFile, bai: SharedFile)
 case class FastQPerLane(lane: Lane,
                         read1: FastQ,
                         read2: FastQ,
-                        umi: Option[FastQ])
+                        umi: Option[FastQ],
+                        partition: PartitionId)
 
 case class VCF(vcf: SharedFile, index: Option[SharedFile])
     extends WithSharedFiles(vcf +: index.toList: _*) {

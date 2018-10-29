@@ -233,6 +233,7 @@ object AlignmentQC {
               alignmentSummariesPerLane.map { alSummaryOfLane =>
                 val lane = alSummaryOfLane.lane
                 val hsMetricsOfLane = hsMetricsPerLane.find(_.lane == lane).get
+                // this selects an arbitrary partition if the fastq is partitioned
                 val fastpReportOfLane =
                   fastpReportsPerLane.find(_.lane == lane).get
                 (alSummaryOfLane,
