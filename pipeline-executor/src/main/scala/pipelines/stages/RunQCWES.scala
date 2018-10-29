@@ -7,6 +7,7 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import fileutils.TempFile
 import org.gc.pipelines.util.Exec
 import org.gc.pipelines.model._
+import org.gc.pipelines.util.Html
 import org.gc.pipelines.model.{FastpReport => FastpReportModel}
 import java.io.File
 import scala.concurrent.Future
@@ -57,13 +58,95 @@ case class SampleMetrics(alignmentSummary: SharedFile,
                          runId: RunId)
     extends WithSharedFiles(alignmentSummary, hsMetrics, duplicationMetrics)
 
+case class SampleMetricsWgs(alignmentSummary: SharedFile,
+                            wgsMetrics: SharedFile,
+                            duplicationMetrics: SharedFile,
+                            fastpReports: Seq[FastpReport],
+                            project: Project,
+                            sampleId: SampleId,
+                            runId: RunId)
+    extends WithSharedFiles(alignmentSummary, wgsMetrics, duplicationMetrics)
+
 case class RunQCTableInput(runId: RunId, samples: Seq[SampleMetrics])
+    extends WithSharedFiles(samples.flatMap(_.files): _*)
+
+case class RunQCTableInputWgs(runId: RunId, samples: Seq[SampleMetricsWgs])
     extends WithSharedFiles(samples.flatMap(_.files): _*)
 
 case class RunQCTable(table: SharedFile, htmlTable: SharedFile)
     extends WithSharedFiles(table, htmlTable)
 
+case class RunQCTableWgs(htmlTable: SharedFile)
+    extends WithSharedFiles(htmlTable)
+
 object AlignmentQC {
+
+  def makeHtmlTableWGS(
+      metrics: Seq[(AlignmentSummaryMetrics.Root,
+                    WgsMetrics.Root,
+                    DuplicationMetrics.Root,
+                    FastpReportModel.Root)]): String = {
+    val left = true
+    val right = false
+    val lines = metrics
+      .map {
+        case (alignment, wgsMetrics, dups, fastpMetrics) =>
+          import alignment.pairMetrics._
+          import wgsMetrics.metrics._
+          import dups.metrics._
+          import alignment._
+          import fastpMetrics.metrics._
+
+          val totalReads = alignment.pairMetrics.totalReads
+
+          Seq(
+            project -> left,
+            sampleId -> left,
+            lane.toString -> left,
+            f"${genomeTerritory / 1E6}%10.2fMb" -> right,
+            f"${totalReads / 1E6}%10.2fMb" -> right,
+            f"$meanCoverage%13.1fx" -> right,
+            f"${pctPfReads * 100}%6.2f%%" -> right,
+            f"${pctPfReadsAligned * 100}%13.2f%%" -> right,
+            f"${pctDuplication * 100}%6.2f%%" -> right,
+            f"${readPairDuplicates / 1E6}%7.2fMb" -> right,
+            f"${readPairOpticalDuplicates / 1E6}%8.2fMb" -> right,
+            badCycles.toString -> right,
+            f"${pctChimeras * 100}%8.2f%%" -> right,
+            f"${pctCoverage10x * 100}%11.2f%%" -> right,
+            f"${pctCoverage20x * 100}%11.2f%%" -> right,
+            f"${pctCoverage60x * 100}%11.2f%%" -> right,
+            f"$gcContent%6.2f" -> right,
+            insertSizePeak.toString -> right,
+            f"$pctExcludedTotal%11.2f%%" -> right,
+          )
+
+      }
+
+    Html.mkHtmlTable(
+      List("Proj", "Sample", "Lane"),
+      List(
+        "GenomeSize" -> right,
+        "TotalReads" -> right,
+        "MeanCoverage" -> right,
+        "PFReads" -> right,
+        "PFReadsAligned" -> right,
+        "Dup" -> right,
+        "DupReads" -> right,
+        "OptDupReads" -> right,
+        "BadCycles" -> right,
+        "Chimera" -> right,
+        "Base10x" -> right,
+        "Base20x" -> right,
+        "Base60x" -> right,
+        "GC" -> right,
+        "InsertSizePeak" -> right,
+        "TotalExcluded" -> right
+      ),
+      lines
+    )
+
+  }
 
   def makeHtmlTable(
       metrics: Seq[(AlignmentSummaryMetrics.Root,
@@ -275,6 +358,71 @@ object AlignmentQC {
 
     }
 
+  val runQCTableWGS =
+    AsyncTask[RunQCTableInputWgs, RunQCTableWgs]("__runqctable-wgs", 1) {
+      case RunQCTableInputWgs(runId, sampleMetrics) =>
+        implicit computationEnvironment =>
+          def read(f: File) = fileutils.openSource(f)(_.mkString)
+          def parseAlignmentSummaries(m: SampleMetricsWgs) =
+            m.alignmentSummary.file
+              .map(read)
+              .map(txt =>
+                AlignmentSummaryMetrics
+                  .Root(txt, m.project, m.sampleId, m.runId))
+          def parseFastpReport(m: SampleMetricsWgs) =
+            Future.traverse(m.fastpReports) { fpReport =>
+              fpReport.json.file
+                .map(read)
+                .map(
+                  txt =>
+                    FastpReportModel.Root(txt,
+                                          fpReport.project,
+                                          fpReport.sampleId,
+                                          fpReport.runId,
+                                          fpReport.lane))
+            }
+          def parseWgsMetrics(m: SampleMetricsWgs) =
+            m.wgsMetrics.file
+              .map(read)
+              .map(txt => WgsMetrics.Root(txt, m.project, m.sampleId, m.runId))
+          def parseDupMetrics(m: SampleMetricsWgs) =
+            m.duplicationMetrics.file
+              .map(read)
+              .map(txt =>
+                DuplicationMetrics.Root(txt, m.project, m.sampleId, m.runId))
+
+          def parse(m: SampleMetricsWgs) =
+            for {
+              alignmentSummariesPerLane <- parseAlignmentSummaries(m)
+              fastpReportsPerLane <- parseFastpReport(m)
+              wgsMetrics <- parseWgsMetrics(m)
+              dupMetrics <- parseDupMetrics(m)
+            } yield {
+              alignmentSummariesPerLane.map { alSummaryOfLane =>
+                val lane = alSummaryOfLane.lane
+                val fastpReportOfLane =
+                  fastpReportsPerLane.find(_.lane == lane).get
+                (alSummaryOfLane, wgsMetrics, dupMetrics, fastpReportOfLane)
+              }
+            }
+          type MetricsTuple = (AlignmentSummaryMetrics.Root,
+                               WgsMetrics.Root,
+                               DuplicationMetrics.Root,
+                               FastpReportModel.Root)
+          val parsedFiles: Future[Seq[MetricsTuple]] =
+            Future.traverse(sampleMetrics)(parse).map(_.flatten)
+
+          for {
+            metrics <- parsedFiles
+            htmlTable <- {
+              val table = makeHtmlTableWGS(metrics)
+              SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
+                         runId + ".qc.table.wgs.html")
+            }
+          } yield RunQCTableWgs(htmlTable)
+
+    }
+
   val hybridizationSelection =
     AsyncTask[SelectionQCInput, SelectionQCResult]("__alignmentqc-selection", 1) {
       case SelectionQCInput(coordinateSortedBam, reference, bedFile) =>
@@ -476,4 +624,25 @@ object CollectWholeGenomeMetricsResult {
     deriveEncoder[CollectWholeGenomeMetricsResult]
   implicit val decoder: Decoder[CollectWholeGenomeMetricsResult] =
     deriveDecoder[CollectWholeGenomeMetricsResult]
+}
+
+object RunQCTableWgs {
+  implicit val encoder: Encoder[RunQCTableWgs] =
+    deriveEncoder[RunQCTableWgs]
+  implicit val decoder: Decoder[RunQCTableWgs] =
+    deriveDecoder[RunQCTableWgs]
+}
+
+object RunQCTableInputWgs {
+  implicit val encoder: Encoder[RunQCTableInputWgs] =
+    deriveEncoder[RunQCTableInputWgs]
+  implicit val decoder: Decoder[RunQCTableInputWgs] =
+    deriveDecoder[RunQCTableInputWgs]
+}
+
+object SampleMetricsWgs {
+  implicit val encoder: Encoder[SampleMetricsWgs] =
+    deriveEncoder[SampleMetricsWgs]
+  implicit val decoder: Decoder[SampleMetricsWgs] =
+    deriveDecoder[SampleMetricsWgs]
 }
