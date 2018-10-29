@@ -67,8 +67,12 @@ object Fastp {
               val nameStub = project + "." + sampleId + "." + runId + "." + lane
 
               for {
-                json <- SharedFile(tmpJson, name = nameStub + ".fastp.json")
-                html <- SharedFile(tmpHtml, name = nameStub + ".fastp.html")
+                json <- SharedFile(tmpJson,
+                                   name = nameStub + ".fastp.json",
+                                   deleteFile = true)
+                html <- SharedFile(tmpHtml,
+                                   name = nameStub + ".fastp.html",
+                                   deleteFile = true)
               } yield
                 FastpReport(html = html,
                             json = json,

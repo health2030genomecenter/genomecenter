@@ -351,7 +351,8 @@ object AlignmentQC {
               val stub = tmpOut.getAbsolutePath
               def outF(suffix: String) =
                 SharedFile(new File(stub + suffix),
-                           coordinateSortedBam.bam.name + suffix)
+                           coordinateSortedBam.bam.name + suffix,
+                           deleteFile = true)
 
               for {
                 alignmentSummary <- outF(".alignment_summary_metrics")

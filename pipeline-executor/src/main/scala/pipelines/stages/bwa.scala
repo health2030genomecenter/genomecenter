@@ -469,9 +469,15 @@ object BWAAlignment {
               val nameStub = readGroupName
 
               for {
-                _ <- SharedFile(tmpStdOut, name = nameStub + ".bam.stdout")
-                _ <- SharedFile(tmpStdErr, name = nameStub + ".bam.stderr")
-                bam <- SharedFile(tmpCleanBam, name = nameStub + ".bam")
+                _ <- SharedFile(tmpStdOut,
+                                name = nameStub + ".bam.stdout",
+                                deleteFile = true)
+                _ <- SharedFile(tmpStdErr,
+                                name = nameStub + ".bam.stderr",
+                                deleteFile = true)
+                bam <- SharedFile(tmpCleanBam,
+                                  name = nameStub + ".bam",
+                                  deleteFile = true)
               } yield
                 BamWithSampleMetadataPerLane(project,
                                              sampleId,

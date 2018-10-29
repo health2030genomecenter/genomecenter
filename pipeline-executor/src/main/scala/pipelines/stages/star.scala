@@ -178,14 +178,22 @@ object StarAlignment {
               val expectedFinalLog = new File(tmpStarFolder, "Log.final.out")
 
               for {
-                _ <- SharedFile(tmpStdOut, name = nameStub + ".star.bam.stdout")
-                _ <- SharedFile(tmpStdErr, name = nameStub + ".star.bam.stderr")
+                _ <- SharedFile(tmpStdOut,
+                                name = nameStub + ".star.bam.stdout",
+                                deleteFile = true)
+                _ <- SharedFile(tmpStdErr,
+                                name = nameStub + ".star.bam.stderr",
+                                deleteFile = true)
                 _ <- SharedFile(expectedLog,
-                                name = nameStub + ".star.bam.Log.out")
+                                name = nameStub + ".star.bam.Log.out",
+                                deleteFile = true)
                 finalLogFile <- SharedFile(
                   expectedFinalLog,
-                  name = nameStub + ".star.bam.Log.final.out")
-                bam <- SharedFile(tmpCleanBam, name = nameStub + ".star.bam")
+                  name = nameStub + ".star.bam.Log.final.out",
+                  deleteFile = true)
+                bam <- SharedFile(tmpCleanBam,
+                                  name = nameStub + ".star.bam",
+                                  deleteFile = true)
               } yield
                 StarResult(finalLogFile,
                            BamWithSampleMetadataPerLane(project,
