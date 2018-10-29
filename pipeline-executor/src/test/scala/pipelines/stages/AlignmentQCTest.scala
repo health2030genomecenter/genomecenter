@@ -147,6 +147,44 @@ class AlignmentQCTest
     }
   }
 
+  test("CollectWGSMetrics should produce expected files") {
+    new Fixture {
+
+      Given("a bam file and a reference")
+      val result = withTaskSystem(testConfig) { implicit ts =>
+        val indexedFasta = fetchIndexedReference(referenceFile)
+        val input =
+          CollectWholeGenomeMetricsInput(
+            bam = CoordinateSortedBam(await(SharedFile(bam, "some.bam")),
+                                      await(SharedFile(bai, "some.bam.bai"))),
+            reference = indexedFasta,
+            readLength = 150
+          )
+
+        When("executing the wgs alignment qc step")
+        val future =
+          for {
+            qcMetrics <- AlignmentQC.wholeGenomeMetrics(input)(
+              ResourceRequest(1, 3000))
+          } yield qcMetrics
+
+        await(future.flatMap(_.wgsMetrics.file))
+      }
+
+      Then("at least the alignment summary metrics file should be generated")
+      result.get.canRead shouldBe true
+      println(result)
+      fileutils.openSource(result.get) { s =>
+        val data = s.mkString
+        WgsMetrics
+          .Root(data, project, sampleId, runId)
+          .metrics
+          .genomeTerritory shouldBe 55809553L
+      }
+
+    }
+  }
+
   trait Fixture {
 
     val bed = new File(

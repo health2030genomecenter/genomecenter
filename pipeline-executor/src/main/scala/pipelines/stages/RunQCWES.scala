@@ -17,6 +17,11 @@ case class AlignmentQCInput(bam: CoordinateSortedBam,
                             reference: IndexedReferenceFasta)
     extends WithSharedFiles((bam.files ++ reference.files): _*)
 
+case class CollectWholeGenomeMetricsInput(bam: CoordinateSortedBam,
+                                          reference: IndexedReferenceFasta,
+                                          readLength: Int)
+    extends WithSharedFiles((bam.files ++ reference.files): _*)
+
 case class SelectionQCInput(bam: CoordinateSortedBam,
                             reference: IndexedReferenceFasta,
                             selectionTargetIntervals: BedFile)
@@ -25,6 +30,9 @@ case class SelectionQCInput(bam: CoordinateSortedBam,
 
 case class SelectionQCResult(hsMetrics: SharedFile)
     extends WithSharedFiles(hsMetrics)
+
+case class CollectWholeGenomeMetricsResult(wgsMetrics: SharedFile)
+    extends WithSharedFiles(wgsMetrics)
 
 case class AlignmentQCResult(
     alignmentSummary: SharedFile,
@@ -366,6 +374,44 @@ object AlignmentQC {
           } yield result
     }
 
+  val wholeGenomeMetrics =
+    AsyncTask[CollectWholeGenomeMetricsInput, CollectWholeGenomeMetricsResult](
+      "__alignmentqc-wgs",
+      1) {
+      case CollectWholeGenomeMetricsInput(coordinateSortedBam,
+                                          reference,
+                                          readLength) =>
+        implicit computationEnvironment =>
+          for {
+            reference <- reference.localFile
+            bam <- coordinateSortedBam.localFile
+            result <- {
+              val picardJar = BWAAlignment.extractPicardJar()
+              val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+              val tmpOut = TempFile.createTempFile(".qc")
+              val bashScript = s""" \\
+        java $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectWgsMetrics \\
+          --INPUT ${bam.getAbsolutePath} \\
+          --REFERENCE_SEQUENCE=${reference.getAbsolutePath} \\
+          --OUTPUT ${tmpOut.getAbsolutePath} \\
+          --COUNT_UNPAIRED true \\
+          --READ_LENGTH $readLength \\
+        """
+
+              Exec.bash(logDiscriminator = "qc.bam.wgs",
+                        onError = Exec.ThrowIfNonZero)(bashScript)
+
+              for {
+                metrics <- SharedFile(
+                  tmpOut,
+                  coordinateSortedBam.bam.name + ".wgsmetrics",
+                  true)
+              } yield CollectWholeGenomeMetricsResult(metrics)
+
+            }
+          } yield result
+    }
+
 }
 
 object AlignmentQCInput {
@@ -415,4 +461,18 @@ object SampleMetrics {
     deriveEncoder[SampleMetrics]
   implicit val decoder: Decoder[SampleMetrics] =
     deriveDecoder[SampleMetrics]
+}
+
+object CollectWholeGenomeMetricsInput {
+  implicit val encoder: Encoder[CollectWholeGenomeMetricsInput] =
+    deriveEncoder[CollectWholeGenomeMetricsInput]
+  implicit val decoder: Decoder[CollectWholeGenomeMetricsInput] =
+    deriveDecoder[CollectWholeGenomeMetricsInput]
+}
+
+object CollectWholeGenomeMetricsResult {
+  implicit val encoder: Encoder[CollectWholeGenomeMetricsResult] =
+    deriveEncoder[CollectWholeGenomeMetricsResult]
+  implicit val decoder: Decoder[CollectWholeGenomeMetricsResult] =
+    deriveDecoder[CollectWholeGenomeMetricsResult]
 }
