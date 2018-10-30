@@ -7,7 +7,7 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import fileutils.TempFile
 import org.gc.pipelines.util.Exec
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Html, BAM}
+import org.gc.pipelines.util.{Html, BAM, JVM}
 import org.gc.pipelines.model.{FastpReport => FastpReportModel}
 import java.io.File
 import scala.concurrent.Future
@@ -283,14 +283,14 @@ object AlignmentQC {
 
               Exec.bash(logDiscriminator = "qc.bam.selection",
                         onError = Exec.ThrowIfNonZero)(s""" \\
-        java -Xmx2G -Dpicard.useLegacyParser=false -jar $picardJar BedToIntervalList \\
+        java ${JVM.serial} -Xmx2G -Dpicard.useLegacyParser=false -jar $picardJar BedToIntervalList \\
           --INPUT ${bed.getAbsolutePath} \\
           --SEQUENCE_DICTIONARY ${reference.getAbsolutePath} \\
           --OUTPUT ${picardStyleInterval.getAbsolutePath} \\
         """)
 
               val bashScript = s""" \\
-        java $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectHsMetrics \\
+        java ${JVM.g1} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectHsMetrics \\
           --INPUT ${bam.getAbsolutePath} \\
           --REFERENCE_SEQUENCE ${reference.getAbsolutePath} \\
           --OUTPUT ${tmpOut.getAbsolutePath} \\
@@ -325,7 +325,7 @@ object AlignmentQC {
               val maxHeap = s"-Xmx${resourceAllocated.memory}m"
               val tmpOut = TempFile.createTempFile(".qc")
               val bashScript = s""" \\
-        java $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectMultipleMetrics \\
+        java ${JVM.g1} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectMultipleMetrics \\
           --INPUT ${bam.getAbsolutePath} \\
           --REFERENCE_SEQUENCE=${reference.getAbsolutePath} \\
           --OUTPUT ${tmpOut.getAbsolutePath} \\
@@ -382,7 +382,7 @@ object AlignmentQC {
               val maxHeap = s"-Xmx${resourceAllocated.memory}m"
               val tmpOut = TempFile.createTempFile(".qc")
               val bashScript = s""" \\
-        java $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectWgsMetrics \\
+        java ${JVM.g1} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectWgsMetrics \\
           --INPUT ${bam.getAbsolutePath} \\
           --REFERENCE_SEQUENCE=${reference.getAbsolutePath} \\
           --OUTPUT ${tmpOut.getAbsolutePath} \\

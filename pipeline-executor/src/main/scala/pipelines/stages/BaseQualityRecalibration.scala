@@ -6,7 +6,7 @@ import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.Future
 import fileutils.TempFile
-import org.gc.pipelines.util.{Exec, GATK}
+import org.gc.pipelines.util.{Exec, GATK, JVM}
 import java.io.File
 
 case class TrainBQSRInput(bam: CoordinateSortedBam,
@@ -41,7 +41,7 @@ object BaseQualityScoreRecalibration {
             val tmpStdOut = TempFile.createTempFile(".stdout")
             val tmpStdErr = TempFile.createTempFile(".stderr")
             val bashScript = s""" \\
-              java $maxHeap ${GATK
+              java ${JVM.g1} $maxHeap ${GATK
               .javaArguments(compressionLevel = 1)} -jar $gatkJar  BaseRecalibrator \\
                 -R ${reference.getAbsolutePath} \\
                 -I ${localBam.getAbsolutePath} \\
@@ -88,7 +88,7 @@ object BaseQualityScoreRecalibration {
               val tmpStdOut = TempFile.createTempFile(".stdout")
               val tmpStdErr = TempFile.createTempFile(".stderr")
               val bashScript = s""" \\
-              java $maxHeap ${GATK.javaArguments(compressionLevel = 5)} -jar $gatkJar ApplyBQSR \\
+              java ${JVM.g1} $maxHeap ${GATK.javaArguments(compressionLevel = 5)} -jar $gatkJar ApplyBQSR \\
                 -R ${reference.getAbsolutePath} \\
                 -I ${localBam.getAbsolutePath} \\
                 -O ${outputBam.getAbsolutePath} \\
