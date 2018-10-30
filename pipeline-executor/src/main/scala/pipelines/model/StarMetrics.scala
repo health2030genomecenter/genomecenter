@@ -37,9 +37,13 @@ object StarMetrics {
         }
         .toList
       def extract[T](predicate: String)(t: String => T) =
-        lines.find { case List(h, _) => h.contains(predicate) }.map {
-          case List(_, v) => t(v)
-        }
+        lines
+          .find { h =>
+            h.head.contains(predicate)
+          }
+          .map {
+            case List(_, v) => t(v)
+          }
 
       Root(
         project,
