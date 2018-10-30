@@ -48,6 +48,7 @@ class StarAlignmentTestSuite
             sampleId = sampleId,
             runId = runId,
             lane = lane,
+            partition = PartitionId(0),
             reference = indexedFasta,
             gtf = await(SharedFile(gtfFile, "gtf")),
             readLength = 151

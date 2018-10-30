@@ -20,6 +20,7 @@ case class PerLaneStarAlignmentInput(
     sampleId: SampleId,
     runId: RunId,
     lane: Lane,
+    partition: PartitionId,
     reference: StarIndexedReferenceFasta,
     gtf: SharedFile,
     readLength: Int
@@ -102,6 +103,7 @@ object StarAlignment {
                                      sampleId,
                                      runId,
                                      lane,
+                                     partition,
                                      reference,
                                      gtf,
                                      readLength) =>
@@ -172,7 +174,7 @@ object StarAlignment {
               Exec.bash(logDiscriminator = "star.pipes." + sampleId,
                         onError = Exec.ThrowIfNonZero)(bashScript)
 
-              val nameStub = readGroupName
+              val nameStub = readGroupName + ".part" + partition
 
               val expectedLog = new File(tmpStarFolder, "Log.out")
               val expectedFinalLog = new File(tmpStarFolder, "Log.final.out")

@@ -560,6 +560,7 @@ object ProtoPipeline extends StrictLogging {
                                 sampleId = meta.sampleId,
                                 runId = meta.runId,
                                 lane = lane.lane,
+                                partition = lane.partition,
                                 reference = indexedFasta,
                                 gtf = gtf.file,
                                 readLength = readLengths.map(_._2).max
