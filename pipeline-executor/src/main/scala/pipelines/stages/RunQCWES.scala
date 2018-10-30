@@ -80,6 +80,8 @@ object AlignmentQC {
     val left = true
     val right = false
     val lines = metrics
+      .sortBy(_._1.project.toString)
+      .sortBy(_._1.lane.toInt)
       .map {
         case (alignment, targetSelection, dups, fastpMetrics, wgsMetrics) =>
           import alignment.pairMetrics._
