@@ -1,7 +1,7 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Exec, Files, ResourceConfig, Bgzf}
+import org.gc.pipelines.util.{Exec, Files, ResourceConfig}
 
 import scala.concurrent.Future
 import tasks._
@@ -10,11 +10,10 @@ import tasks.circesupport._
 import io.circe._
 import io.circe.generic.semiauto._
 
-import akka.stream.scaladsl.{Source, StreamConverters}
+import akka.stream.scaladsl.Source
 import akka.stream.Materializer
 import akka.util.ByteString
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
 
 import java.io.File
 
@@ -25,7 +24,9 @@ case class DemultiplexingInput(
     globalIndexSet: Option[SharedFile]
 ) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*)
 
-case class DemultiplexSingleLaneInput(run: DemultiplexingInput, lane: Lane)
+case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
+                                      tiles: Set[String],
+                                      partitionIndex: Int)
 
 case class DemultiplexedReadData(fastqs: Set[FastQWithSampleMetadata],
                                  stats: EValue[DemultiplexingStats.Root])
@@ -60,14 +61,33 @@ object Demultiplexing {
     r
   }
 
+  def parseTiles(file: File): Seq[String] = {
+    val content = fileutils.openSource(file)(_.mkString)
+    parseTiles(content)
+  }
+
+  def parseTiles(s: String) = {
+    val root = scala.xml.XML.loadString(s)
+    (root \ "Run" \ "FlowcellLayout" \ "TileSet" \ "Tiles" \ "Tile").map {
+      node =>
+        node.text
+    }.toSeq
+
+  }
+
   val allLanes =
-    AsyncTask[DemultiplexingInput, DemultiplexedReadData]("__demultiplex", 2) {
+    AsyncTask[DemultiplexingInput, DemultiplexedReadData]("__demultiplex", 3) {
       runFolder => implicit computationEnvironment =>
         releaseResources
         implicit val actorMaterializer =
           computationEnvironment.components.actorMaterializer
 
-        val threeGigabytes = 3L * 1024L * 1024L * 1024L
+        def tilesOfLanes(lanes: Seq[Lane]): Seq[String] = {
+          val runInfo = new File(runFolder.runFolderPath + "/RunInfo.xml")
+          val allTiles = Demultiplexing.parseTiles(runInfo)
+          allTiles.filter(tile =>
+            lanes.exists(lane => tile.startsWith(lane.toString)))
+        }
 
         for {
           sampleSheet <- runFolder.sampleSheet.parse
@@ -75,23 +95,31 @@ object Demultiplexing {
             .map(sf => parseGlobalIndexSet(sf.source))
             .getOrElse(Future.successful(readGlobalIndexSetFromClassPath))
 
-          lanes = {
-            val lanes = sampleSheet.lanes
-            if (lanes.isEmpty) {
-              log.error("No lanes in the sample sheet!")
+          partitions = {
+            val lanes = {
+              val lanes = sampleSheet.lanes
+              if (lanes.isEmpty) {
+                log.error("No lanes in the sample sheet!")
+              }
+              lanes
             }
-            lanes
+            val tiles = tilesOfLanes(lanes)
+
+            log.info(s"Found tiles of lanes $lanes: " + tiles.mkString(", "))
+
+            if (tiles.isEmpty)
+              // process full lane by lane
+              lanes.map(l => List(l.toString)).toSeq
+            else
+              // process by groups of tiles
+              tiles.grouped(30).toSeq
           }
 
-          demultiplexedLanes <- Future.traverse(lanes) { lane =>
-            for {
-              demultiplexedLane <- perLane(
-                DemultiplexSingleLaneInput(runFolder, lane))(
+          demultiplexedLanes <- Future.traverse(partitions.toSeq.zipWithIndex) {
+            case (tiles, idx) =>
+              perLane(DemultiplexSingleLaneInput(runFolder, tiles.toSet, idx))(
                 ResourceConfig.bcl2fastq)
-              partitionedLane <- partitionFastq(
-                (demultiplexedLane.withoutUndetermined, threeGigabytes))(
-                ResourceConfig.minimal)
-            } yield partitionedLane
+
           }
 
           perLaneStats <- Future.traverse(demultiplexedLanes)(_.stats.get)
@@ -114,7 +142,7 @@ object Demultiplexing {
                 DemultiplexingSummary.renderAsTable(
                   DemultiplexingSummary.fromStats(
                     mergedStats,
-                    sampleToProjectMap(demultiplexedLanes),
+                    sampleToProjectMap(demultiplexedLanes.toSeq),
                     globalIndexSet))
               SharedFile(
                 Source.single(ByteString(tableAsString.getBytes("UTF-8"))),
@@ -128,52 +156,6 @@ object Demultiplexing {
 
     }
 
-  val partitionFastq =
-    AsyncTask[(DemultiplexedReadData, Long), DemultiplexedReadData](
-      "__demultiplex-per-lane-partition",
-      1) {
-      case (DemultiplexedReadData(fastqs, stats), max) =>
-        implicit computationEnvironment =>
-          implicit val materializer =
-            computationEnvironment.components.actorMaterializer
-          Future
-            .traverse(fastqs) { fastq =>
-              if (fastq.fastq.file.byteSize <= max)
-                Future.successful(List(fastq))
-              else {
-                val stream = fastq.fastq.file.source
-                  .runWith(
-                    StreamConverters.asInputStream(readTimeout = 30 seconds))
-                val partitions = Bgzf.partition(stream, max)
-                val approximateNumberOfReadsInPartition =
-                  (fastq.fastq.numberOfReads.toDouble / partitions.size).toLong
-                val partitioned = Future.traverse(partitions.zipWithIndex) {
-                  case (file, idx) =>
-                    for {
-                      partition <- SharedFile(
-                        file,
-                        fastq.fastq.file.name
-                          .stripSuffix(".fastq.gz") + ".part" + idx + ".fastq.gz",
-                        true)
-                    } yield
-                      fastq.copy(partition = PartitionId(idx),
-                                 fastq =
-                                   FastQ(partition,
-                                         numberOfReads =
-                                           approximateNumberOfReadsInPartition))
-                }
-
-                for {
-                  partitioned <- partitioned
-                  _ <- fastq.fastq.file.delete
-                } yield partitioned
-
-              }
-            }
-            .map(fastqs => DemultiplexedReadData(fastqs.flatten, stats))
-
-    }
-
   val fastqFileNameRegex =
     "^([a-zA-Z0-9_\\-\\/]+/)?([a-zA-Z0-9_-]+)_S([0-9]+)_L([0-9]*)_R([0-9])_001.fastq.gz$".r
 
@@ -183,7 +165,8 @@ object Demultiplexing {
       5) {
       case DemultiplexSingleLaneInput(
           DemultiplexingInput(runFolderPath, sampleSheet, extraArguments, _),
-          laneToProcess
+          tilesToProcess,
+          partitionIndex
           ) =>
         implicit computationEnvironment =>
           implicit val materializer =
@@ -242,7 +225,7 @@ object Demultiplexing {
                                             sampleSheetSampleId,
                                             parsedLane,
                                             ReadType(read.toInt),
-                                            PartitionId(0),
+                                            PartitionId(partitionIndex),
                                             FastQ(fastq, numberOfReads.get)))
                 } else {
                   val numberOfReads = for {
@@ -255,7 +238,7 @@ object Demultiplexing {
                                             SampleId("Undetermined"),
                                             Lane(lane.toInt),
                                             ReadType(read.toInt),
-                                            PartitionId(0),
+                                            PartitionId(partitionIndex),
                                             FastQ(fastq, numberOfReads.get)))
                 }
               case _ =>
@@ -267,7 +250,9 @@ object Demultiplexing {
           val tilesArgumentList = if (extraArguments.contains("--tiles")) {
             log.warning("--tiles argument to bcl2fastq is overriden.")
             Nil
-          } else List("--tiles", "s_" + laneToProcess)
+          } else
+            List("--tiles",
+                 tilesToProcess.toSeq.sorted.map(t => "s_" + t).mkString(","))
 
           /* bcl2fastq manual page 16:
            * Use one thread per CPU core plus a little more to supply CPU with work.
@@ -313,7 +298,7 @@ object Demultiplexing {
               Files.list(outputFolder, "**.fastq.gz") :+ statsFile
 
             }(computationEnvironment.components
-              .withChildPrefix(laneToProcess.toString))
+              .withChildPrefix("part" + partitionIndex.toString))
 
             statsFileContent <- fastQAndStatFiles.last.source
               .runFold(ByteString.empty)(_ ++ _)
