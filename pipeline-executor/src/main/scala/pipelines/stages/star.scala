@@ -110,7 +110,7 @@ object StarAlignment {
 
           val starExecutable = extractStarExecutable()
 
-          val starNumberOfThreads = math.max(1, resourceAllocated.cpu - 1)
+          val starNumberOfThreads = math.max(1, resourceAllocated.cpu - 1) + 3
 
           val tmpCleanBam = TempFile.createTempFile(".bam")
 
