@@ -26,6 +26,8 @@ case class IndexedReferenceFasta(fasta: SharedFile, indexFiles: Set[SharedFile])
       _ <- Future.traverse(indexFiles)(_.file)
       fasta <- fasta.file
     } yield fasta
+  def dict(implicit tsc: TaskSystemComponents) =
+    indexFiles.find(_.name.endsWith(".dict")).get.file
 }
 
 case class FastQWithSampleMetadata(project: Project,
