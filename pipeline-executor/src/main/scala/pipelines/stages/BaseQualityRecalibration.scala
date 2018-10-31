@@ -28,6 +28,12 @@ case class ApplyBQSRInput(bam: CoordinateSortedBam,
                           bqsrTable: BQSRTable)
     extends WithSharedFiles(bam.files ++ reference.files ++ bqsrTable.files: _*)
 
+case class ApplyBQSRInputScatteredPiece(bam: CoordinateSortedBam,
+                                        reference: IndexedReferenceFasta,
+                                        bqsrTable: BQSRTable,
+                                        interval: String)
+    extends WithSharedFiles(bam.files ++ reference.files ++ bqsrTable.files: _*)
+
 object BaseQualityScoreRecalibration {
 
   def createIntervals(dict: File): Seq[String] = {
@@ -142,7 +148,72 @@ object BaseQualityScoreRecalibration {
 
   val applyBQSR =
     AsyncTask[ApplyBQSRInput, CoordinateSortedBam]("__bqsr-apply", 1) {
-      case ApplyBQSRInput(bam, reference, bqsrTable) =>
+      case ApplyBQSRInput(bam, reference, knownSites) =>
+        implicit computationEnvironment =>
+          releaseResources
+          for {
+            dict <- reference.dict
+            intervals = BaseQualityScoreRecalibration.createIntervals(dict)
+            scattered <- Future.traverse(intervals) { interval =>
+              applyBQSRPiece(
+                ApplyBQSRInputScatteredPiece(bam,
+                                             reference,
+                                             knownSites,
+                                             interval))(
+                ResourceConfig.applyBqsr)
+            }
+            localBams <- Future.traverse(scattered)(_.localFile)
+            gathered <- {
+
+              val output = TempFile.createTempFile(".bsqr.bam")
+              val picardJar: String = BWAAlignment.extractPicardJar()
+              val tmpStdOut = TempFile.createTempFile(".stdout")
+              val tmpStdErr = TempFile.createTempFile(".stderr")
+              val input = " --INPUT " + localBams.mkString(" -INPUT ")
+
+              val javaTmpDir =
+                s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
+
+              Exec.bash(logDiscriminator = "bqsrl.apply.gather",
+                        onError = Exec.ThrowIfNonZero)(
+                s"""java ${JVM.serial} -Xmx3G $javaTmpDir -Dpicard.useLegacyParser=false -jar $picardJar GatherBamFiles \\
+                $input \\
+                --OUTPUT ${output.getAbsolutePath} \\
+                --CREATE_INDEX true \\
+              > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+              """)
+
+              val expectedBai =
+                new File(
+                  output.getAbsolutePath
+                    .stripSuffix(".bam") + ".bai")
+
+              for {
+                _ <- SharedFile(
+                  tmpStdOut,
+                  name = bam.bam.name + ".bqsr.train.gather.stdout",
+                  deleteFile = true)
+                _ <- SharedFile(
+                  tmpStdErr,
+                  name = bam.bam.name + ".bqsr.train.gather.stderr",
+                  deleteFile = true)
+                gatheredBam <- SharedFile(output,
+                                          bam.bam.name + ".bqsr.bam",
+                                          deleteFile = true)
+                bai <- SharedFile(expectedBai,
+                                  bam.bam.name + ".bqsr.bai",
+                                  deleteFile = true)
+              } yield CoordinateSortedBam(gatheredBam, bai)
+
+            }
+          } yield gathered
+    }
+
+  val applyBQSRPiece =
+    AsyncTask[ApplyBQSRInputScatteredPiece, CoordinateSortedBam](
+      "__bqsr-apply-scattered",
+      1) {
+      case ApplyBQSRInputScatteredPiece(bam, reference, bqsrTable, interval) =>
         implicit computationEnvironment =>
           val maxHeap = s"-Xmx${resourceAllocated.memory}m"
 
@@ -163,6 +234,7 @@ object BaseQualityScoreRecalibration {
                 -R ${reference.getAbsolutePath} \\
                 -I ${localBam.getAbsolutePath} \\
                 -O ${outputBam.getAbsolutePath} \\
+                -L $interval \\
                 --use-original-qualities \\
                 --add-output-sam-program-record \\
                 --create-output-bam-index \\
@@ -183,11 +255,12 @@ object BaseQualityScoreRecalibration {
                                 name = outputFileNameRoot + "bqsr.apply.stderr",
                                 deleteFile = true)
                 bai <- SharedFile(expectedBai,
-                                  outputFileNameRoot + "bqsr.bai",
+                                  outputFileNameRoot + s"bqsr.$interval.bai",
                                   deleteFile = true)
-                recalibrated <- SharedFile(outputBam,
-                                           outputFileNameRoot + "bqsr.bam",
-                                           deleteFile = true)
+                recalibrated <- SharedFile(
+                  outputBam,
+                  outputFileNameRoot + s"bqsr.$interval.bam",
+                  deleteFile = true)
               } yield {
                 CoordinateSortedBam(recalibrated, bai)
               }
@@ -223,4 +296,11 @@ object ApplyBQSRInput {
     deriveEncoder[ApplyBQSRInput]
   implicit val decoder: Decoder[ApplyBQSRInput] =
     deriveDecoder[ApplyBQSRInput]
+}
+
+object ApplyBQSRInputScatteredPiece {
+  implicit val encoder: Encoder[ApplyBQSRInputScatteredPiece] =
+    deriveEncoder[ApplyBQSRInputScatteredPiece]
+  implicit val decoder: Decoder[ApplyBQSRInputScatteredPiece] =
+    deriveDecoder[ApplyBQSRInputScatteredPiece]
 }
