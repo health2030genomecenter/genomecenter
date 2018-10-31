@@ -22,9 +22,19 @@ object DemultiplexingStats {
             Flowcell = Flowcell,
             RunNumber = RunNumber,
             RunId = RunId,
-            this.ReadInfosForLanes ++ that.ReadInfosForLanes,
-            this.ConversionResults ++ that.ConversionResults,
-            this.UnknownBarcodes ++ that.UnknownBarcodes
+            (this.ReadInfosForLanes ++ that.ReadInfosForLanes),
+            (this.ConversionResults ++ that.ConversionResults)
+              .groupBy(_.LaneNumber)
+              .toSeq
+              .map {
+                case (_, group) => group.reduce(_ ++ _)
+              },
+            (this.UnknownBarcodes ++ that.UnknownBarcodes)
+              .groupBy(_.Lane)
+              .toSeq
+              .map {
+                case (_, group) => group.reduce(_ ++ _)
+              }
           ))
   }
 
@@ -36,7 +46,15 @@ object DemultiplexingStats {
 
   }
 
-  case class UnknownBarCodesPerLane(Lane: Int, Barcodes: Map[String, Long])
+  case class UnknownBarCodesPerLane(Lane: Int, Barcodes: Map[String, Long]) {
+    def ++(that: UnknownBarCodesPerLane) = {
+      assert(Lane == that.Lane)
+      UnknownBarCodesPerLane(
+        Lane,
+        tasks.util.addMaps(Barcodes, that.Barcodes)(_ + _)
+      )
+    }
+  }
 
   case class ReadInfoPerLane(LaneNumber: Int, ReadInfos: Seq[ReadInfo])
 
@@ -47,7 +65,22 @@ object DemultiplexingStats {
                                      TotalClustersPF: Long,
                                      Yield: Long,
                                      DemuxResults: Seq[DemuxResultPerSample],
-                                     Undetermined: UndeterminedResults)
+                                     Undetermined: UndeterminedResults) {
+    def ++(that: ConversionResultPerLane) = {
+      assert(LaneNumber == that.LaneNumber)
+      ConversionResultPerLane(
+        LaneNumber = LaneNumber,
+        TotalClustersRaw = TotalClustersRaw + that.TotalClustersRaw,
+        TotalClustersPF = TotalClustersPF + that.TotalClustersPF,
+        Yield = Yield + that.Yield,
+        DemuxResults =
+          (DemuxResults ++ that.DemuxResults).groupBy(_.SampleId).toSeq.map {
+            case (_, group) => group.reduce(_ ++ _)
+          },
+        Undetermined = Undetermined ++ that.Undetermined
+      )
+    }
+  }
 
   case class DemuxResultPerSample(
       SampleId: String,
@@ -56,13 +89,42 @@ object DemultiplexingStats {
       NumberReads: Long,
       Yield: Long,
       ReadMetrics: Seq[ReadMetric]
-  )
+  ) {
+    def ++(that: DemuxResultPerSample) = {
+      assert(SampleId == that.SampleId)
+      DemuxResultPerSample(
+        SampleId,
+        SampleName,
+        IndexMetrics = (IndexMetrics ++ that.IndexMetrics)
+          .groupBy(_.IndexSequence)
+          .toSeq
+          .map {
+            case (_, group) => group.reduce(_ ++ _)
+          },
+        NumberReads = NumberReads + that.NumberReads,
+        Yield = Yield + that.Yield,
+        ReadMetrics = merge(ReadMetrics, that.ReadMetrics)(_.ReadNumber)(_ ++ _)
+      )
+
+    }
+  }
+
+  def merge[T, K](a: Seq[T], b: Seq[T])(key: T => K)(op: (T, T) => T) =
+    (a ++ b).groupBy(key).toSeq.map { case (_, group) => group.reduce(op) }
 
   case class UndeterminedResults(
       NumberReads: Long,
       Yield: Long,
       ReadMetrics: Seq[ReadMetric]
-  )
+  ) {
+    def ++(that: UndeterminedResults) = {
+      UndeterminedResults(
+        NumberReads + that.NumberReads,
+        Yield + that.Yield,
+        merge(ReadMetrics, that.ReadMetrics)(_.ReadNumber)(_ ++ _)
+      )
+    }
+  }
 
   case class ReadMetric(
       ReadNumber: Int,
@@ -70,12 +132,27 @@ object DemultiplexingStats {
       YieldQ30: Long,
       QualityScoreSum: Long,
       TrimmedBases: Long,
-  )
+  ) {
+    def ++(that: ReadMetric) = ReadMetric(
+      ReadNumber + that.ReadNumber,
+      Yield + that.Yield,
+      YieldQ30 + that.YieldQ30,
+      QualityScoreSum + that.QualityScoreSum,
+      TrimmedBases + that.TrimmedBases
+    )
+  }
 
   case class IndexMetric(
       IndexSequence: String,
       MismatchCounts: Map[String, Long]
-  )
+  ) {
+    def ++(that: IndexMetric) = {
+      assert(IndexSequence == that.IndexSequence)
+      IndexMetric(
+        IndexSequence,
+        tasks.util.addMaps(MismatchCounts, that.MismatchCounts)(_ + _))
+    }
+  }
 
 }
 
