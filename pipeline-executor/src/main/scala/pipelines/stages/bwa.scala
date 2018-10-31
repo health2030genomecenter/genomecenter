@@ -180,6 +180,7 @@ object BWAAlignment {
                 --INPUT ${localBam.getAbsolutePath} \\
                 --OUTPUT ${tmpSorted.getAbsolutePath} \\
                 --SORT_ORDER coordinate \\
+                --COMPRESSION_LEVEL 1 \\
                 --TMP_DIR $tempFolder \\
                 --MAX_RECORDS_IN_RAM $maxReads \\
               > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
