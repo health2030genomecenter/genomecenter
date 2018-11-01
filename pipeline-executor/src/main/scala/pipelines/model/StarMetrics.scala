@@ -42,7 +42,7 @@ object StarMetrics {
             h.head.contains(predicate)
           }
           .map {
-            case List(_, v) => t(v)
+            case List(_, v) => t(v.trim)
           }
 
       Root(
