@@ -41,30 +41,39 @@ class StarAlignmentTestSuite
           fetchStarIndexedReference(referenceFile, genomeFolder)
 
         val input =
-          PerLaneStarAlignmentInput(
-            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
-            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
+          StarAlignmentInput(
+            fastqs = Set(
+              FastQPerLane(
+                Lane(1),
+                FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
+                FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
+                None,
+                PartitionId(0)
+              )),
             project = project,
             sampleId = sampleId,
             runId = runId,
-            lane = lane,
-            partition = PartitionId(0),
             reference = indexedFasta,
             gtf = await(SharedFile(gtfFile, "gtf")),
             readLength = 151
           )
 
         val result =
-          await(StarAlignment.alignSingleLane(input)(ResourceRequest(1, 500)))
+          await(StarAlignment.alignSample(input)(ResourceRequest(1, 500)))
 
         val bamFile = await(result.bam.bam.file.file)
         val finalLog = await(result.finalLog.file)
         recordsInBamFile(bamFile) shouldBe 17876
-        StarMetrics.Root(fileutils.openSource(finalLog)(_.mkString),
-                         project,
-                         sampleId,
-                         runId,
-                         lane)
+        println(fileutils.openSource(finalLog)(_.mkString))
+        val metrics =
+          StarMetrics.Root(fileutils.openSource(finalLog)(_.mkString),
+                           project,
+                           sampleId,
+                           runId)
+        println(metrics.metrics)
+        metrics.metrics.meanReadLength shouldBe 302d
+        metrics.metrics.numberOfReads shouldBe 5000
+
 
       }
 

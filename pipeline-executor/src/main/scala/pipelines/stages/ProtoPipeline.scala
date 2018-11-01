@@ -532,10 +532,10 @@ object ProtoPipeline extends StrictLogging {
           releaseResources
           computationEnvironment.withFilePrefix(Seq("projects")) {
             implicit computationEnvironment =>
-              val allLanesOfAllSamples = demultiplexed.toSeq.flatMap {
-                perSampleFastQs =>
+              val allLanesOfAllSamples: Seq[(PerSampleFastQ, FastQPerLane)] =
+                demultiplexed.toSeq.flatMap { perSampleFastQs =>
                   perSampleFastQs.lanes.map(lane => (perSampleFastQs, lane))
-              }
+                }
 
               def inProjectFolder[T](project: Project, run: RunId) =
                 appendToFilePrefix[T](Seq(project, run))
@@ -548,24 +548,19 @@ object ProtoPipeline extends StrictLogging {
                     ResourceConfig.createStarIndex)
 
                   processedSamples <- Future
-                    .traverse(allLanesOfAllSamples) {
-                      case (meta, lane) =>
-                        inProjectFolder(meta.project, meta.runId) {
-                          implicit computationEnvironment =>
-                            StarAlignment.alignSingleLane(
-                              PerLaneStarAlignmentInput(
-                                read1 = lane.read1,
-                                read2 = lane.read2,
-                                project = meta.project,
-                                sampleId = meta.sampleId,
-                                runId = meta.runId,
-                                lane = lane.lane,
-                                partition = lane.partition,
-                                reference = indexedFasta,
-                                gtf = gtf.file,
-                                readLength = readLengths.map(_._2).max
-                              ))(ResourceConfig.starAlignment)
-                        }
+                    .traverse(demultiplexed) { sample =>
+                      inProjectFolder(sample.project, sample.runId) {
+                        implicit computationEnvironment =>
+                          StarAlignment.alignSample(StarAlignmentInput(
+                            fastqs = sample.lanes,
+                            project = sample.project,
+                            sampleId = sample.sampleId,
+                            runId = sample.runId,
+                            reference = indexedFasta,
+                            gtf = gtf.file,
+                            readLength = readLengths.map(_._2).max
+                          ))(ResourceConfig.starAlignment)
+                      }
 
                     }
 

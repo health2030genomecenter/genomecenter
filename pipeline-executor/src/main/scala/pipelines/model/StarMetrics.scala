@@ -10,7 +10,6 @@ object StarMetrics {
       project: Project,
       sampleId: SampleId,
       runId: RunId,
-      lane: Lane,
       metrics: Metrics
   )
 
@@ -27,8 +26,7 @@ object StarMetrics {
     def apply(starFinalLogContents: String,
               project: Project,
               sampleId: SampleId,
-              runId: RunId,
-              lane: Lane): Root = {
+              runId: RunId): Root = {
       val lines = scala.io.Source
         .fromString(starFinalLogContents)
         .getLines
@@ -49,7 +47,6 @@ object StarMetrics {
         project,
         sampleId,
         runId,
-        lane,
         Metrics(
           numberOfReads = extract("Number of input reads")(_.toLong).get,
           meanReadLength = extract("Average input read length")(_.toDouble).get,

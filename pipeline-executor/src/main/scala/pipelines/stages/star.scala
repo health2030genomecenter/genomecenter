@@ -13,23 +13,20 @@ import fileutils.TempFile
 import scala.concurrent.{Future, ExecutionContext}
 import java.io.File
 
-case class PerLaneStarAlignmentInput(
-    read1: FastQ,
-    read2: FastQ,
+case class StarAlignmentInput(
+    fastqs: Set[FastQPerLane],
     project: Project,
     sampleId: SampleId,
     runId: RunId,
-    lane: Lane,
-    partition: PartitionId,
     reference: StarIndexedReferenceFasta,
     gtf: SharedFile,
     readLength: Int
-) extends WithSharedFiles(
-      Seq(read1.file, read2.file, reference.fasta, gtf): _*)
+) extends WithSharedFiles(fastqs.toSeq.flatMap(l =>
+      List(l.read1.file, l.read2.file)) ++ Seq(reference.fasta, gtf): _*)
 
 case class StarResult(
     finalLog: SharedFile,
-    bam: BamWithSampleMetadataPerLane
+    bam: BamWithSampleMetadata
 ) extends WithSharedFiles(bam.files :+ finalLog: _*)
 
 case class StarIndexedReferenceFasta(fasta: SharedFile,
@@ -95,18 +92,15 @@ object StarAlignment {
           } yield result
 
     }
-  val alignSingleLane =
-    AsyncTask[PerLaneStarAlignmentInput, StarResult]("__star-perlane", 1) {
-      case PerLaneStarAlignmentInput(read1,
-                                     read2,
-                                     project,
-                                     sampleId,
-                                     runId,
-                                     lane,
-                                     partition,
-                                     reference,
-                                     gtf,
-                                     readLength) =>
+  val alignSample =
+    AsyncTask[StarAlignmentInput, StarResult]("__star-perlane", 1) {
+      case StarAlignmentInput(fastqs,
+                              project,
+                              sampleId,
+                              runId,
+                              reference,
+                              gtf,
+                              readLength) =>
         implicit computationEnvironment =>
           val picardJar = BWAAlignment.extractPicardJar()
 
@@ -123,19 +117,26 @@ object StarAlignment {
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
 
-          val readGroupName = project + "." + sampleId + "." + runId + "." + lane
+          val lanes = fastqs.map(_.lane).toSeq.sortBy(_.toInt)
+
+          val readGroupName = project + "." + sampleId + "." + runId + "." + lanes
+            .mkString("_")
           val uniqueSampleName = project + "." + sampleId
 
-          val platformUnit = runId + "." + lane
+          val platformUnit = runId + "." + lanes.mkString("_")
           val sequencingCenter = "Health2030GenomeCenter"
           val runDate: String = java.time.Instant.now.toString
 
           val tmpDir =
             s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
+          val fastqsSeq = fastqs.toSeq
+
+          def fetchFiles(f: Seq[SharedFile]) = Future.traverse(f)(_.file)
+
           val resultF = for {
-            read1 <- read1.file.file.map(_.getAbsolutePath)
-            read2 <- read2.file.file.map(_.getAbsolutePath)
+            read1 <- fetchFiles(fastqsSeq.map(_.read1.file))
+            read2 <- fetchFiles(fastqsSeq.map(_.read2.file))
             localGtf <- gtf.file
             reference <- reference.genomeFolder
             result <- {
@@ -144,7 +145,7 @@ object StarAlignment {
      $starExecutable \\
         --runThreadN $starNumberOfThreads \\
         --genomeDir $reference \\
-        --readFilesIn $read1 $read2 \\
+        --readFilesIn ${read1.mkString(",")} ${read2.mkString(",")} \\
         --readFilesCommand 'gunzip -c' \\
         --outFileNamePrefix ${tmpStarFolder.getAbsolutePath}/ \\
         --outStd BAM_Unsorted \\
@@ -174,7 +175,7 @@ object StarAlignment {
               Exec.bash(logDiscriminator = "star.pipes." + sampleId,
                         onError = Exec.ThrowIfNonZero)(bashScript)
 
-              val nameStub = readGroupName + ".part" + partition
+              val nameStub = readGroupName
 
               val expectedLog = new File(tmpStarFolder, "Log.out")
               val expectedFinalLog = new File(tmpStarFolder, "Log.final.out")
@@ -197,12 +198,9 @@ object StarAlignment {
                                   name = nameStub + ".star.bam",
                                   deleteFile = true)
               } yield
-                StarResult(finalLogFile,
-                           BamWithSampleMetadataPerLane(project,
-                                                        sampleId,
-                                                        runId,
-                                                        lane,
-                                                        Bam(bam)))
+                StarResult(
+                  finalLogFile,
+                  BamWithSampleMetadata(project, sampleId, runId, Bam(bam)))
             }
           } yield result
 
@@ -231,11 +229,11 @@ object StarIndexedReferenceFasta {
     deriveDecoder[StarIndexedReferenceFasta]
 }
 
-object PerLaneStarAlignmentInput {
-  implicit val encoder: Encoder[PerLaneStarAlignmentInput] =
-    deriveEncoder[PerLaneStarAlignmentInput]
-  implicit val decoder: Decoder[PerLaneStarAlignmentInput] =
-    deriveDecoder[PerLaneStarAlignmentInput]
+object StarAlignmentInput {
+  implicit val encoder: Encoder[StarAlignmentInput] =
+    deriveEncoder[StarAlignmentInput]
+  implicit val decoder: Decoder[StarAlignmentInput] =
+    deriveDecoder[StarAlignmentInput]
 }
 
 object StarResult {
