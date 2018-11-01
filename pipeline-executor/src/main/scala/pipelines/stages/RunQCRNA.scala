@@ -57,6 +57,8 @@ object RunQCRNA {
     val left = true
     val right = false
     val lines = metrics
+      .sortBy(_.project.toString)
+      .sortBy(_.sampleId.toString)
       .map {
         case starMetrics =>
           import starMetrics._
@@ -66,12 +68,11 @@ object RunQCRNA {
             Seq(
               project -> left,
               sampleId -> left,
-              lane.toString -> left,
-              f"${numberOfReads / 1E6}%10.2fMb" -> right,
-              f"$meanReadLength%13.1s" -> right,
-              f"${uniquelyMappedReads / 1E6}%10.2fMb" -> right,
+              f"${numberOfReads / 1E6}%10.2fM" -> right,
+              f"$meanReadLength%13.2f" -> right,
+              f"${uniquelyMappedReads / 1E6}%10.2fM" -> right,
               f"${uniquelyMappedPercentage * 100}%6.2f%%" -> right,
-              f"${multiplyMappedReads / 1E6}%10.2fMb" -> right,
+              f"${multiplyMappedReads / 1E6}%10.2fM" -> right,
               f"${multiplyMappedReadsPercentage * 100}%6.2f%%" -> right
             ))
 
@@ -104,16 +105,12 @@ object RunQCRNA {
           for {
             parsedMetrics <- Future.traverse(samples.toSeq) {
               case StarResult(log,
-                              BamWithSampleMetadataPerLane(project,
-                                                           sample,
-                                                           run,
-                                                           lane,
-                                                           _)) =>
+                              BamWithSampleMetadata(project, sample, run, _)) =>
                 log.source
                   .runFold(ByteString.empty)(_ ++ _)
                   .map(_.utf8String)
                   .map { content =>
-                    StarMetrics.Root(content, project, sample, run, lane)
+                    StarMetrics.Root(content, project, sample, run)
                   }
             }
             html = makeHtmlTable(parsedMetrics)
