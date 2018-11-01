@@ -80,7 +80,7 @@ object RunQCRNA {
       .mkString("\n")
 
     val header = mkHeader(
-      List("Proj", "Sample", "Lane"),
+      List("Proj", "Sample"),
       List(
         "TotalReads" -> right,
         "MeanReadLength" -> right,
