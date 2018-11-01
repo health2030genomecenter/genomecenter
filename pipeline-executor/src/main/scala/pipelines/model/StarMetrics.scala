@@ -55,12 +55,13 @@ object StarMetrics {
           meanReadLength = extract("Average input read length")(_.toDouble).get,
           uniquelyMappedReads =
             extract("Uniquely mapped reads number")(_.toLong).get,
-          uniquelyMappedPercentage =
-            extract("Uniquely mapped reads %")(_.toDouble).get,
+          uniquelyMappedPercentage = extract("Uniquely mapped reads %")(
+            _.dropRight(1).toDouble / 100d).get,
           multiplyMappedReads =
             extract("Number of reads mapped to multiple loci")(_.toLong).get,
           multiplyMappedReadsPercentage =
-            extract("% of reads mapped to multiple loci")(_.toDouble).get
+            extract("% of reads mapped to multiple loci")(
+              _.dropRight(1).toDouble / 100d).get
         )
       )
     }

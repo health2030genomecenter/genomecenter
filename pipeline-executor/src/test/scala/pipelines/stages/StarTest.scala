@@ -58,7 +58,13 @@ class StarAlignmentTestSuite
           await(StarAlignment.alignSingleLane(input)(ResourceRequest(1, 500)))
 
         val bamFile = await(result.bam.bam.file.file)
+        val finalLog = await(result.finalLog.file)
         recordsInBamFile(bamFile) shouldBe 17876
+        StarMetrics.Root(fileutils.openSource(finalLog)(_.mkString),
+                         project,
+                         sampleId,
+                         runId,
+                         lane)
 
       }
 
