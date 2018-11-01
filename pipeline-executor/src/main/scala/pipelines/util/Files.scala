@@ -5,6 +5,16 @@ import java.nio.file.{Files => JFiles, FileSystems}
 import scala.collection.JavaConverters._
 
 object Files {
+
+  def deleteRecursively(folder: File): Unit =
+    JFiles
+      .walk(folder.toPath)
+      .iterator
+      .asScala
+      .filter(f => JFiles.isRegularFile(f))
+      .map(_.toFile)
+      .foreach(_.delete)
+
   def list(folder: File, glob: String): List[File] = {
     val pathMatcher = FileSystems.getDefault.getPathMatcher("glob:" + glob)
     val stream =

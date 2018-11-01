@@ -1,7 +1,7 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Exec, ResourceConfig, JVM, BAM}
+import org.gc.pipelines.util.{Exec, ResourceConfig, JVM, BAM, Files}
 import org.gc.pipelines.util
 
 import io.circe.{Decoder, Encoder}
@@ -199,6 +199,8 @@ object BWAAlignment {
 
               val nameStub = bam.name.stripSuffix(".bam")
 
+              Files.deleteRecursively(new File(tempFolder))
+
               for {
                 _ <- SharedFile(tmpStdOut,
                                 name = nameStub + ".sort.stdout",
@@ -272,6 +274,8 @@ object BWAAlignment {
                         onError = Exec.ThrowIfNonZero)(bashScript)
 
               val nameStub = project + "." + sampleId + "." + runId
+
+              Files.deleteRecursively(new File(tempFolder))
 
               for {
                 _ <- SharedFile(tmpStdOut,
@@ -469,6 +473,11 @@ object BWAAlignment {
               log.info(
                 s"Deleting intermediate unmapped bam $tmpIntermediateUnmappedBam .")
               tmpIntermediateUnmappedBam.delete
+
+              Files.deleteRecursively(mergeBamAlignmentTempFolder)
+              Files.deleteRecursively(unmappedBamTempFolder)
+              Files.deleteRecursively(new File(markAdapterTempFolder))
+              Files.deleteRecursively(samToFastqTempFolder)
 
               val nameStub = readGroupName + ".part" + partition
 
