@@ -100,15 +100,15 @@ object AlignmentQC {
               lane.toString -> left,
               baitSet -> left,
               f"${genomeTerritory / 1E6}%10.2fMb" -> right,
-              f"${totalReads / 1E6}%10.2fMb" -> right,
+              f"${totalReads / 1E6}%10.2fM" -> right,
               f"$meanTargetCoverage%13.1fx" -> right,
               f"$meanCoverage%13.1fx" -> right,
               f"${pctPfReads * 100}%6.2f%%" -> right,
               f"${pctPfReadsAligned * 100}%13.2f%%" -> right,
               f"${pctPfUniqueReadsAligned * 100}%15.2f%%" -> right,
               f"${pctDuplication * 100}%6.2f%%" -> right,
-              f"${readPairDuplicates / 1E6}%7.2fMb" -> right,
-              f"${readPairOpticalDuplicates / 1E6}%8.2fMb" -> right,
+              f"${readPairDuplicates / 1E6}%7.2fM" -> right,
+              f"${readPairOpticalDuplicates / 1E6}%8.2fM" -> right,
               badCycles.toString -> right,
               f"${pctChimeras * 100}%8.2f%%" -> right,
               f"${pctTargetBases10 * 100}%11.2f%%" -> right,
@@ -119,7 +119,6 @@ object AlignmentQC {
               f"${pctCoverage10x * 100}%11.2f%%" -> right,
               f"${pctCoverage20x * 100}%11.2f%%" -> right,
               f"${pctCoverage60x * 100}%11.2f%%" -> right,
-              f"$gcContent%6.2f" -> right,
               f"$pctExcludedTotal%11.2f%%" -> right
             ))
 
