@@ -4,6 +4,7 @@ import org.scalatest._
 
 import tasks._
 import java.io.File
+import org.gc.pipelines.util.BAM
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class BaseQualityRecalibrationTest
@@ -46,6 +47,8 @@ class BaseQualityRecalibrationTest
       result.get.canRead shouldBe true
       And("the stdout should be saved")
       new File(basePath.getAbsolutePath + "/some.bqsr.apply.stdout").canRead shouldBe true
+      And("the recalibrated bam should be valid")
+      BAM.validate(result.get, referenceFile) shouldBe true
 
     }
   }
