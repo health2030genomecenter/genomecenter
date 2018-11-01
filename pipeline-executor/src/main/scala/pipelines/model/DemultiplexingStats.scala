@@ -22,7 +22,7 @@ object DemultiplexingStats {
             Flowcell = Flowcell,
             RunNumber = RunNumber,
             RunId = RunId,
-            (this.ReadInfosForLanes ++ that.ReadInfosForLanes),
+            (this.ReadInfosForLanes ++ that.ReadInfosForLanes).distinct,
             (this.ConversionResults ++ that.ConversionResults)
               .groupBy(_.LaneNumber)
               .toSeq
@@ -133,13 +133,16 @@ object DemultiplexingStats {
       QualityScoreSum: Long,
       TrimmedBases: Long,
   ) {
-    def ++(that: ReadMetric) = ReadMetric(
-      ReadNumber + that.ReadNumber,
-      Yield + that.Yield,
-      YieldQ30 + that.YieldQ30,
-      QualityScoreSum + that.QualityScoreSum,
-      TrimmedBases + that.TrimmedBases
-    )
+    def ++(that: ReadMetric) = {
+      assert(ReadNumber == that.ReadNumber)
+      ReadMetric(
+        ReadNumber,
+        Yield + that.Yield,
+        YieldQ30 + that.YieldQ30,
+        QualityScoreSum + that.QualityScoreSum,
+        TrimmedBases + that.TrimmedBases
+      )
+    }
   }
 
   case class IndexMetric(
@@ -343,7 +346,7 @@ object DemultiplexingSummary {
         l.indexSwaps
           .map {
             case IndexSwap(barcode, count, fraction, otherLanes) =>
-              f"${l.lane}%-7s$barcode%-12s$count%12s${fraction * 100}%12.2f%%${otherLanes.mkString(",")}%-20s"
+              f"${l.lane}%-7s$barcode%-12s$count%12s${fraction * 100}%12.2f%%${otherLanes.mkString(",")}%20s"
           }
           .mkString("\n")
       }
@@ -366,7 +369,7 @@ object DemultiplexingSummary {
     }
 
     val sampleHeader =
-      "Samples:\nPrj                 SmplId        Lane   BCode             BCMismatch%     TotRds    Rd1_YieldQ30   Rd2_YieldQ30   Rd1_%Q30   Rd2_%Q30"
+      "Samples:\nPrj                 SmplId        Lane   BCode             BCMismatch%     TotRds   Rd1_YieldQ30   Rd2_YieldQ30   Rd1_%Q30   Rd2_%Q30"
 
     val sampleLines = root.sampleSummaries.map { s =>
       import s._
