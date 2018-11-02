@@ -26,6 +26,25 @@ lazy val tasksSlurm = project
     )
   )
 
+lazy val readqc = project
+  .in(file("readqc"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "readqc",
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      "com.github.samtools" % "htsjdk" % "2.16.1",
+      "io.github.pityka" %% "fileutils" % "1.2.2" % "test"
+    ),
+    assemblyJarName := "readqc",
+    test in assembly := {},
+    unmanagedClasspath in Test += {
+      val testFolder = System.getenv("GC_TESTFOLDER")
+      if (testFolder == null) baseDirectory.value
+      else new File(testFolder).getCanonicalFile
+    }
+  )
+
 lazy val umiProcessor = project
   .in(file("umiprocessor"))
   .settings(commonSettings: _*)
