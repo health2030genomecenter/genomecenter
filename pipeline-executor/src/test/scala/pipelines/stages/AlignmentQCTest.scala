@@ -25,7 +25,7 @@ class AlignmentQCTest
       val wgs = WgsMetrics
         .Root(wgsMetricsFile, project, sampleId, runId)
       val fastp = FastpReportModel
-        .Root(fastpText, project, sampleId, runId, Lane(lane))
+        .Root(fastpText, project, sampleId, runId)
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
@@ -46,7 +46,7 @@ class AlignmentQCTest
       val wgs = WgsMetrics
         .Root(wgsMetricsFile, project, sampleId, runId)
       val fastp = FastpReportModel
-        .Root(fastpText, project, sampleId, runId, Lane(lane))
+        .Root(fastpText, project, sampleId, runId)
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get

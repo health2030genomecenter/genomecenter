@@ -151,11 +151,11 @@ class ProtoPipeline(implicit EC: ExecutionContext)
   def extractQCFiles(sampleResults: PerSamplePipelineResult,
                      fastpReports: Seq[FastpReport]): Seq[SampleMetrics] =
     sampleResults.samples.toSeq.map { sample =>
-      val fastpReportsOfSample = fastpReports.filter { fp =>
+      val fastpReportsOfSample = fastpReports.find { fp =>
         fp.sampleId == sample.sampleId &&
         fp.project == sample.project &&
         fp.runId == sample.runId
-      }
+      }.get
       SampleMetrics(
         sample.alignmentQC.alignmentSummary,
         sample.targetSelectionQC.hsMetrics,
@@ -170,19 +170,10 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
   def startFastpReports(perSampleFastQs: Seq[PerSampleFastQ])(
       implicit tsc: TaskSystemComponents): Future[Seq[FastpReport]] = {
-    val fastqsPerLanePerSample = for {
-      sample <- perSampleFastQs
-      lane <- sample.lanes
-    } yield
-      FastQPerLaneWithMetadata(lane,
-                               sample.project,
-                               sample.sampleId,
-                               sample.runId)
 
-    Future.traverse(fastqsPerLanePerSample)(fq =>
-      tsc.withFilePrefix(Seq("fastp", fq.runId, fq.lane.lane.toString)) {
-        implicit tsc =>
-          Fastp.report(fq)(ResourceConfig.fastp)
+    Future.traverse(perSampleFastQs)(fq =>
+      tsc.withFilePrefix(Seq("fastp", fq.project, fq.runId)) { implicit tsc =>
+        Fastp.report(fq)(ResourceConfig.fastp)
     })
   }
 

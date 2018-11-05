@@ -8,13 +8,13 @@ import fileutils.TempFile
 import org.gc.pipelines.util.Exec
 import org.gc.pipelines.util
 import org.gc.pipelines.model._
+import scala.concurrent.Future
 
 case class FastpReport(html: SharedFile,
                        json: SharedFile,
                        project: Project,
                        sampleId: SampleId,
-                       runId: RunId,
-                       lane: Lane)
+                       runId: RunId)
     extends WithSharedFiles(html, json)
 
 object Fastp {
@@ -32,20 +32,39 @@ object Fastp {
   }
 
   val report =
-    AsyncTask[FastQPerLaneWithMetadata, FastpReport]("__fastp-report", 1) {
-      case FastQPerLaneWithMetadata(
-          FastQPerLane(lane, FastQ(read1, _), FastQ(read2, _), _, partition),
-          project,
-          sampleId,
-          runId) =>
+    AsyncTask[PerSampleFastQ, FastpReport]("__fastp-report", 1) {
+      case PerSampleFastQ(lanes, project, sampleId, runId) =>
         implicit computationEnvironment =>
           val fastpExecutable = extractFastpExecutable()
 
+          def fetchFiles(f: Seq[SharedFile]) = Future.traverse(f)(_.file)
+
+          val lanesSeq = lanes.toSeq
           for {
-            read1 <- read1.file
-            read2 <- read2.file
+            read1 <- fetchFiles(lanesSeq.map(_.read1.file))
+            read2 <- fetchFiles(lanesSeq.map(_.read2.file))
             result <- {
 
+              val tmpRead1 = TempFile.createTempFile(read1.head.getName)
+              val tmpRead2 = TempFile.createTempFile(read2.head.getName)
+
+              {
+                import better.files._
+                tmpRead1.toScala.newOutputStream.autoClosed.foreach { out =>
+                  read1.foreach { f =>
+                    for {
+                      in <- f.toScala.newInputStream.autoClosed
+                    } in.pipeTo(out)
+                  }
+                }
+                tmpRead2.toScala.newOutputStream.autoClosed.foreach { out =>
+                  read2.foreach { f =>
+                    for {
+                      in <- f.toScala.newInputStream.autoClosed
+                    } in.pipeTo(out)
+                  }
+                }
+              }
               val tmpHtml = TempFile.createTempFile(".html")
               tmpHtml.delete
               val tmpJson = TempFile.createTempFile(".json")
@@ -53,18 +72,21 @@ object Fastp {
 
               val bashScript = s""" \\
         $fastpExecutable \\
-          -i ${read1.getAbsolutePath} \\
-          -I ${read2.getAbsolutePath} \\
+          -i ${tmpRead1.getAbsolutePath} \\
+          -I ${tmpRead2.getAbsolutePath} \\
           -h ${tmpHtml.getAbsolutePath} \\
           -j ${tmpJson.getAbsolutePath} \\
           --dont_overwrite \\
-          --report_title '$project: $sampleId $runId-$lane' \\
+          --report_title '$project: $sampleId $runId-$project-$sampleId' \\
           --thread ${resourceAllocated.cpu} """
 
               Exec.bash(logDiscriminator = "fastp",
                         onError = Exec.ThrowIfNonZero)(bashScript)
 
-              val nameStub = project + "." + sampleId + "." + runId + "." + lane + ".part" + partition
+              tmpRead1.delete
+              tmpRead2.delete
+
+              val nameStub = project + "." + sampleId + "." + runId
 
               for {
                 json <- SharedFile(tmpJson,
@@ -74,12 +96,7 @@ object Fastp {
                                    name = nameStub + ".fastp.html",
                                    deleteFile = true)
               } yield
-                FastpReport(html = html,
-                            json = json,
-                            project,
-                            sampleId,
-                            runId,
-                            lane)
+                FastpReport(html = html, json = json, project, sampleId, runId)
             }
           } yield result
 

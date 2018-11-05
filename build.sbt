@@ -77,7 +77,8 @@ lazy val pipelineExecutor = project
       "com.typesafe.akka" %% "akka-http-testkit" % "10.1.5" % "test",
       "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.20",
       "de.heikoseeberger" %% "akka-http-circe" % "1.22.0",
-      "com.github.samtools" % "htsjdk" % "2.16.1"
+      "com.github.samtools" % "htsjdk" % "2.16.1",
+      "com.github.pathikrit" %% "better-files" % "3.6.0"
     ),
     unmanagedClasspath in Test += {
       val testFolder = System.getenv("GC_TESTFOLDER")
@@ -85,7 +86,7 @@ lazy val pipelineExecutor = project
       else new File(testFolder).getCanonicalFile
     }
   )
-  .dependsOn(tasksSlurm)
+  .dependsOn(tasksSlurm, readqc)
   .enablePlugins(JavaServerAppPackaging)
   .enablePlugins(BuildInfoPlugin)
   .settings(

@@ -10,7 +10,6 @@ object FastpReport {
       project: Project,
       sampleId: SampleId,
       runId: RunId,
-      lane: Lane,
       metrics: Metrics
   )
 
@@ -26,8 +25,7 @@ object FastpReport {
     def apply(fastpJson: String,
               project: Project,
               sampleId: SampleId,
-              runId: RunId,
-              lane: Lane): Root = {
+              runId: RunId): Root = {
       val jsonRoot = io.circe.parser.parse(fastpJson).right.get
       val insertSizePeak =
         jsonRoot.hcursor
@@ -43,7 +41,7 @@ object FastpReport {
         .as[Double]
         .right
         .get
-      Root(project, sampleId, runId, lane, Metrics(gcContent, insertSizePeak))
+      Root(project, sampleId, runId, Metrics(gcContent, insertSizePeak))
     }
 
     implicit val encoder: Encoder[Root] =

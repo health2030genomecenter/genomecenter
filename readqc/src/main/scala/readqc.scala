@@ -71,15 +71,20 @@ trait Read {
 
 object ReadQC {
 
-  def process(file: File): Metrics = {
-    val fqReader = new FastqReader(file)
-    val it = fqReader.iterator.asScala.map { fq =>
-      new Read {
-        def bases = fq.getReadBases
-        def baseQ = fq.getBaseQualities
+  def process(files: Seq[File]): Metrics = {
+    val fqReader = files.map(file => new FastqReader(file))
+    try {
+      val it = fqReader.iterator.flatMap(_.iterator.asScala).map { fq =>
+        new Read {
+          def bases = fq.getReadBases
+          def baseQ = fq.getBaseQualities
+        }
       }
+      process(it)
+    } finally {
+      fqReader.foreach(_.close)
+
     }
-    process(it)
   }
 
   def padTo(buf: ArrayBuffer[Long], size: Int, elem: Long) = {

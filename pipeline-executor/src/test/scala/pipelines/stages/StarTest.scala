@@ -74,7 +74,6 @@ class StarAlignmentTestSuite
         metrics.metrics.meanReadLength shouldBe 302d
         metrics.metrics.numberOfReads shouldBe 5000
 
-
       }
 
     }

@@ -18,14 +18,15 @@ class FastpTestSuite
 
       val result = withTaskSystem(testConfig) { implicit ts =>
         val input =
-          FastQPerLaneWithMetadata(
-            FastQPerLane(
-              lane = lane,
-              read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
-              read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
-              umi = None,
-              partition = PartitionId(0)
-            ),
+          PerSampleFastQ(
+            Set(
+              FastQPerLane(
+                lane = lane,
+                read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
+                read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
+                umi = None,
+                partition = PartitionId(0)
+              )),
             project = project,
             sampleId = sampleId,
             runId = runId

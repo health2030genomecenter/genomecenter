@@ -51,7 +51,7 @@ case class AlignmentQCResult(
 case class SampleMetrics(alignmentSummary: SharedFile,
                          hsMetrics: SharedFile,
                          duplicationMetrics: SharedFile,
-                         fastpReports: Seq[FastpReport],
+                         fastpReport: FastpReport,
                          wgsMetrics: SharedFile,
                          project: Project,
                          sampleId: SampleId,
@@ -59,7 +59,8 @@ case class SampleMetrics(alignmentSummary: SharedFile,
     extends WithSharedFiles(alignmentSummary,
                             hsMetrics,
                             duplicationMetrics,
-                            wgsMetrics)
+                            wgsMetrics,
+                            fastpReport.json)
 
 case class RunQCTableInput(runId: RunId, samples: Seq[SampleMetrics])
     extends WithSharedFiles(samples.flatMap(_.files): _*)
@@ -198,17 +199,14 @@ object AlignmentQC {
                 AlignmentSummaryMetrics
                   .Root(txt, m.project, m.sampleId, m.runId))
           def parseFastpReport(m: SampleMetrics) =
-            Future.traverse(m.fastpReports) { fpReport =>
-              fpReport.json.file
-                .map(read)
-                .map(
-                  txt =>
-                    FastpReportModel.Root(txt,
-                                          fpReport.project,
-                                          fpReport.sampleId,
-                                          fpReport.runId,
-                                          fpReport.lane))
-            }
+            m.fastpReport.json.file
+              .map(read)
+              .map(
+                txt =>
+                  FastpReportModel.Root(txt,
+                                        m.fastpReport.project,
+                                        m.fastpReport.sampleId,
+                                        m.fastpReport.runId))
           def parseHsMetrics(m: SampleMetrics) =
             m.hsMetrics.file
               .map(read)
@@ -226,7 +224,7 @@ object AlignmentQC {
           def parse(m: SampleMetrics) =
             for {
               alignmentSummariesPerLane <- parseAlignmentSummaries(m)
-              fastpReportsPerLane <- parseFastpReport(m)
+              fastpReport <- parseFastpReport(m)
               hsMetricsPerLane <- parseHsMetrics(m)
               dupMetrics <- parseDupMetrics(m)
               wgsMetrics <- parseWgsMetrics(m)
@@ -234,13 +232,10 @@ object AlignmentQC {
               alignmentSummariesPerLane.map { alSummaryOfLane =>
                 val lane = alSummaryOfLane.lane
                 val hsMetricsOfLane = hsMetricsPerLane.find(_.lane == lane).get
-                // this selects an arbitrary partition if the fastq is partitioned
-                val fastpReportOfLane =
-                  fastpReportsPerLane.find(_.lane == lane).get
                 (alSummaryOfLane,
                  hsMetricsOfLane,
                  dupMetrics,
-                 fastpReportOfLane,
+                 fastpReport,
                  wgsMetrics)
               }
             }
