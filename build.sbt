@@ -48,6 +48,16 @@ lazy val readqc = project
     }
   )
 
+lazy val readqcCLI = project
+  .in(file("readqccli"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "readqccli",
+    assemblyJarName := "readqc",
+    test in assembly := {}
+  )
+  .dependsOn(readqc)
+
 lazy val umiProcessor = project
   .in(file("umiprocessor"))
   .settings(commonSettings: _*)
@@ -111,7 +121,9 @@ lazy val pipelineExecutor = project
     // second at test
     // (resources in Compile) would put the jar into a jar which slows the buidl.
     mappings in Universal += (assembly in Compile in umiProcessor).value -> "resources/umiprocessor",
-    resources in Test += (assembly in Compile in umiProcessor).value
+    resources in Test += (assembly in Compile in umiProcessor).value,
+    mappings in Universal += (assembly in Compile in readqcCLI).value -> "resources/readqc",
+    resources in Test += (assembly in Compile in readqcCLI).value
   )
 
 lazy val root = (project in file("."))

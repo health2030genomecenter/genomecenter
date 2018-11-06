@@ -3,7 +3,6 @@ package org.gc.readqc
 import htsjdk.samtools.fastq.{FastqReader, FastqRecord}
 
 import java.io._
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
 
 case class Distribution(
@@ -107,19 +106,12 @@ object ReadQC {
     }
   }
 
-  def padTo(buf: ArrayBuffer[Long], size: Int, elem: Long) = {
-    if (buf.size >= size) ()
-    else {
-      while (buf.length < size) {
-        buf.append(elem)
-      }
-    }
-  }
-
   def process(reads: Iterator[Read]): Metrics = {
     val totalBaseQDistribution = new DistributionSummary
-    val cycleBaseQDistributions = ArrayBuffer[DistributionSummary]()
-    val cycleBaseN = ArrayBuffer[Long]()
+    val cycleBaseQDistributions =
+      Array.fill[DistributionSummary](2000)(new DistributionSummary)
+    val cycleBaseN = Array.fill(2000)(0L)
+    var maxCycle = -1
     var readNumber = 0L
 
     // This is the maximum which fits into a plain java array
@@ -129,17 +121,7 @@ object ReadQC {
     var totalBases = 0L
     var gcBases = 0L
 
-    def getCycleDist(i: Int) =
-      if (cycleBaseQDistributions.length > i) cycleBaseQDistributions(i)
-      else {
-        while (cycleBaseQDistributions.length <= i) {
-          cycleBaseQDistributions.append(new DistributionSummary)
-        }
-        cycleBaseQDistributions(i)
-      }
-
     def addCycleBaseN(i: Int) = {
-      padTo(cycleBaseN, i + 1, 0L)
       cycleBaseN(i) += 1
     }
 
@@ -151,26 +133,33 @@ object ReadQC {
         kmers(stringToInt(bases, max = kmerLength)) = 1
       }
       {
-        var c = 0
+        var cycleIdx = 0
         qual.foreach { baseQ =>
           val asInt = baseQ.toInt
           totalBaseQDistribution.add(asInt)
-          getCycleDist(c).add(asInt)
-          c += 1
+          cycleBaseQDistributions(cycleIdx).add(asInt)
+          cycleIdx += 1
         }
       }
 
       {
-        var c2 = 0
-        bases.foreach { base =>
+        var cycleIdx = 0
+
+        var i = 0
+        while (i < bases.length) {
+          if (maxCycle < i) {
+            maxCycle = i
+          }
+          val base = bases(i)
           if (base == 'G' || base == 'C') {
             gcBases += 1
           }
           if (base == 'N') {
-            addCycleBaseN(c2)
+            addCycleBaseN(cycleIdx)
           }
-          c2 += 1
+          cycleIdx += 1
           totalBases += 1
+          i += 1
         }
       }
 
@@ -180,8 +169,8 @@ object ReadQC {
 
     val gcFraction = gcBases.toDouble / totalBases
 
-    padTo(cycleBaseN, cycleBaseQDistributions.size, 0L)
-    val cycles = (cycleBaseQDistributions zip cycleBaseN zipWithIndex) map {
+    val cycles = (cycleBaseQDistributions.take(maxCycle + 1) zip cycleBaseN
+      .take(maxCycle + 1) zipWithIndex) map {
       case ((dist, baseN), idx) =>
         CycleNumberMetrics(
           idx + 1,

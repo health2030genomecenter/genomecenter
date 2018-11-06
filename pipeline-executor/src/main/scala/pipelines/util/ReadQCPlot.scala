@@ -15,13 +15,13 @@ object ReadQCPlot {
           case ((_, _, readType, metrics), idx) =>
             val color = if (readType == 1) 0d else 1d
             (
-              idx.toDouble + .5, //x
+              idx.toDouble + .6, //x
               metrics.baseQ.mean, // middle
               metrics.baseQ.mean - metrics.baseQ.sd, // q1
               metrics.baseQ.mean + metrics.baseQ.sd, // q3
               metrics.baseQ.min, // min
               metrics.baseQ.max, // max
-              idx.toDouble + 1.5, // x2col
+              idx.toDouble + 1.4, // x2col
               0d, // fill index
               color // width
             )
@@ -29,10 +29,15 @@ object ReadQCPlot {
 
       boxplotImpl(
         data,
-        xnames = metrics.map(_._1),
+        xnames = metrics.map {
+          case (sample, lane, read, _) => sample + "." + lane + "." + read
+        },
         boxColor = ManualColor(Map(0d -> Color.red, 1d -> Color.blue)),
         ylab = "BaseQ",
-        xLabelRotation = math.Pi * -0.4)
+        xLabelRotation = math.Pi * -0.4,
+        xWidth = 70 fts,
+        fontSize = 0.5 fts
+      )
     }
 
     val readNumberPerSamplePerLanePerRead = {
@@ -56,7 +61,10 @@ object ReadQCPlot {
         xlab = "ReadNumber",
         yNumTicks = 0,
         ynames = xnames,
-        yCustomGrid = true
+        yCustomGrid = true,
+        yHeight = 60 fts,
+        yLabFontSize = 0.5 fts,
+        xLabDistance = 0.3 fts
       )
     }
 
@@ -82,7 +90,10 @@ object ReadQCPlot {
         xlab = "Distinct 13 mers in prefix",
         yNumTicks = 0,
         ynames = xnames,
-        yCustomGrid = true
+        yCustomGrid = true,
+        yHeight = 60 fts,
+        yLabFontSize = 0.5 fts,
+        xLabDistance = 0.3 fts
       )
     }
 
@@ -108,20 +119,24 @@ object ReadQCPlot {
         yNumTicks = 0,
         ynames = xnames,
         yCustomGrid = true,
-        xlim = Some((0d, 1d))
+        yHeight = 60 fts,
+        xlim = Some((0d, 1d)),
+        yLabFontSize = 0.5 fts,
+        xLabDistance = 0.3 fts
       )
     }
 
-    val cyclesBaseQ = {
-      val colors = DiscreteColors(metrics.size)
-      val legend = metrics.zipWithIndex.map {
-        case ((sample, lane, read, _), idx) =>
-          sample + "." + lane + "." + read -> PointLegend(shape =
-                                                            Shape.circle(1),
-                                                          colors(idx.toDouble))
+    def makeCyclesBaseQ(
+        metrics: Seq[(SampleId, Lane, ReadType, readqc.Metrics)]) = {
+      val samples = metrics.map(_._1).distinct
+      val colors = DiscreteColors(samples.size)
+      val legend = samples.zipWithIndex.map {
+        case (sample, idx) =>
+          sample -> LineLegend(stroke = Stroke(1), colors(idx.toDouble))
       }
-      val lines = metrics.zipWithIndex.flatMap {
-        case ((_, _, _, metrics), idx) =>
+      val sample2Color = samples.zipWithIndex.toMap
+      val lines = metrics.flatMap {
+        case (sample, _, _, metrics) =>
           val meanLine = metrics.cycles.map {
             case CycleNumberMetrics(cycleIdx, baseQ, _) =>
               (cycleIdx.toDouble, baseQ.mean)
@@ -130,42 +145,54 @@ object ReadQCPlot {
             case CycleNumberMetrics(cycleIdx, baseQ, _) =>
               (cycleIdx.toDouble, baseQ.mean - baseQ.sd)
           }
-          val color = colors(idx.toDouble)
-          List(meanLine -> line(color = color),
-               meanMinusSdLine -> line(color = color))
+          val color = colors(sample2Color(sample).toDouble)
+          List(meanLine -> line(color = color, stroke = Stroke(0.5)),
+               meanMinusSdLine -> line(color = color, stroke = Stroke(0.5)))
       }
-      xyplot(lines: _*)(extraLegend = legend, ylab = "BaseQ", xlab = "Cycle")
+      xyplot(lines: _*)(extraLegend = legend,
+                        ylab = "BaseQ",
+                        xlab = "Cycle",
+                        legendFontSize = 0.9 fts,
+                        xWidth = 40 fts,
+                        yHeight = 40 fts)
     }
 
+    val cycleBaseQsPlots = makeCyclesBaseQ(metrics)
+
     val cyclesN = {
-      val colors = DiscreteColors(metrics.size)
-      val legend = metrics.zipWithIndex.map {
-        case ((sample, lane, read, _), idx) =>
-          sample + "." + lane + "." + read -> PointLegend(shape =
-                                                            Shape.circle(1),
-                                                          colors(idx.toDouble))
+      val samples = metrics.map(_._1).distinct
+      val colors = DiscreteColors(samples.size)
+      val legend = samples.zipWithIndex.map {
+        case (sample, idx) =>
+          sample -> LineLegend(stroke = Stroke(1), colors(idx.toDouble))
       }
-      val lines = metrics.zipWithIndex.flatMap {
-        case ((_, _, _, metrics), idx) =>
+      val sample2Color = samples.zipWithIndex.toMap
+      val lines = metrics.flatMap {
+        case (sample, _, _, metrics) =>
           val meanLine = metrics.cycles.map {
             case CycleNumberMetrics(cycleIdx, _, ns) =>
               (cycleIdx.toDouble, ns.toDouble)
           }
-          val color = colors(idx.toDouble)
-          List(meanLine -> line(color = color))
+          val color = colors(sample2Color(sample).toDouble)
+          List(meanLine -> line(color = color, stroke = Stroke(0.5)))
       }
-      xyplot(lines: _*)(extraLegend = legend, ylab = "Ns", xlab = "Cycle")
+      xyplot(lines: _*)(extraLegend = legend,
+                        ylab = "Ns",
+                        xlab = "Cycle",
+                        xWidth = 40 fts,
+                        yHeight = 40 fts)
     }
 
     val compositePlot =
       group(
-        cyclesBaseQ,
-        baseQPerSamplePerLanePerRead,
+        cycleBaseQsPlots,
         cyclesN,
-        readNumberPerSamplePerLanePerRead,
-        uniquemersPerSamplePerLanePerRead,
-        gcPerSamplePerLanePerRead,
-        TableLayout(2, 4)
+        baseQPerSamplePerLanePerRead,
+        group(readNumberPerSamplePerLanePerRead,
+              uniquemersPerSamplePerLanePerRead,
+              gcPerSamplePerLanePerRead,
+              HorizontalStack(Right, 0)),
+        VerticalStack(gap = 15d)
       )
     pdfToFile(compositePlot.build)
   }

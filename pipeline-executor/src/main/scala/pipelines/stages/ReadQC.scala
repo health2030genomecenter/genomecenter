@@ -8,10 +8,7 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.Future
 import org.gc.readqc
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{ResourceConfig, ReadQCPlot}
-
-import akka.stream.scaladsl.StreamConverters
-import scala.collection.JavaConverters._
+import org.gc.pipelines.util.{ResourceConfig, ReadQCPlot, Exec, JVM}
 
 case class ReadQCPerUnitInput(fastqs: Set[FastQ])
     extends WithSharedFiles(fastqs.toSeq.flatMap(_.files): _*)
@@ -26,6 +23,11 @@ case class ReadQCInput(samples: Set[PerSampleFastQ], runId: RunId)
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object ReadQC {
+
+  def extractReadQCJar(): String =
+    fileutils.TempFile
+      .getExecutableFromJar("/readqc", "readqc")
+      .getAbsolutePath
 
   val readQC = AsyncTask[ReadQCInput, ReadQCResult]("__readqc", 1) {
     case ReadQCInput(samples, runId) =>
@@ -76,22 +78,25 @@ object ReadQC {
     AsyncTask[ReadQCPerUnitInput, ReadQCMetrics]("__readqc-unit", 1) {
       case ReadQCPerUnitInput(fastqs) =>
         implicit computationEnvironment =>
-          implicit val materializer =
-            computationEnvironment.components.actorMaterializer
-
           log.info("read qc of fastq files: " + fastqs)
 
-          val fastqSource = fastqs.toSeq.map(_.file.source).reduce(_ ++ _)
-          val reader = new java.io.BufferedReader(
-            new java.io.InputStreamReader(
-              new java.util.zip.GZIPInputStream(
-                fastqSource.runWith(StreamConverters.asInputStream()),
-                65536)))
-          val fqIterator =
-            new htsjdk.samtools.fastq.FastqReader(reader).iterator
-          val metrics = readqc.ReadQC.processHtsJdkRecords(fqIterator.asScala)
+          val readQCJar = extractReadQCJar()
 
-          Future.successful(ReadQCMetrics(metrics))
+          for {
+            fastqFiles <- Future.traverse(fastqs.toSeq)(_.file.file)
+            metrics = {
+              val (stdout, _, _) =
+                Exec.bash(logDiscriminator = "readqc",
+                          onError = Exec.ThrowIfNonZero)(s""" \\
+                        cat ${fastqFiles
+                  .map(_.getAbsolutePath)
+                  .mkString(" ")} | \\
+                        gunzip -c | \\
+                        java ${JVM.serial} -Xmx5G -jar $readQCJar 
+                        """)
+              io.circe.parser.decode[readqc.Metrics](stdout.mkString).right.get
+            }
+          } yield ReadQCMetrics(metrics)
 
     }
 }
