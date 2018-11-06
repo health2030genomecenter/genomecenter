@@ -26,6 +26,8 @@ object ResourceConfig {
 
   def sortBam(implicit tsc: TaskSystemComponents) = parse("sortBam")
 
+  def readQC(implicit tsc: TaskSystemComponents) = parse("readQC")
+
   def picardMergeAndMarkDuplicates(implicit tsc: TaskSystemComponents) =
     parse("picardMergeAndMarkDuplicates")
 

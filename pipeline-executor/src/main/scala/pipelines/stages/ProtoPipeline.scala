@@ -84,6 +84,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       perSampleFastQs <- executeDemultiplexing
 
       fastpReports = startFastpReports(perSampleFastQs)
+      readQCReports = startReadQCPlots(perSampleFastQs, r.runId)
 
       samplesForWESAnalysis = ProtoPipeline.select(
         r.runConfiguration.wesSelector,
@@ -121,6 +122,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       perSampleResultsRNA <- rnaSeqAnalysis
 
       fastpReports <- fastpReports
+      _ <- readQCReports
 
       sampleQCsWES = extractQCFiles(perSampleResultsWES, fastpReports)
 
@@ -176,6 +178,12 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         Fastp.report(fq)(ResourceConfig.fastp)
     })
   }
+  def startReadQCPlots(perSampleFastQs: Seq[PerSampleFastQ], runId: RunId)(
+      implicit tsc: TaskSystemComponents): Future[ReadQCResult] =
+    tsc.withFilePrefix(Seq("readqc", runId)) { implicit tsc =>
+      ReadQC.readQC(ReadQCInput(perSampleFastQs.toSet, runId))(
+        ResourceConfig.minimal)
+    }
 
 }
 

@@ -1,6 +1,6 @@
 package org.gc.readqc
 
-import htsjdk.samtools.fastq.FastqReader
+import htsjdk.samtools.fastq.{FastqReader, FastqRecord}
 
 import java.io._
 import scala.collection.mutable.ArrayBuffer
@@ -59,10 +59,21 @@ case class CycleNumberMetrics(
 case class Metrics(
     baseQ: Distribution,
     cycles: Seq[CycleNumberMetrics],
-    numberOfDistinct15Mers: Int,
+    numberOfDistinct13Mers: Int,
     readNumber: Long,
     gcFraction: Double
 )
+
+object Metrics {
+  import io.circe.generic.auto._
+  import io.circe.generic.semiauto._
+  import io.circe._
+  implicit val encoder: Encoder[Metrics] =
+    deriveEncoder[Metrics]
+  implicit val decoder: Decoder[Metrics] =
+    deriveDecoder[Metrics]
+
+}
 
 trait Read {
   def bases: Array[Byte]
@@ -70,6 +81,15 @@ trait Read {
 }
 
 object ReadQC {
+
+  def processHtsJdkRecords(htsjdkRecords: Iterator[FastqRecord]): Metrics = {
+    process(htsjdkRecords.map { fq =>
+      new Read {
+        def bases = fq.getReadBases
+        def baseQ = fq.getBaseQualities
+      }
+    })
+  }
 
   def process(files: Seq[File]): Metrics = {
     val fqReader = files.map(file => new FastqReader(file))
@@ -172,7 +192,7 @@ object ReadQC {
     Metrics(
       baseQ = totalBaseQDistribution.make,
       cycles = cycles,
-      numberOfDistinct15Mers = kmers.count(_ > 0),
+      numberOfDistinct13Mers = kmers.count(_ > 0),
       readNumber = readNumber,
       gcFraction = gcFraction
     )

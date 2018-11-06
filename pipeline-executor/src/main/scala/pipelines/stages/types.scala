@@ -93,7 +93,6 @@ case class CoordinateSortedBam(bam: SharedFile, bai: SharedFile)
       bam <- bam.file
     } yield bam
 }
-
 case class FastQPerLane(lane: Lane,
                         read1: FastQ,
                         read2: FastQ,
@@ -115,6 +114,9 @@ case class BedFile(file: SharedFile) extends WithSharedFiles(file)
 
 case class GTFFile(file: SharedFile) extends WithSharedFiles(file)
 
+case class PerSamplePerLanePerReadMetrics(
+    seq: Seq[(SampleId, Lane, ReadType, org.gc.readqc.Metrics)])
+
 //
 // Codecs from here on
 //
@@ -124,6 +126,13 @@ object FastQWithSampleMetadata {
     deriveEncoder[FastQWithSampleMetadata]
   implicit val decoder: Decoder[FastQWithSampleMetadata] =
     deriveDecoder[FastQWithSampleMetadata]
+}
+
+object PerSamplePerLanePerReadMetrics {
+  implicit val encoder: Encoder[PerSamplePerLanePerReadMetrics] =
+    deriveEncoder[PerSamplePerLanePerReadMetrics]
+  implicit val decoder: Decoder[PerSamplePerLanePerReadMetrics] =
+    deriveDecoder[PerSamplePerLanePerReadMetrics]
 }
 
 object FastQ {

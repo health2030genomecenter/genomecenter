@@ -6,6 +6,7 @@ lazy val commonSettings = Seq(
 ) ++ Seq(
   organization := "org.gc",
   fork := true,
+  javaOptions += "-Xmx4G",
   cancelable in Global := true,
   git.useGitDescribe := true
 )
@@ -34,6 +35,8 @@ lazy val readqc = project
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "com.github.samtools" % "htsjdk" % "2.16.1",
+      "io.circe" %% "circe-core" % "0.10.1",
+      "io.circe" %% "circe-generic" % "0.10.1",
       "io.github.pityka" %% "fileutils" % "1.2.2" % "test"
     ),
     assemblyJarName := "readqc",
@@ -69,6 +72,8 @@ lazy val pipelineExecutor = project
       "io.github.pityka" %% "tasks-collection" % "0.0.23-SNAPSHOT",
       "io.github.pityka" %% "tasks-ui-backend" % "0.0.23-SNAPSHOT",
       "io.github.pityka" %% "fileutils" % "1.2.2",
+      "io.github.pityka" %% "nspl-core" % "0.0.20-SNAPSHOT",
+      "io.github.pityka" %% "nspl-awt" % "0.0.20-SNAPSHOT",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
@@ -78,7 +83,9 @@ lazy val pipelineExecutor = project
       "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.20",
       "de.heikoseeberger" %% "akka-http-circe" % "1.22.0",
       "com.github.samtools" % "htsjdk" % "2.16.1",
-      "com.github.pathikrit" %% "better-files" % "3.6.0"
+      "com.github.pathikrit" %% "better-files" % "3.6.0",
+      "io.circe" %% "circe-core" % "0.10.1",
+      "io.circe" %% "circe-generic" % "0.10.1"
     ),
     unmanagedClasspath in Test += {
       val testFolder = System.getenv("GC_TESTFOLDER")
