@@ -147,8 +147,9 @@ object ReadQC {
       val bases = read.bases
       val qual = read.baseQ
 
-      kmers(stringToInt(bases, max = kmerLength)) = 1
-
+      if (bases.length >= kmerLength) {
+        kmers(stringToInt(bases, max = kmerLength)) = 1
+      }
       {
         var c = 0
         qual.foreach { baseQ =>
@@ -208,7 +209,7 @@ object ReadQC {
         case 'C' => 1
         case 'G' => 2
         case 'T' => 3
-        case 'N' => 4
+        case _   => 4
       }
       sum = 5 * sum + c
       i += 1
