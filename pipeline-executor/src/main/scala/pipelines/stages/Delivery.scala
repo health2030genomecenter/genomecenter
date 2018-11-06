@@ -13,9 +13,12 @@ case class CollectDeliverablesInput(
     runId: RunId,
     fastqs: Set[PerSampleFastQ],
     wesBams: Set[SingleSamplePipelineResult],
-    rnaSeqBams: Set[StarResult]
+    rnaSeqBams: Set[StarResult],
+    fastp: Set[FastpReport]
 ) extends WithSharedFiles(
-      fastqs.toSeq.flatMap(_.files) ++ wesBams.toSeq.flatMap(_.files): _*)
+      fastqs.toSeq.flatMap(_.files) ++ wesBams.toSeq
+        .flatMap(_.files) ++ rnaSeqBams.toSeq.flatMap(_.files) ++ fastp.toSeq
+        .flatMap(_.files): _*)
 
 case class DeliverableList(lists: Seq[(Project, SharedFile)])
     extends WithSharedFiles(lists.map(_._2): _*)
@@ -54,12 +57,26 @@ object Delivery {
         case (project, pairs) =>
           (project, pairs.map(_._2))
       }
+  def extractFastp(fastpReports: Set[FastpReport]) =
+    fastpReports.toSeq
+      .map { fastpReport =>
+        (fastpReport.project, fastpReport.html)
+      }
+      .groupBy { case (project, _) => project }
+      .map {
+        case (project, pairs) =>
+          (project, pairs.map(_._2))
+      }
 
   val collectDeliverables =
     AsyncTask[CollectDeliverablesInput, DeliverableList](
       "__collectdeliverables",
       1) {
-      case CollectDeliverablesInput(runId, fastqs, wesResults, rnaSeqResults) =>
+      case CollectDeliverablesInput(runId,
+                                    fastqs,
+                                    wesResults,
+                                    rnaSeqResults,
+                                    fastp) =>
         implicit computationEnvironment =>
           def inProjectFolder[T](project: Project) =
             appendToFilePrefix[T](Seq(project))
@@ -73,8 +90,12 @@ object Delivery {
           val collectedRnaSeqBam: Map[Project, Seq[SharedFile]] =
             extractBamListFromRnaSeqResults(rnaSeqResults)
 
+          val collectedFastp: Map[Project, Seq[SharedFile]] =
+            extractFastp(fastp)
+
           val collectedFiles = List(collectedRnaSeqBam,
                                     collectedCoordinateSortedBams,
+                                    collectedFastp,
                                     collectedFastqs)
             .reduce(
               tasks.util

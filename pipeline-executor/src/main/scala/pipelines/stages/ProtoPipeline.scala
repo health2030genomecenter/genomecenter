@@ -142,7 +142,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
             r.runId,
             perSampleFastQs.toSet,
             perSampleResultsWES.samples,
-            perSampleResultsRNA.samples
+            perSampleResultsRNA.samples,
+            fastpReports.toSet
           ))(ResourceConfig.minimal)
       }
 
