@@ -25,9 +25,9 @@ class DistributionSummary {
   def add(i: Int) = {
     num += 1
 
-    /** Welford's algorithm for online one pass variance
-      * https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_Online_algorithm
-      */
+    /* Welford's algorithm for online one pass variance
+     * https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_Online_algorithm
+     */
     val oldMean = runningMean
     runningMean = runningMean + (i - runningMean) / num
     M = M + (i - runningMean) * (i - oldMean)
