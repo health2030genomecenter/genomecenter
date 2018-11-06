@@ -130,10 +130,12 @@ object ReadQCPlot {
         metrics: Seq[(SampleId, Lane, ReadType, readqc.Metrics)]) = {
       val samples = metrics.map(_._1).distinct
       val colors = DiscreteColors(samples.size)
-      val legend = samples.zipWithIndex.map {
-        case (sample, idx) =>
-          sample -> LineLegend(stroke = Stroke(1), colors(idx.toDouble))
-      }
+      val legend = samples.zipWithIndex
+        .map {
+          case (sample, idx) =>
+            sample -> PointLegend(shapePick(idx), colors(idx.toDouble))
+        }
+        .sortBy(_._1.toString)
       val sample2Color = samples.zipWithIndex.toMap
       val lines = metrics.flatMap {
         case (sample, _, _, metrics) =>
@@ -141,13 +143,13 @@ object ReadQCPlot {
             case CycleNumberMetrics(cycleIdx, baseQ, _) =>
               (cycleIdx.toDouble, baseQ.mean)
           }
-          val meanMinusSdLine = metrics.cycles.map {
-            case CycleNumberMetrics(cycleIdx, baseQ, _) =>
-              (cycleIdx.toDouble, baseQ.mean - baseQ.sd)
-          }
           val color = colors(sample2Color(sample).toDouble)
-          List(meanLine -> line(color = color, stroke = Stroke(0.5)),
-               meanMinusSdLine -> line(color = color, stroke = Stroke(0.5)))
+          List(
+            meanLine -> line(color = color, stroke = Stroke(0.5)),
+            meanLine.grouped(10).map(_.head).toVector -> point(
+              shapes = Vector(shapePick(sample2Color(sample))),
+              color = color)
+          )
       }
       xyplot(lines: _*)(extraLegend = legend,
                         ylab = "BaseQ",
@@ -162,10 +164,12 @@ object ReadQCPlot {
     val cyclesN = {
       val samples = metrics.map(_._1).distinct
       val colors = DiscreteColors(samples.size)
-      val legend = samples.zipWithIndex.map {
-        case (sample, idx) =>
-          sample -> LineLegend(stroke = Stroke(1), colors(idx.toDouble))
-      }
+      val legend = samples.zipWithIndex
+        .map {
+          case (sample, idx) =>
+            sample -> LineLegend(stroke = Stroke(1), colors(idx.toDouble))
+        }
+        .sortBy(_._1.toString)
       val sample2Color = samples.zipWithIndex.toMap
       val lines = metrics.flatMap {
         case (sample, _, _, metrics) =>
