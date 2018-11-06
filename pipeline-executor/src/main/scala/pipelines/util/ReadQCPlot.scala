@@ -31,7 +31,8 @@ object ReadQCPlot {
         data,
         xnames = metrics.map(_._1),
         boxColor = ManualColor(Map(0d -> Color.red, 1d -> Color.blue)),
-        ylab = "BaseQ")
+        ylab = "BaseQ",
+        xLabelRotation = math.Pi * -0.4)
     }
 
     val readNumberPerSamplePerLanePerRead = {
