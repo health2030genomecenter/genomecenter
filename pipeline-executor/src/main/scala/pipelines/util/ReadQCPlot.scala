@@ -64,7 +64,8 @@ object ReadQCPlot {
         yCustomGrid = true,
         yHeight = 60 fts,
         yLabFontSize = 0.5 fts,
-        xLabDistance = 0.3 fts
+        xLabDistance = 0.3 fts,
+        yAxisMargin = 0.01
       )
     }
 
@@ -93,7 +94,8 @@ object ReadQCPlot {
         yCustomGrid = true,
         yHeight = 60 fts,
         yLabFontSize = 0.5 fts,
-        xLabDistance = 0.3 fts
+        xLabDistance = 0.3 fts,
+        yAxisMargin = 0.01
       )
     }
 
@@ -122,7 +124,8 @@ object ReadQCPlot {
         yHeight = 60 fts,
         xlim = Some((0d, 1d)),
         yLabFontSize = 0.5 fts,
-        xLabDistance = 0.3 fts
+        xLabDistance = 0.3 fts,
+        yAxisMargin = 0.01
       )
     }
 
