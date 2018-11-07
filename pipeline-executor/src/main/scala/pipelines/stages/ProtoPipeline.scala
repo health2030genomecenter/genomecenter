@@ -2,6 +2,7 @@ package org.gc.pipelines.stages
 
 import scala.concurrent.{ExecutionContext, Future}
 import tasks._
+import tasks.collection._
 import tasks.circesupport._
 import org.gc.pipelines.application.{
   Pipeline,
@@ -17,9 +18,20 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import com.typesafe.scalalogging.StrictLogging
 import scala.util.{Success, Failure}
 
+case class PipelineResult(
+    wes: Set[SingleSamplePipelineResult],
+    rnaseq: Set[StarResult]
+) extends WithSharedFiles(
+      wes.toSeq.flatMap(_.files) ++ rnaseq.toSeq.flatMap(_.files): _*
+    )
+
 class ProtoPipeline(implicit EC: ExecutionContext)
-    extends Pipeline
+    extends Pipeline[PipelineResult]
     with StrictLogging {
+
+  def combine(r1: PipelineResult, r2: PipelineResult) =
+    PipelineResult(r1.wes ++ r2.wes, r1.rnaseq ++ r2.rnaseq)
+
   def canProcess(r: RunfolderReadyForProcessing) = {
     r.runConfiguration.automatic
   }
@@ -80,6 +92,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       gtf <- ProtoPipeline.fetchGenemodel(r.runConfiguration)
       selectionTargetIntervals <- ProtoPipeline.fetchTargetIntervals(
         r.runConfiguration)
+      dbSnpVcf <- ProtoPipeline.fetchDbSnpVcf(r.runConfiguration)
+      variantEvaluationIntervals <- ProtoPipeline
+        .fetchVariantEvaluationIntervals(r.runConfiguration)
 
       perSampleFastQs <- executeDemultiplexing
 
@@ -107,7 +122,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           samplesForWESAnalysis.toSet,
           reference,
           knownSites.toSet,
-          selectionTargetIntervals
+          selectionTargetIntervals,
+          dbSnpVcf,
+          variantEvaluationIntervals
         ))(ResourceConfig.minimal)
 
       rnaSeqAnalysis = ProtoPipeline.allSamplesRNASeq(
@@ -147,12 +164,32 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           ))(ResourceConfig.minimal)
       }
 
-    } yield true
+    } yield
+      Some(
+        PipelineResult(perSampleResultsWES.samples,
+                       perSampleResultsRNA.samples))
 
   }
 
-  def extractQCFiles(sampleResults: PerSamplePipelineResult,
-                     fastpReports: Seq[FastpReport]): Seq[SampleMetrics] =
+  def aggregateAcrossRuns(state: PipelineResult)(
+      implicit tsc: TaskSystemComponents): Future[Boolean] =
+    Future.successful(true)
+
+  val persistenceFilename = "__PastRuns"
+  def last(implicit tsc: TaskSystemComponents) =
+    for {
+      eValue <- EValue.getByName[PipelineResult](persistenceFilename)
+      data <- eValue.get
+    } yield data
+
+  def persist(t: PipelineResult)(implicit tsc: TaskSystemComponents) =
+    for {
+      _ <- EValue(t, persistenceFilename)
+    } yield t
+
+  private def extractQCFiles(
+      sampleResults: PerSamplePipelineResult,
+      fastpReports: Seq[FastpReport]): Seq[SampleMetrics] =
     sampleResults.samples.toSeq.map { sample =>
       val fastpReportsOfSample = fastpReports.find { fp =>
         fp.sampleId == sample.sampleId &&
@@ -165,6 +202,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         sample.duplicationQC.markDuplicateMetrics,
         fastpReportsOfSample,
         sample.wgsQC.wgsMetrics,
+        sample.gvcfQC.summary,
         sample.project,
         sample.sampleId,
         sample.runId
@@ -191,10 +229,12 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 case class PerSamplePipelineInput(demultiplexed: Set[PerSampleFastQ],
                                   reference: ReferenceFasta,
                                   knownSites: Set[VCF],
-                                  selectionTargetIntervals: BedFile)
+                                  selectionTargetIntervals: BedFile,
+                                  dbSnpVcf: VCF,
+                                  variantEvaluationIntervals: BedFile)
     extends WithSharedFiles(
       demultiplexed.toSeq.flatMap(_.files) ++ reference.files ++ knownSites
-        .flatMap(_.files) ++ selectionTargetIntervals.files: _*)
+        .flatMap(_.files) ++ selectionTargetIntervals.files ++ dbSnpVcf.files ++ variantEvaluationIntervals.files: _*)
 
 case class PerSamplePipelineInputRNASeq(demultiplexed: Set[PerSampleFastQ],
                                         reference: ReferenceFasta,
@@ -206,21 +246,26 @@ case class PerSamplePipelineInputRNASeq(demultiplexed: Set[PerSampleFastQ],
 case class SingleSamplePipelineInput(demultiplexed: PerSampleFastQ,
                                      knownSites: Set[VCF],
                                      indexedReference: IndexedReferenceFasta,
-                                     selectionTargetIntervals: BedFile)
+                                     selectionTargetIntervals: BedFile,
+                                     dbSnpVcf: VCF,
+                                     variantEvaluationIntervals: BedFile)
     extends WithSharedFiles(
       demultiplexed.files ++ indexedReference.files ++ knownSites.flatMap(
         _.files) ++ selectionTargetIntervals.files: _*)
 
 case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
+                                      haplotypeCallerReferenceCalls: VCF,
+                                      gvcf: VCF,
                                       project: Project,
                                       sampleId: SampleId,
                                       runId: RunId,
                                       alignmentQC: AlignmentQCResult,
                                       duplicationQC: DuplicationQCResult,
                                       targetSelectionQC: SelectionQCResult,
-                                      wgsQC: CollectWholeGenomeMetricsResult)
+                                      wgsQC: CollectWholeGenomeMetricsResult,
+                                      gvcfQC: VariantCallingMetricsResult)
     extends WithSharedFiles(
-      bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files: _*)
+      bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.files ++ gvcf.files: _*)
 
 case class PerSamplePipelineResult(samples: Set[SingleSamplePipelineResult])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
@@ -344,6 +389,20 @@ object ProtoPipeline extends StrictLogging {
       ec: ExecutionContext) =
     fetchFile("references", runConfiguration.geneModelGtf).map(GTFFile(_))
 
+  private def fetchVariantEvaluationIntervals(
+      runConfiguration: RunConfiguration)(implicit tsc: TaskSystemComponents,
+                                          ec: ExecutionContext) =
+    fetchFile("references", runConfiguration.variantEvaluationIntervals)
+      .map(BedFile(_))
+
+  private def fetchDbSnpVcf(runConfiguration: RunConfiguration)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) =
+    for {
+      vcf <- fetchFile("references", runConfiguration.dbSnpVcf)
+      vcfidx <- fetchFile("references", runConfiguration.dbSnpVcf + ".idx")
+    } yield VCF(vcf, Some(vcfidx))
+
   private def fetchFile(folderName: String, path: String)(
       implicit tsc: TaskSystemComponents) = {
     tsc.withFilePrefix(Seq(folderName)) { implicit tsc =>
@@ -402,7 +461,9 @@ object ProtoPipeline extends StrictLogging {
       case SingleSamplePipelineInput(demultiplexed,
                                      knownSites,
                                      indexedReference,
-                                     selectionTargetIntervals) =>
+                                     selectionTargetIntervals,
+                                     dbSnpVcf,
+                                     variantEvaluationIntervals) =>
         implicit computationEnvironment =>
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
@@ -475,16 +536,53 @@ object ProtoPipeline extends StrictLogging {
                 ResourceConfig.minimal)
             }
 
+            haplotypeCallerReferenceCalls <- intoFinalFolder {
+              implicit computationEnvironment =>
+                HaplotypeCaller.haplotypeCaller(
+                  HaplotypeCallerInput(recalibrated, indexedReference))(
+                  ResourceConfig.minimal)
+            }
+
+            GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
+              implicit computationEnvironment =>
+                HaplotypeCaller.genotypeGvcfs(
+                  GenotypeGVCFsInput(
+                    Set(haplotypeCallerReferenceCalls),
+                    indexedReference,
+                    dbSnpVcf,
+                    demultiplexed.project + "." + demultiplexed.sampleId + ".single"))(
+                  ResourceConfig.minimal)
+            }
+
+            gvcf <- intoFinalFolder { implicit computationEnvironment =>
+              HaplotypeCaller.mergeVcfs(MergeVCFInput(
+                genotypesScattered,
+                demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
+                ResourceConfig.minimal)
+            }
+
+            gvcfQC <- intoQCFolder { implicit computationEnvironment =>
+              HaplotypeCaller.collectVariantCallingMetrics(
+                CollectVariantCallingMetricsInput(indexedReference,
+                                                  gvcf,
+                                                  dbSnpVcf,
+                                                  variantEvaluationIntervals))(
+                ResourceConfig.minimal)
+            }
+
           } yield
             SingleSamplePipelineResult(
               bam = recalibrated,
+              haplotypeCallerReferenceCalls = haplotypeCallerReferenceCalls,
+              gvcf = gvcf,
               project = demultiplexed.project,
               runId = demultiplexed.runId,
               sampleId = demultiplexed.sampleId,
               alignmentQC = alignmentQC,
               duplicationQC = duplicationQC,
               targetSelectionQC = targetSelectionQC,
-              wgsQC = wgsQC
+              wgsQC = wgsQC,
+              gvcfQC = gvcfQC
             )
 
     }
@@ -496,7 +594,9 @@ object ProtoPipeline extends StrictLogging {
       case PerSamplePipelineInput(demultiplexed,
                                   referenceFasta,
                                   knownSites,
-                                  selectionTargetIntervals) =>
+                                  selectionTargetIntervals,
+                                  dbSnpVcf,
+                                  variantEvaluationIntervals) =>
         implicit computationEnvironment =>
           releaseResources
           computationEnvironment.withFilePrefix(Seq("projects")) {
@@ -511,7 +611,9 @@ object ProtoPipeline extends StrictLogging {
                       SingleSamplePipelineInput(perSampleFastQs,
                                                 knownSites,
                                                 indexedFasta,
-                                                selectionTargetIntervals))(
+                                                selectionTargetIntervals,
+                                                dbSnpVcf,
+                                                variantEvaluationIntervals))(
                       ResourceConfig.minimal)
                   }
 
@@ -640,4 +742,11 @@ object PerSamplePipelineResultRNASeq {
     deriveEncoder[PerSamplePipelineResultRNASeq]
   implicit val decoder: Decoder[PerSamplePipelineResultRNASeq] =
     deriveDecoder[PerSamplePipelineResultRNASeq]
+}
+
+object PipelineResult {
+  implicit val encoder: Encoder[PipelineResult] =
+    deriveEncoder[PipelineResult]
+  implicit val decoder: Decoder[PipelineResult] =
+    deriveDecoder[PipelineResult]
 }

@@ -49,7 +49,7 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       List(TestPipeline))
+                                       TestPipeline)
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .runWith(Sink.seq),
@@ -75,7 +75,7 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       List(TestPipeline))
+                                       TestPipeline)
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .runWith(Sink.seq),
@@ -100,7 +100,7 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       List(TestPipelineWhichNeverRuns))
+                                       TestPipelineWhichNeverRuns)
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .runWith(Sink.seq),
@@ -124,7 +124,7 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       List(TestPipelineWhichFails))
+                                       TestPipelineWhichFails)
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .runWith(Sink.seq),
@@ -154,6 +154,8 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
                                                      Selector.empty,
                                                      Selector.empty,
                                                      None,
+                                                     "fake",
+                                                     "fake",
                                                      "fake"))
       )
       .take(take.toLong)
@@ -166,9 +168,21 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
       }
 }
 
-object TestPipeline extends Pipeline {
+trait FakePipeline extends Pipeline[Boolean] {
+  def combine(t1: Boolean, t2: Boolean): Boolean = true
+
+  def aggregateAcrossRuns(state: Boolean)(
+      implicit tsc: TaskSystemComponents): Future[Boolean] =
+    Future.successful(true)
+
+  def last(implicit tsc: TaskSystemComponents) = Future.successful(true)
+  def persist(t: Boolean)(implicit tsc: TaskSystemComponents) =
+    Future.successful(t)
 
   def canProcess(r: RunfolderReadyForProcessing) = true
+}
+
+object TestPipeline extends FakePipeline {
 
   val pretend =
     AsyncTask[RunfolderReadyForProcessing, Int]("demultiplexing", 1) {
@@ -178,14 +192,14 @@ object TestPipeline extends Pipeline {
     }
 
   def execute(r: RunfolderReadyForProcessing)(
-      implicit tsc: TaskSystemComponents): Future[Boolean] =
-    pretend(r)(ResourceRequest(1, 500)).map(_ => true)
+      implicit tsc: TaskSystemComponents) =
+    pretend(r)(ResourceRequest(1, 500)).map(_ => Some(true))
 
 }
 
-object TestPipelineWhichNeverRuns extends Pipeline {
+object TestPipelineWhichNeverRuns extends FakePipeline {
 
-  def canProcess(r: RunfolderReadyForProcessing) = false
+  override def canProcess(r: RunfolderReadyForProcessing) = false
 
   val pretend =
     AsyncTask[RunfolderReadyForProcessing, Int]("demultiplexing-never-run", 1) {
@@ -195,14 +209,14 @@ object TestPipelineWhichNeverRuns extends Pipeline {
     }
 
   def execute(r: RunfolderReadyForProcessing)(
-      implicit tsc: TaskSystemComponents): Future[Boolean] =
-    pretend(r)(ResourceRequest(1, 500)).map(_ => true)
+      implicit tsc: TaskSystemComponents) =
+    pretend(r)(ResourceRequest(1, 500)).map(_ => Some(true))
 
 }
 
-object TestPipelineWhichFails extends Pipeline {
+object TestPipelineWhichFails extends FakePipeline {
 
-  def canProcess(r: RunfolderReadyForProcessing) = true
+  override def canProcess(r: RunfolderReadyForProcessing) = true
 
   def fail = {
     def zero = 0
@@ -217,8 +231,8 @@ object TestPipelineWhichFails extends Pipeline {
     }
 
   def execute(r: RunfolderReadyForProcessing)(
-      implicit tsc: TaskSystemComponents): Future[Boolean] = {
-    pretend(r)(ResourceRequest(1, 500)).map(_ => true)
+      implicit tsc: TaskSystemComponents) = {
+    pretend(r)(ResourceRequest(1, 500)).map(_ => Some(true))
   }
 
 }

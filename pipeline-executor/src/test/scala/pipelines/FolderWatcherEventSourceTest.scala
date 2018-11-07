@@ -39,7 +39,7 @@ class FolderWatcherEventSourceTest
     val fileNameToWatch = "something"
     val configurationFile = "config-runid"
     val configurationFileContent =
-      "geneModelGtf=b\nglobalIndexSet=b\nautomatic=true\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\ndemultiplexing=[]"
+      "geneModelGtf=b\nglobalIndexSet=b\nautomatic=true\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\ndemultiplexing=[]\ndbSnpVcf=b\nvariantEvaluationIntervals=b"
     val runConfiguration = RunConfiguration(configurationFileContent)
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)

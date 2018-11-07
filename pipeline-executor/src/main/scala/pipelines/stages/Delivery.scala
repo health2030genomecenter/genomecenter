@@ -38,10 +38,16 @@ object Delivery {
       .groupBy { case (project, _) => project }
       .map { case (key, value) => (key, value.map(_._2).flatten) }
 
-  def extractBamList(singleSampleResults: Set[SingleSamplePipelineResult]) =
+  def extractBamAndVcfList(
+      singleSampleResults: Set[SingleSamplePipelineResult]) =
     singleSampleResults.toSeq
-      .map { singleSampleResult =>
-        (singleSampleResult.project, singleSampleResult.bam.bam)
+      .flatMap { singleSampleResult =>
+        List(
+          (singleSampleResult.project, singleSampleResult.bam.bam),
+          (singleSampleResult.project, singleSampleResult.gvcf.vcf),
+          (singleSampleResult.project,
+           singleSampleResult.haplotypeCallerReferenceCalls.vcf),
+        )
       }
       .groupBy { case (project, _) => project }
       .map {
@@ -84,8 +90,8 @@ object Delivery {
           val collectedFastqs: Map[Project, Seq[SharedFile]] =
             extractFastqList(fastqs)
 
-          val collectedCoordinateSortedBams: Map[Project, Seq[SharedFile]] =
-            extractBamList(wesResults)
+          val wesBamAndVcfs: Map[Project, Seq[SharedFile]] =
+            extractBamAndVcfList(wesResults)
 
           val collectedRnaSeqBam: Map[Project, Seq[SharedFile]] =
             extractBamListFromRnaSeqResults(rnaSeqResults)
@@ -94,7 +100,7 @@ object Delivery {
             extractFastp(fastp)
 
           val collectedFiles = List(collectedRnaSeqBam,
-                                    collectedCoordinateSortedBams,
+                                    wesBamAndVcfs,
                                     collectedFastp,
                                     collectedFastqs)
             .reduce(

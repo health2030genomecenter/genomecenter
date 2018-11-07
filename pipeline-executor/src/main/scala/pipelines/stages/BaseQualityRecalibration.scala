@@ -284,7 +284,7 @@ object BaseQualityScoreRecalibration {
           } yield result
     }
 
-  private def extractGatkJar(): String =
+  def extractGatkJar(): String =
     fileutils.TempFile
       .getExecutableFromJar("/bin/gatk-package-4.0.9.0-local.jar",
                             "gatk-package-4.0.9.0-local.jar")

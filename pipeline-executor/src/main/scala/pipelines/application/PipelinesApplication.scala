@@ -1,19 +1,22 @@
 package org.gc.pipelines.application
 
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{Source, Sink}
 import tasks._
 import com.typesafe.scalalogging.StrictLogging
 import akka.actor.ActorSystem
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Await}
+import scala.concurrent.duration._
 
 import org.gc.pipelines.util.ActorSource
 
-class PipelinesApplication(
+import scala.util.{Success, Failure}
+
+class PipelinesApplication[T](
     eventSource: SequencingCompleteEventSource,
     pipelineState: PipelineState,
     actorSystem: ActorSystem,
     taskSystem: TaskSystem,
-    pipelines: Seq[Pipeline]
+    pipeline: Pipeline[T]
 )(implicit EC: ExecutionContext)
     extends StrictLogging {
 
@@ -53,25 +56,56 @@ class PipelinesApplication(
   implicit val taskSystemComponents = taskSystem.components
   implicit val materializer = taskSystemComponents.actorMaterializer
 
+  val recoveredState: T = Await.result(pipeline.last, 20 seconds)
+
   (previousUnfinishedRuns ++ futureRuns)
     .mapAsync(1000) { run =>
-      logger.debug(s"Looking for suitable pipeline for ${run.runId}")
-      pipelines.find(_.canProcess(run)) match {
-        case Some(pipeline) =>
-          logger.info(s"Found suitable pipeline for ${run.runId}")
-          for {
-            success <- pipeline.execute(run).recover {
-              case error =>
-                logger.error(s"$pipeline failed on ${run.runId}", error)
-                false
-            }
-          } yield (run, success)
-        case None =>
-          logger.info(s"No pipeline to execute ${run.runId}")
-          Future.successful((run, false))
+      if (!pipeline.canProcess(run))
+        Future.successful((run, None))
+      else
+        for {
+          result <- pipeline.execute(run).recover {
+            case error =>
+              logger.error(s"$pipeline failed on ${run.runId}", error)
+              None
+          }
+        } yield (run, result)
 
+    }
+    .mapAsync(1) {
+      case (run, result) =>
+        val success = result.isDefined
+        val saved =
+          if (success) {
+            logger.info(s"Run ${run.runId} completed successfully.")
+            pipelineState.processingFinished(run)
+          } else
+            Future.successful(())
+        saved.map { _ =>
+          processingFinishedListener ! ProcessingFinished(run, success)
+          logger.debug(s"Run ${run.runId} finished (with or without error).")
+          result
+        }
+    }
+    .scan(recoveredState) {
+      case (state, Some(runResult)) =>
+        pipeline
+          .combine(state, runResult)
+      case (state, None) =>
+        state
+    }
+    .mapAsync(1) { aggregatedState =>
+      pipeline.persist(aggregatedState)
+    }
+    .mapAsync(1) { aggregatedState =>
+      pipeline.aggregateAcrossRuns(aggregatedState).andThen {
+        case Success(true) =>
+          logger.info("Finished aggregating runs.")
+        case Failure(e) =>
+          logger.error("Failed aggregating runs.", e)
+        case _ =>
+          logger.error("Failed aggregating runs.")
       }
-
     }
     .watchTermination() {
       case (mat, future) =>
@@ -82,18 +116,6 @@ class PipelinesApplication(
         }
         mat
     }
-    .runForeach {
-      case (run, success) =>
-        val saved =
-          if (success) {
-            logger.info(s"Run ${run.runId} completed successfully.")
-            pipelineState.processingFinished(run)
-          } else
-            Future.successful(())
-        saved.foreach { _ =>
-          processingFinishedListener ! ProcessingFinished(run, success)
-          logger.debug(s"Run ${run.runId} finished (with or without error).")
-        }
-    }
+    .runWith(Sink.ignore)
 
 }

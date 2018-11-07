@@ -26,7 +26,9 @@ case class RunConfiguration(
     wesSelector: Selector,
     rnaSelector: Selector,
     globalIndexSet: Option[String],
-    geneModelGtf: String
+    geneModelGtf: String,
+    dbSnpVcf: String,
+    variantEvaluationIntervals: String
 )
 
 case class RunfolderReadyForProcessing(runId: RunId,
@@ -119,7 +121,10 @@ object RunConfiguration {
           globalIndexSet =
             if (config.hasPath("globalIndexSet"))
               Some(config.getString("globalIndexSet"))
-            else None
+            else None,
+          dbSnpVcf = config.getString("dbSnpVcf"),
+          variantEvaluationIntervals =
+            config.getString("variantEvaluationIntervals")
         )
       }
       .toEither

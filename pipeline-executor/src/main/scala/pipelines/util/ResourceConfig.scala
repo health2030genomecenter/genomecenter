@@ -28,6 +28,12 @@ object ResourceConfig {
 
   def readQC(implicit tsc: TaskSystemComponents) = parse("readQC")
 
+  def haplotypeCaller(implicit tsc: TaskSystemComponents) =
+    parse("haplotypeCaller")
+
+  def genotypeGvcfs(implicit tsc: TaskSystemComponents) =
+    parse("genotypeGvcfs")
+
   def picardMergeAndMarkDuplicates(implicit tsc: TaskSystemComponents) =
     parse("picardMergeAndMarkDuplicates")
 

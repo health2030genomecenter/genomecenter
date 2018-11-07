@@ -26,10 +26,15 @@ class AlignmentQCTest
         .Root(wgsMetricsFile, project, sampleId, runId)
       val fastp = FastpReportModel
         .Root(fastpText, project, sampleId, runId)
+      val vcfQc =
+        VariantCallingMetrics.Root(variantCallingMetrics,
+                                   project,
+                                   sampleId,
+                                   runId)
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
-        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs)
+        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs, vcfQc)
       }
       (AlignmentQC.makeTable(joined))
     }
@@ -47,10 +52,15 @@ class AlignmentQCTest
         .Root(wgsMetricsFile, project, sampleId, runId)
       val fastp = FastpReportModel
         .Root(fastpText, project, sampleId, runId)
+      val vcfQc =
+        VariantCallingMetrics.Root(variantCallingMetrics,
+                                   project,
+                                   sampleId,
+                                   runId)
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
-        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs)
+        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs, vcfQc)
       }
       println(AlignmentQC.makeHtmlTable(joined))
     }
@@ -839,6 +849,19 @@ coverage	high_quality_coverage_count
 248	0
 249	0
 250	0
+
+"""
+
+    val variantCallingMetrics =
+      """## htsjdk.samtools.metrics.StringHeader
+# CollectVariantCallingMetrics  --INPUT /private/var/folders/8g/8hnt4z2j5lq8m0tqqlddx7891x22q8/T/tasks2018_11_07_14_50_14/tasks2018_11_07_14_50_142379980182653815646.temp/some.vcf.gz --OUTPUT /var/folders/8g/8hnt4z2j5lq8m0tqqlddx7891x22q8/T/fileutil2018_11_07_14_50_150/fileutil2018_11_07_14_50_155949749377302404169.metrics --DBSNP /private/var/folders/8g/8hnt4z2j5lq8m0tqqlddx7891x22q8/T/tasks2018_11_07_14_50_14/tasks2018_11_07_14_50_142379980182653815646.temp/dbsnp.vcf --TARGET_INTERVALS /var/folders/8g/8hnt4z2j5lq8m0tqqlddx7891x22q8/T/fileutil2018_11_07_14_50_150/fileutil2018_11_07_14_50_153973803142837295883 --SEQUENCE_DICTIONARY /private/var/folders/8g/8hnt4z2j5lq8m0tqqlddx7891x22q8/T/tasks2018_11_07_14_50_14/tasks2018_11_07_14_50_142379980182653815646.temp/referenceFasta.dict --GVCF_INPUT true  --THREAD_COUNT 1 --VERBOSITY INFO --QUIET false --VALIDATION_STRINGENCY STRICT --COMPRESSION_LEVEL 5 --MAX_RECORDS_IN_RAM 500000 --CREATE_INDEX false --CREATE_MD5_FILE false --GA4GH_CLIENT_SECRETS client_secrets.json --help false --version false --showHidden false --USE_JDK_DEFLATER false --USE_JDK_INFLATER false
+## htsjdk.samtools.metrics.StringHeader
+# Started on: Wed Nov 07 14:50:17 CET 2018
+
+## METRICS CLASS	picard.vcf.CollectVariantCallingMetrics$VariantCallingSummaryMetrics
+TOTAL_SNPS	NUM_IN_DB_SNP	NOVEL_SNPS	FILTERED_SNPS	PCT_DBSNP	DBSNP_TITV	NOVEL_TITV	TOTAL_INDELS	NOVEL_INDELS	FILTERED_INDELS	PCT_DBSNP_INDELS	NUM_IN_DB_SNP_INDELS	DBSNP_INS_DEL_RATIO	NOVEL_INS_DEL_RATIO	TOTAL_MULTIALLELIC_SNPS	NUM_IN_DB_SNP_MULTIALLELIC	TOTAL_COMPLEX_INDELS	NUM_IN_DB_SNP_COMPLEX_INDELS	SNP_REFERENCE_BIAS	NUM_SINGLETONS
+0	0	0	0	?	0	0	0	0	0	?	0	0	0	0	0	0	0	?	0
+
 
 """
 

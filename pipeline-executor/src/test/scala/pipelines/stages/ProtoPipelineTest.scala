@@ -46,7 +46,7 @@ class ProtopipelineTestSuite
         val result =
           scala.concurrent.Await.result(future, atMost = 400000 seconds)
 
-        result shouldBe true
+        result.isDefined shouldBe true
 
         Then(
           "a run and lane specific folder should be created at the root of the storage")
@@ -290,7 +290,9 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
                              projects = Set.empty),
       rnaSelector = Selector.empty,
       globalIndexSet = Some(globalIndexSetFilePath),
-      geneModelGtf = gtfFile.getAbsolutePath
+      geneModelGtf = gtfFile.getAbsolutePath,
+      dbSnpVcf = knownSitesVCF.getAbsolutePath,
+      variantEvaluationIntervals = targetIntervals
     )
 
     val (testConfig, basePath) = makeTestConfig

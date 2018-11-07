@@ -47,7 +47,7 @@ class HttpEventSourceTest
     val fileNameToWatch = "something"
     val runConfigurationFileName = "config-runid"
     val runConfigurationFileContent =
-      "geneModelGtf=b\nglobalIndexSet=b\nautomatic=true\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\ndemultiplexing=[]"
+      "geneModelGtf=b\nglobalIndexSet=b\nautomatic=true\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\ndemultiplexing=[]\ndbSnpVcf=b\nvariantEvaluationIntervals=b"
 
     val runConfiguration = RunConfiguration(runConfigurationFileContent)
     val runId = "runid"

@@ -40,7 +40,7 @@ object Main extends App with StrictLogging {
                              pipelineState,
                              actorSystem,
                              taskSystem,
-                             List(pipeline))
+                             pipeline)
   } else {
     logger.info("Worker started.")
   }
