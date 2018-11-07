@@ -20,7 +20,7 @@ case class SampleSheetFile(file: SharedFile) extends WithSharedFiles {
 case class ReferenceFasta(file: SharedFile) extends WithSharedFiles(file)
 
 case class IndexedReferenceFasta(fasta: SharedFile, indexFiles: Set[SharedFile])
-    extends WithSharedFiles(fasta) {
+    extends WithSharedFiles(fasta +: indexFiles.toSeq: _*) {
   def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
       _ <- Future.traverse(indexFiles)(_.file)
