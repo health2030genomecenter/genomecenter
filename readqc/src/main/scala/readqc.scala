@@ -189,7 +189,7 @@ object ReadQC {
 
   }
 
-  def stringToInt(s: Array[Byte], max: Int) = {
+  def stringToInt(s: Array[Byte], max: Int): Int = {
     var sum = 0
     var i = 0
     while (i < max) {
