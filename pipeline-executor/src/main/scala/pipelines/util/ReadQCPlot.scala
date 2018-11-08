@@ -35,7 +35,7 @@ object ReadQCPlot {
         boxColor = ManualColor(Map(0d -> Color.red, 1d -> Color.blue)),
         ylab = "BaseQ",
         xLabelRotation = math.Pi * -0.4,
-        xWidth = 70 fts,
+        xWidth = 90 fts,
         fontSize = 0.5 fts
       )
     }
@@ -56,8 +56,9 @@ object ReadQCPlot {
           (idx.toDouble, sample + "." + lane + "." + read)
       }
       xyplot(
-        data -> point(
-          color = ManualColor(Map(0d -> Color.red, 1d -> Color.blue))))(
+        data -> bar(
+          horizontal = true,
+          fill = ManualColor(Map(0d -> Color.red, 1d -> Color.blue))))(
         xlab = "ReadNumber",
         yNumTicks = 0,
         ynames = xnames,
@@ -65,7 +66,8 @@ object ReadQCPlot {
         yHeight = 60 fts,
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
-        yAxisMargin = 0.01
+        yAxisMargin = 0.01,
+        ygrid = false
       )
     }
 
@@ -86,8 +88,9 @@ object ReadQCPlot {
           (idx.toDouble, sample + "." + lane + "." + read)
       }
       xyplot(
-        data -> point(
-          color = ManualColor(Map(0d -> Color.red, 1d -> Color.blue))))(
+        data -> bar(
+          horizontal = true,
+          fill = ManualColor(Map(0d -> Color.red, 1d -> Color.blue))))(
         xlab = "Distinct 13 mers in prefix",
         yNumTicks = 0,
         ynames = xnames,
@@ -95,7 +98,8 @@ object ReadQCPlot {
         yHeight = 60 fts,
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
-        yAxisMargin = 0.01
+        yAxisMargin = 0.01,
+        ygrid = false
       )
     }
 
@@ -115,8 +119,9 @@ object ReadQCPlot {
           (idx.toDouble, sample + "." + lane + "." + read)
       }
       xyplot(
-        data -> point(
-          color = ManualColor(Map(0d -> Color.red, 1d -> Color.blue))))(
+        data -> bar(
+          horizontal = true,
+          fill = ManualColor(Map(0d -> Color.red, 1d -> Color.blue))))(
         xlab = "GC%",
         yNumTicks = 0,
         ynames = xnames,
@@ -125,7 +130,8 @@ object ReadQCPlot {
         xlim = Some((0d, 1d)),
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
-        yAxisMargin = 0.01
+        yAxisMargin = 0.01,
+        ygrid = false
       )
     }
 
@@ -154,12 +160,16 @@ object ReadQCPlot {
               color = color)
           )
       }
-      xyplot(lines: _*)(extraLegend = legend,
-                        ylab = "BaseQ",
-                        xlab = "Cycle",
-                        legendFontSize = 0.9 fts,
-                        xWidth = 40 fts,
-                        yHeight = 40 fts)
+      xyplot(lines: _*)(
+        extraLegend = legend,
+        ylab = "BaseQ",
+        xlab = "Cycle",
+        legendFontSize = 0.9 fts,
+        xWidth = 40 fts,
+        yHeight = 40 fts,
+        legendLayout =
+          ColumnLayout(numRows = 20, horizontalGap = 1d, verticalGap = 1d)
+      )
     }
 
     val cycleBaseQsPlots = makeCyclesBaseQ(metrics)
@@ -170,7 +180,7 @@ object ReadQCPlot {
       val legend = samples.zipWithIndex
         .map {
           case (sample, idx) =>
-            sample -> LineLegend(stroke = Stroke(1), colors(idx.toDouble))
+            sample -> PointLegend(shapePick(idx), colors(idx.toDouble))
         }
         .sortBy(_._1.toString)
       val sample2Color = samples.zipWithIndex.toMap
@@ -181,13 +191,21 @@ object ReadQCPlot {
               (cycleIdx.toDouble, ns.toDouble)
           }
           val color = colors(sample2Color(sample).toDouble)
-          List(meanLine -> line(color = color, stroke = Stroke(0.5)))
+          List(
+            meanLine -> line(color = color, stroke = Stroke(0.5)),
+            meanLine.grouped(10).map(_.head).toVector -> point(
+              shapes = Vector(shapePick(sample2Color(sample))),
+              color = color)
+          )
       }
-      xyplot(lines: _*)(extraLegend = legend,
-                        ylab = "Ns",
-                        xlab = "Cycle",
-                        xWidth = 40 fts,
-                        yHeight = 40 fts)
+      xyplot(lines: _*)(
+        extraLegend = legend,
+        ylab = "Ns",
+        xlab = "Cycle",
+        xWidth = 40 fts,
+        yHeight = 40 fts,
+        legendLayout =
+          ColumnLayout(numRows = 20, horizontalGap = 1d, verticalGap = 1d))
     }
 
     val compositePlot =
