@@ -155,7 +155,7 @@ object BWAAlignment {
       case Bam(bam) =>
         implicit computationEnvironment =>
           val picardJar = extractPicardJar()
-
+          val samtoolsExecutable = extractSamtoolsExecutable()
           val tempFolder =
             TempFile
               .createTempFolder(".sortTempFolder")
@@ -163,31 +163,24 @@ object BWAAlignment {
           val tmpSorted = TempFile.createTempFile(".bam")
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
-          val javaTmpDir =
-            s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
-
-          val maxHeap = JVM.maxHeap
-          val maxReads =
-            (resourceAllocated.memory.toDouble * ResourceConfig.picardSamSortRecordPerMegabyteHeap).toLong
 
           for {
             localBam <- bam.file
             result <- {
 
-              Exec.bash(logDiscriminator = "sortbam.sort",
-                        onError = Exec.ThrowIfNonZero)(
-                s"""java ${JVM.g1} $maxHeap $javaTmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
-                --INPUT ${localBam.getAbsolutePath} \\
-                --OUTPUT ${tmpSorted.getAbsolutePath} \\
-                --SORT_ORDER coordinate \\
-                --COMPRESSION_LEVEL 1 \\
-                --TMP_DIR $tempFolder \\
-                --MAX_RECORDS_IN_RAM $maxReads \\
-              > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+              Exec.bash(
+                logDiscriminator = "sortbam.sort",
+                onError = Exec.ThrowIfNonZero)(s"""$samtoolsExecutable sort \\
+                      -l 5 \\
+                      -m ${resourceAllocated.memory}M \\
+                      -T ${tempFolder}/ \\
+                      -\\@ ${resourceAllocated.cpu} \\
+                      ${localBam.getAbsolutePath} \\
+                  > ${tmpSorted.getAbsolutePath} 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
               """)
 
               Exec.bash("sortbam.idx", onError = Exec.ThrowIfNonZero)(
-                s"""java ${JVM.serial} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar BuildBamIndex \\
+                s"""java ${JVM.serial} ${JVM.maxHeap} -Dpicard.useLegacyParser=false -jar $picardJar BuildBamIndex \\
                  --INPUT ${tmpSorted.getAbsolutePath} \\
                  > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)"""
               )
@@ -531,6 +524,19 @@ object BWAAlignment {
     fileutils.TempFile
       .getExecutableFromJar(resourceName, "bwa_0.7.17-r1188")
       .getAbsolutePath
+  }
+  private def extractSamtoolsExecutable(): String = {
+    val resourceName =
+      if (util.isMac) "/bin/samtools_1.9_mac"
+      else if (util.isLinux) "/bin/samtools_1.9_linux64"
+      else
+        throw new RuntimeException(
+          "Unknown OS: " + System.getProperty("os.name"))
+
+    fileutils.TempFile
+      .getExecutableFromJar(resourceName, "samtools_1.9")
+      .getAbsolutePath
+
   }
 
 }
