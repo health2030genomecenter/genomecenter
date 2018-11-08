@@ -338,7 +338,7 @@ object BWAAlignment {
 
           val tmpCleanBam = TempFile.createTempFile(".bam")
           val tmpIntermediateUnmappedBam =
-            TempFile.createTempFile(".unmappedBam")
+            Files.createTempFile(".unmappedBam")
 
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")

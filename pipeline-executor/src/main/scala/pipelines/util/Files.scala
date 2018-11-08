@@ -6,6 +6,12 @@ import scala.collection.JavaConverters._
 
 object Files {
 
+  def createTempFile(suffix: String) = {
+    val f = fileutils.TempFile.createTempFile(suffix)
+    f.deleteOnExit
+    f
+  }
+
   def deleteRecursively(folder: File): Unit =
     JFiles
       .walk(folder.toPath)

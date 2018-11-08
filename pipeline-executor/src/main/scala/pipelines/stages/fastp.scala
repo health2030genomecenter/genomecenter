@@ -5,7 +5,7 @@ import tasks.circesupport._
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import fileutils.TempFile
-import org.gc.pipelines.util.Exec
+import org.gc.pipelines.util.{Exec, Files}
 import org.gc.pipelines.util
 import org.gc.pipelines.model._
 import scala.concurrent.Future
@@ -45,8 +45,8 @@ object Fastp {
             read2 <- fetchFiles(lanesSeq.map(_.read2.file))
             result <- {
 
-              val tmpRead1 = TempFile.createTempFile(read1.head.getName)
-              val tmpRead2 = TempFile.createTempFile(read2.head.getName)
+              val tmpRead1 = Files.createTempFile(read1.head.getName)
+              val tmpRead2 = Files.createTempFile(read2.head.getName)
 
               {
                 import better.files._
