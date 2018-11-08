@@ -130,12 +130,14 @@ object BaseQualityScoreRecalibration {
               Exec.bash(logDiscriminator = "bqsr.train",
                         onError = Exec.ThrowIfNonZero)(bashScript)
               for {
-                _ <- SharedFile(tmpStdOut,
-                                name = bam.bam.name + ".bqsr.train.stdout",
-                                deleteFile = true)
-                _ <- SharedFile(tmpStdErr,
-                                name = bam.bam.name + ".bqsr.train.stderr",
-                                deleteFile = true)
+                _ <- SharedFile(
+                  tmpStdOut,
+                  name = bam.bam.name + "." + interval + ".bqsr.train.stdout",
+                  deleteFile = true)
+                _ <- SharedFile(
+                  tmpStdErr,
+                  name = bam.bam.name + "." + interval + ".bqsr.train.stderr",
+                  deleteFile = true)
                 table <- SharedFile(output,
                                     bam.bam.name + "." + interval + ".bqsr.tab",
                                     deleteFile = true)
@@ -203,6 +205,7 @@ object BaseQualityScoreRecalibration {
                 bai <- SharedFile(expectedBai,
                                   bam.bam.name + ".bqsr.bai",
                                   deleteFile = true)
+                _ <- Future.traverse(scattered)(_.bam.delete)
               } yield CoordinateSortedBam(gatheredBam, bai)
 
             }
@@ -248,12 +251,14 @@ object BaseQualityScoreRecalibration {
 
               val outputFileNameRoot = bam.bam.name.stripSuffix("bam")
               for {
-                _ <- SharedFile(tmpStdOut,
-                                name = outputFileNameRoot + "bqsr.apply.stdout",
-                                deleteFile = true)
-                _ <- SharedFile(tmpStdErr,
-                                name = outputFileNameRoot + "bqsr.apply.stderr",
-                                deleteFile = true)
+                _ <- SharedFile(
+                  tmpStdOut,
+                  name = outputFileNameRoot + s"bqsr.apply.$interval.stdout",
+                  deleteFile = true)
+                _ <- SharedFile(
+                  tmpStdErr,
+                  name = outputFileNameRoot + s"bqsr.apply.$interval.stderr",
+                  deleteFile = true)
                 bai <- SharedFile(expectedBai,
                                   outputFileNameRoot + s"bqsr.$interval.bai",
                                   deleteFile = true)
