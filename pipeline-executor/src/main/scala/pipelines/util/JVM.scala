@@ -17,4 +17,9 @@ object JVM {
   val g1 = " -XX:+UseG1GC -XX:ParallelGCThreads=2 -XX:ConcGCThreads=2 "
   val serial = " -XX:+UseSerialGC "
 
+  def maxHeap(implicit ce: tasks.queue.ComputationEnvironment) = {
+    import tasks._
+    s"-Xmx${(resourceAllocated.memory * 0.9).toInt}m"
+  }
+
 }

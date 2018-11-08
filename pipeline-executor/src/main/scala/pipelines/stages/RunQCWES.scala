@@ -274,7 +274,7 @@ object AlignmentQC {
             result <- {
 
               val picardJar = BWAAlignment.extractPicardJar()
-              val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+              val maxHeap = JVM.maxHeap
               val tmpOut = TempFile.createTempFile(".qc")
               val picardStyleInterval = TempFile.createTempFile("")
 
@@ -319,7 +319,7 @@ object AlignmentQC {
             bam <- coordinateSortedBam.localFile
             result <- {
               val picardJar = BWAAlignment.extractPicardJar()
-              val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+              val maxHeap = JVM.maxHeap
               val tmpOut = TempFile.createTempFile(".qc")
               val bashScript = s""" \\
         java ${JVM.g1} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectMultipleMetrics \\
@@ -376,7 +376,7 @@ object AlignmentQC {
 
               val readLength = BAM.getMeanReadLength(bam, 10000).toInt
               val picardJar = BWAAlignment.extractPicardJar()
-              val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+              val maxHeap = JVM.maxHeap
               val tmpOut = TempFile.createTempFile(".qc")
               val bashScript = s""" \\
         java ${JVM.g1} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectWgsMetrics \\

@@ -101,8 +101,7 @@ object BaseQualityScoreRecalibration {
                                                        1) {
       case TrainBQSRInputScatteredPiece(bam, reference, knownSites, interval) =>
         implicit computationEnvironment =>
-          val maxHeap = s"-Xmx${resourceAllocated.memory}m"
-
+          val maxHeap = JVM.maxHeap
           for {
             localBam <- bam.bam.file
             reference <- reference.localFile
@@ -218,7 +217,7 @@ object BaseQualityScoreRecalibration {
       1) {
       case ApplyBQSRInputScatteredPiece(bam, reference, bqsrTable, interval) =>
         implicit computationEnvironment =>
-          val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+          val maxHeap = JVM.maxHeap
 
           for {
             localBam <- bam.bam.file

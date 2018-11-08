@@ -166,7 +166,7 @@ object BWAAlignment {
           val javaTmpDir =
             s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
-          val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+          val maxHeap = JVM.maxHeap
           val maxReads =
             (resourceAllocated.memory.toDouble * ResourceConfig.picardSamSortRecordPerMegabyteHeap).toLong
 
@@ -238,7 +238,7 @@ object BWAAlignment {
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
 
-          val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+          val maxHeap = JVM.maxHeap
           val tmpDir =
             s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
@@ -350,7 +350,7 @@ object BWAAlignment {
           val sequencingCenter = "Health2030GenomeCenter"
           val runDate: String = java.time.Instant.now.toString
 
-          val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+          val maxHeap = JVM.maxHeap
           val maxReads =
             (resourceAllocated.memory.toDouble * ResourceConfig.picardSamSortRecordPerMegabyteHeap).toLong
 
