@@ -48,16 +48,21 @@ object BaseQualityScoreRecalibration {
       case TrainBQSRInput(bam, reference, knownSites) =>
         implicit computationEnvironment =>
           releaseResources
+          def inScatteredFolder[T] =
+            appendToFilePrefix[T](Seq("bqsr-train-scattered"))
+
           for {
             dict <- reference.dict
             intervals = BaseQualityScoreRecalibration.createIntervals(dict)
             scattered <- Future.traverse(intervals) { interval =>
-              trainBQSRPiece(
-                TrainBQSRInputScatteredPiece(bam,
-                                             reference,
-                                             knownSites,
-                                             interval))(
-                ResourceConfig.trainBqsr)
+              inScatteredFolder { implicit computationEnvironment =>
+                trainBQSRPiece(
+                  TrainBQSRInputScatteredPiece(bam,
+                                               reference,
+                                               knownSites,
+                                               interval))(
+                  ResourceConfig.trainBqsr)
+              }
             }
             localTables <- Future.traverse(scattered)(_.file.file)
             gatheredTables <- {
@@ -152,16 +157,22 @@ object BaseQualityScoreRecalibration {
       case ApplyBQSRInput(bam, reference, knownSites) =>
         implicit computationEnvironment =>
           releaseResources
+
+          def inScatteredFolder[T] =
+            appendToFilePrefix[T](Seq("bqsr-apply-scattered"))
+
           for {
             dict <- reference.dict
             intervals = BaseQualityScoreRecalibration.createIntervals(dict)
             scattered <- Future.traverse(intervals) { interval =>
-              applyBQSRPiece(
-                ApplyBQSRInputScatteredPiece(bam,
-                                             reference,
-                                             knownSites,
-                                             interval))(
-                ResourceConfig.applyBqsr)
+              inScatteredFolder { implicit computationEnvironment =>
+                applyBQSRPiece(
+                  ApplyBQSRInputScatteredPiece(bam,
+                                               reference,
+                                               knownSites,
+                                               interval))(
+                  ResourceConfig.applyBqsr)
+              }
             }
             localBams <- Future.traverse(scattered)(_.localFile)
             gathered <- {
@@ -192,11 +203,11 @@ object BaseQualityScoreRecalibration {
               for {
                 _ <- SharedFile(
                   tmpStdOut,
-                  name = bam.bam.name + ".bqsr.train.gather.stdout",
+                  name = bam.bam.name + ".bqsr.apply.gather.stdout",
                   deleteFile = true)
                 _ <- SharedFile(
                   tmpStdErr,
-                  name = bam.bam.name + ".bqsr.train.gather.stderr",
+                  name = bam.bam.name + ".bqsr.apply.gather.stderr",
                   deleteFile = true)
                 gatheredBam <- SharedFile(output,
                                           bam.bam.name + ".bqsr.bam",
