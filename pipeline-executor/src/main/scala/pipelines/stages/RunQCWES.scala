@@ -418,6 +418,7 @@ object AlignmentQC {
           --REFERENCE_SEQUENCE=${reference.getAbsolutePath} \\
           --OUTPUT ${tmpOut.getAbsolutePath} \\
           --COUNT_UNPAIRED true \\
+          --USE_FAST_ALGORITHM  true \\
           --READ_LENGTH $readLength \\
         """
 
