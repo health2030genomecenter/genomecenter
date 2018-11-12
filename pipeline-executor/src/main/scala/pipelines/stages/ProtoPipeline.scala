@@ -176,11 +176,15 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     Future.successful(true)
 
   val persistenceFilename = "__PastRuns"
-  def last(implicit tsc: TaskSystemComponents) =
-    for {
-      eValue <- EValue.getByName[PipelineResult](persistenceFilename)
-      data <- eValue.get
-    } yield data
+  def last(implicit tsc: TaskSystemComponents): Future[PipelineResult] = {
+    import cats.data.OptionT
+    import cats.implicits._
+    (for {
+      eValue <- OptionT(EValue.getByName[PipelineResult](persistenceFilename))
+      pipelineResult <- OptionT.liftF(eValue.get)
+    } yield pipelineResult)
+      .getOrElseF(Future.successful(PipelineResult.empty))
+  }
 
   def persist(t: PipelineResult)(implicit tsc: TaskSystemComponents) =
     for {
@@ -749,4 +753,6 @@ object PipelineResult {
     deriveEncoder[PipelineResult]
   implicit val decoder: Decoder[PipelineResult] =
     deriveDecoder[PipelineResult]
+
+  val empty = PipelineResult(Set(), Set())
 }
