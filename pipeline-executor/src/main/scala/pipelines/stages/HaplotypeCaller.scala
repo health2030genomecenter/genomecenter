@@ -71,7 +71,7 @@ object HaplotypeCaller {
           releaseResources
 
           def intoScattersFolder[T] =
-            appendToFilePrefix[T](Seq("genotypegvcfs_scatters"))
+            appendToFilePrefix[T](Seq("genotypegvcfs_scatters", name))
 
           for {
             dict <- reference.dict
@@ -226,7 +226,8 @@ object HaplotypeCaller {
           releaseResources
 
           def intoScattersFolder[T] =
-            appendToFilePrefix[T](Seq("haplotypecaller_scatters"))
+            appendToFilePrefix[T](
+              Seq("haplotypecaller_scatters", bam.bam.name.stripSuffix(".bam")))
 
           for {
             dict <- reference.dict
