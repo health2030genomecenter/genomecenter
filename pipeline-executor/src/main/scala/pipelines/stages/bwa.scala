@@ -231,7 +231,7 @@ object BWAAlignment {
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
 
-          val maxHeap = JVM.maxHeap
+          val maxHeap = s"-Xmx${(resourceAllocated.memory * 0.8).toInt}m"
           val tmpDir =
             s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
