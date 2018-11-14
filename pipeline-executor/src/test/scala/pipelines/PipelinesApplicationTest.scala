@@ -33,6 +33,33 @@ class PipelinesApplicationTest
     TestKit.shutdownActorSystem(system)
   }
 
+  test("file based state logging should work") {
+    val file = fileutils.TempFile.createTempFile("log")
+    val pipelineState = new FilePipelineState(file)
+
+    val run = RunfolderReadyForProcessing(RunId("fake"),
+                                          "fakePath",
+                                          RunConfiguration(false,
+                                                           Set.empty,
+                                                           "fake",
+                                                           "fake",
+                                                           Set(),
+                                                           Selector.empty,
+                                                           Selector.empty,
+                                                           None,
+                                                           "fake",
+                                                           "fake",
+                                                           "fake"))
+
+    pipelineState.registerNewRun(run)
+
+    Await.result((new FilePipelineState(file)).incompleteRuns, 5 seconds) shouldBe List(
+      run)
+
+    pipelineState.processingFinished(run)
+    Await.result((new FilePipelineState(file)).incompleteRuns, 5 seconds) shouldBe Nil
+  }
+
   test(
     "pipelines application should react if a RunfolderReady event is received") {
     implicit val materializer = ActorMaterializer()

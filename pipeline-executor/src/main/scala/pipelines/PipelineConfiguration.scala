@@ -4,8 +4,9 @@ import org.gc.pipelines.application._
 import com.typesafe.config.{Config, ConfigFactory}
 import java.io.File
 import scala.collection.JavaConverters._
+import com.typesafe.scalalogging.StrictLogging
 
-object PipelineConfiguration {
+object PipelineConfiguration extends StrictLogging {
   val config = ConfigFactory.load.getConfig("gc.pipeline")
 
   private def parseFolderWatcher(config: Config) = {
@@ -25,6 +26,14 @@ object PipelineConfiguration {
     case _          => EmptySequencingCompleteEventSource
   }
 
-  val pipelineState = new InMemoryPipelineState
+  val pipelineState =
+    if (config.hasPath("stateLog")) {
+      val file = new File(config.getString("stateLog"))
+      logger.info("Saving pipeline state to " + file)
+      new FilePipelineState(file)
+    } else {
+      logger.info("Discarding pipeline state.")
+      new InMemoryPipelineState
+    }
 
 }
