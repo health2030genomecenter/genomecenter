@@ -26,6 +26,7 @@ case class StarAlignmentInput(
 
 case class StarResult(
     finalLog: SharedFile,
+    runId: RunId,
     bam: BamWithSampleMetadata
 ) extends WithSharedFiles(bam.files :+ finalLog: _*)
 
@@ -198,9 +199,9 @@ object StarAlignment {
                                   name = nameStub + ".star.bam",
                                   deleteFile = true)
               } yield
-                StarResult(
-                  finalLogFile,
-                  BamWithSampleMetadata(project, sampleId, runId, Bam(bam)))
+                StarResult(finalLogFile,
+                           runId,
+                           BamWithSampleMetadata(project, sampleId, Bam(bam)))
             }
           } yield result
 

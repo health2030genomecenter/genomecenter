@@ -9,7 +9,6 @@ object DuplicationMetrics {
   case class Root(
       project: Project,
       sampleId: SampleId,
-      runId: RunId,
       metrics: Metrics
   )
 
@@ -23,8 +22,7 @@ object DuplicationMetrics {
 
     def apply(picardFileContents: String,
               project: Project,
-              sampleId: SampleId,
-              runId: RunId): Root = {
+              sampleId: SampleId): Root = {
 
       val lines = scala.io.Source
         .fromString(picardFileContents)
@@ -79,10 +77,7 @@ object DuplicationMetrics {
           s"unexpected project and sampleId. picard output file has $sampleIdInFile we have prj:$project and sample: $sampleId"
         )
 
-        Root(metrics = metrics,
-             sampleId = sampleId,
-             project = project,
-             runId = runId)
+        Root(metrics = metrics, sampleId = sampleId, project = project)
 
       }.head
 

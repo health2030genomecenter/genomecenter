@@ -35,9 +35,6 @@ case class RunfolderReadyForProcessing(runId: RunId,
                                        runFolderPath: String,
                                        runConfiguration: RunConfiguration)
 
-case class ProcessingFinished(run: RunfolderReadyForProcessing,
-                              success: Boolean)
-
 object RunfolderReadyForProcessing {
   implicit val encoder: Encoder[RunfolderReadyForProcessing] =
     deriveEncoder[RunfolderReadyForProcessing]

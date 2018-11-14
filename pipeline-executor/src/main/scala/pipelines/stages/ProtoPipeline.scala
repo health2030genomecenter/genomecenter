@@ -2,757 +2,210 @@ package org.gc.pipelines.stages
 
 import scala.concurrent.{ExecutionContext, Future}
 import tasks._
-import tasks.collection._
-import tasks.circesupport._
-import org.gc.pipelines.application.{
-  Pipeline,
-  RunfolderReadyForProcessing,
-  RunConfiguration,
-  Selector
-}
+import org.gc.pipelines.application.{Pipeline, RunfolderReadyForProcessing}
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.ResourceConfig
-import java.io.File
-import io.circe.{Encoder, Decoder}
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import com.typesafe.scalalogging.StrictLogging
-import scala.util.{Success, Failure}
-
-case class PipelineResult(
-    wes: Set[SingleSamplePipelineResult],
-    rnaseq: Set[StarResult]
-) extends WithSharedFiles(
-      wes.toSeq.flatMap(_.files) ++ rnaseq.toSeq.flatMap(_.files): _*
-    )
 
 class ProtoPipeline(implicit EC: ExecutionContext)
-    extends Pipeline[PipelineResult]
+    extends Pipeline[PerSamplePerRunFastQ, SampleResult]
     with StrictLogging {
-
-  def combine(r1: PipelineResult, r2: PipelineResult) =
-    PipelineResult(r1.wes ++ r2.wes, r1.rnaseq ++ r2.rnaseq)
 
   def canProcess(r: RunfolderReadyForProcessing) = {
     r.runConfiguration.automatic
   }
 
-  def execute(r: RunfolderReadyForProcessing)(
-      implicit tsc: TaskSystemComponents) = {
+  def getKeysOfDemultiplexedSample(
+      d: PerSamplePerRunFastQ): (Project, SampleId, RunId) =
+    (d.project, d.sampleId, d.runId)
 
-    def inRunQCFolder[T](runId: RunId)(f: TaskSystemComponents => T) =
-      tsc.withFilePrefix(Seq("runQC", runId))(f)
+  def getKeysOfSampleResult(d: SampleResult): (Project, SampleId, RunId) =
+    (d.project, d.sampleId, d.lastRunId)
 
-    def inDeliverablesFolder[T](f: TaskSystemComponents => T) =
-      tsc.withFilePrefix(Seq("deliverables"))(f)
+  def processCompletedRun(samples: Seq[SampleResult])(
+      implicit tsc: TaskSystemComponents): Future[(RunId, Boolean)] = {
+    assert(samples.map(_.lastRunId).distinct.size == 1)
+    val runId = samples.head.lastRunId
 
-    def inDemultiplexingFolder[T](
-        runId: RunId,
-        demultiplexingId: DemultiplexingId)(f: TaskSystemComponents => T) =
-      tsc.withFilePrefix(Seq("demultiplexing", runId, demultiplexingId))(f)
+    val fastqsOfThisRun =
+      samples
+        .flatMap(_.demultiplexed)
+        .filter(_.runId == runId)
+        .map(_.withoutRunId)
 
-    def executeDemultiplexing =
-      Future
-        .traverse(r.runConfiguration.demultiplexingRuns.toSeq) {
-          demultiplexingConfig =>
-            inDemultiplexingFolder(r.runId,
-                                   demultiplexingConfig.demultiplexingId) {
-              implicit tsc =>
-                for {
-                  globalIndexSet <- ProtoPipeline.fetchGlobalIndexSet(
-                    r.runConfiguration)
-                  sampleSheet <- ProtoPipeline.fetchSampleSheet(
-                    demultiplexingConfig.sampleSheet)
+    val sampleQCsWES = samples.flatMap(_.extractWESQCFiles.toSeq)
 
-                  demultiplexed <- Demultiplexing.allLanes(
-                    DemultiplexingInput(
-                      r.runFolderPath,
-                      sampleSheet,
-                      demultiplexingConfig.extraBcl2FastqArguments,
-                      globalIndexSet))(ResourceConfig.minimal)
+    inRunQCFolder(runId) { implicit tsc =>
+      for {
 
-                  perSampleFastQs = ProtoPipeline
-                    .groupBySample(demultiplexed.withoutUndetermined,
-                                   demultiplexingConfig.readAssignment,
-                                   demultiplexingConfig.umi,
-                                   r.runId)
+        _ <- AlignmentQC.runQCTable(RunQCTableInput(runId, sampleQCsWES))(
+          ResourceConfig.minimal)
+        _ <- RunQCRNA.runQCTable(
+          RunQCTableRNAInput(runId,
+                             samples.flatMap(_.rna.toSeq.map(_.star)).toSet))(
+          ResourceConfig.minimal)
+        _ <- ReadQC.readQC(ReadQCInput(fastqsOfThisRun.toSet, runId))(
+          ResourceConfig.minimal)
+      } yield (runId, true)
+    }
 
-                } yield perSampleFastQs
+  }
 
-            }
-        }
-        .map(_.flatten)
+  def processCompletedProject(samples: Seq[SampleResult])(
+      implicit tsc: TaskSystemComponents): Future[(Project, Boolean)] =
+    inDeliverablesFolder { implicit tsc =>
+      for {
+        _ <- Delivery.collectDeliverables(
+          CollectDeliverablesInput(samples.toSet))(ResourceConfig.minimal)
+      } yield (samples.head.project, true)
+    }
 
-    val readLengths = ProtoPipeline.parseReadLengthFromRunInfo(r)
+  def demultiplex(r: RunfolderReadyForProcessing)(
+      implicit tsc: TaskSystemComponents): Future[Seq[PerSamplePerRunFastQ]] =
+    ProtoPipelineStages.executeDemultiplexing(r)
+
+  def processSample(r: RunfolderReadyForProcessing,
+                    pastSampleResult: Option[SampleResult],
+                    demultiplexedSample: PerSamplePerRunFastQ)(
+      implicit tsc: TaskSystemComponents): Future[Option[SampleResult]] = {
+
+    val readLengths = ProtoPipelineStages.parseReadLengthFromRunInfo(r)
 
     logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
 
     for {
-      reference <- ProtoPipeline.fetchReference(r.runConfiguration)
-      knownSites <- ProtoPipeline.fetchKnownSitesFiles(r.runConfiguration)
-      gtf <- ProtoPipeline.fetchGenemodel(r.runConfiguration)
-      selectionTargetIntervals <- ProtoPipeline.fetchTargetIntervals(
+      reference <- ProtoPipelineStages.fetchReference(r.runConfiguration)
+      knownSites <- ProtoPipelineStages.fetchKnownSitesFiles(r.runConfiguration)
+      gtf <- ProtoPipelineStages.fetchGenemodel(r.runConfiguration)
+      selectionTargetIntervals <- ProtoPipelineStages.fetchTargetIntervals(
         r.runConfiguration)
-      dbSnpVcf <- ProtoPipeline.fetchDbSnpVcf(r.runConfiguration)
-      variantEvaluationIntervals <- ProtoPipeline
+      dbSnpVcf <- ProtoPipelineStages.fetchDbSnpVcf(r.runConfiguration)
+      variantEvaluationIntervals <- ProtoPipelineStages
         .fetchVariantEvaluationIntervals(r.runConfiguration)
 
-      perSampleFastQs <- executeDemultiplexing
+      fastpReport = startFastpReports(demultiplexedSample)
 
-      fastpReports = startFastpReports(perSampleFastQs)
-      readQCReports = startReadQCPlots(perSampleFastQs, r.runId)
-
-      samplesForWESAnalysis = ProtoPipeline.select(
+      samplesForWESAnalysis = ProtoPipelineStages.select(
         r.runConfiguration.wesSelector,
-        perSampleFastQs)
+        demultiplexedSample)
 
-      samplesForRNASeqAnalysis = ProtoPipeline.select(
+      samplesForRNASeqAnalysis = ProtoPipelineStages.select(
         r.runConfiguration.rnaSelector,
-        perSampleFastQs)
+        demultiplexedSample)
 
       _ = {
         logger.info(
-          s"Demultiplexed samples from run ${r.runId} : $perSampleFastQs")
+          s"Demultiplexed samples from run ${r.runId} : $demultiplexedSample")
         logger.info(s"WES samples from run ${r.runId} : $samplesForWESAnalysis")
         logger.info(
           s"RNASEQ samples from run ${r.runId} : $samplesForRNASeqAnalysis")
       }
 
-      wesAnalysis = ProtoPipeline.allSamplesWES(
-        PerSamplePipelineInput(
-          samplesForWESAnalysis.toSet,
+      perSampleResultsWES = samplesForWESAnalysis.fold(emptyWesResult)(
+        wes(
+          _,
+          reference,
+          knownSites.toSeq,
+          selectionTargetIntervals,
+          dbSnpVcf,
+          variantEvaluationIntervals,
+          fastpReport.map(Seq(_)),
+          pastSampleResult.flatMap(_.wes.map(_.uncalibrated))
+        ))
+
+      perSampleResultsRNA = samplesForRNASeqAnalysis.fold(emptyRNASeqResult)(
+        rna(_, reference, gtf, readLengths))
+
+      perSampleResultsWES <- perSampleResultsWES
+      perSampleResultsRNA <- perSampleResultsRNA
+
+      fastpReport <- fastpReport
+
+    } yield {
+      val pastFastpReports = pastSampleResult.toSeq.flatMap(_.fastpReports)
+      val pastDemultiplexed = pastSampleResult.toSeq.flatMap(_.demultiplexed)
+      val pastRunFolders = pastSampleResult.toSeq.flatMap(_.runFolders)
+
+      Some(
+        SampleResult(
+          wes = perSampleResultsWES,
+          rna = perSampleResultsRNA,
+          demultiplexed = pastDemultiplexed :+ demultiplexedSample,
+          fastpReports = pastFastpReports :+ fastpReport,
+          runFolders = pastRunFolders :+ r,
+          sampleId = demultiplexedSample.sampleId,
+          project = demultiplexedSample.project
+        )
+      )
+    }
+
+  }
+
+  private def wes(samplesForWESAnalysis: PerSamplePerRunFastQ,
+                  reference: ReferenceFasta,
+                  knownSites: Seq[VCF],
+                  selectionTargetIntervals: BedFile,
+                  dbSnpVcf: VCF,
+                  variantEvaluationIntervals: BedFile,
+                  fastpReports: Future[Seq[FastpReport]],
+                  previousUncalibratedBam: Option[Bam])(
+      implicit tsc: TaskSystemComponents) =
+    for {
+      perSampleResultsWES <- ProtoPipelineStages.singleSampleWES(
+        SingleSamplePipelineInput(
+          samplesForWESAnalysis.withoutRunId,
           reference,
           knownSites.toSet,
           selectionTargetIntervals,
           dbSnpVcf,
-          variantEvaluationIntervals
+          variantEvaluationIntervals,
+          previousUncalibratedBam
         ))(ResourceConfig.minimal)
 
-      rnaSeqAnalysis = ProtoPipeline.allSamplesRNASeq(
-        PerSamplePipelineInputRNASeq(
-          samplesForRNASeqAnalysis.toSet,
+      fastpReports <- fastpReports
+
+    } yield Some(perSampleResultsWES)
+
+  private def rna(
+      samplesForRNASeqAnalysis: PerSamplePerRunFastQ,
+      reference: ReferenceFasta,
+      gtf: GTFFile,
+      readLengths: Map[ReadType, Int])(implicit tsc: TaskSystemComponents) =
+    for {
+
+      perSampleResultsRNA <- ProtoPipelineStages.singleSampleRNA(
+        SingleSamplePipelineInputRNASeq(
+          samplesForRNASeqAnalysis.withoutRunId,
           reference,
           gtf,
           readLengths.toSeq.toSet
         ))(ResourceConfig.minimal)
 
-      perSampleResultsWES <- wesAnalysis
-      perSampleResultsRNA <- rnaSeqAnalysis
+    } yield Some(perSampleResultsRNA)
 
-      fastpReports <- fastpReports
-      _ <- readQCReports
-
-      sampleQCsWES = extractQCFiles(perSampleResultsWES, fastpReports)
-
-      _ <- inRunQCFolder(r.runId) { implicit tsc =>
-        AlignmentQC.runQCTable(RunQCTableInput(RunId(r.runId), sampleQCsWES))(
-          ResourceConfig.minimal)
-      }
-      _ <- inRunQCFolder(r.runId) { implicit tsc =>
-        RunQCRNA.runQCTable(
-          RunQCTableRNAInput(r.runId, perSampleResultsRNA.samples))(
-          ResourceConfig.minimal)
-      }
-
-      _ <- inDeliverablesFolder { implicit tsc =>
-        Delivery.collectDeliverables(
-          CollectDeliverablesInput(
-            r.runId,
-            perSampleFastQs.toSet,
-            perSampleResultsWES.samples,
-            perSampleResultsRNA.samples,
-            fastpReports.toSet
-          ))(ResourceConfig.minimal)
-      }
-
-    } yield
-      Some(
-        PipelineResult(perSampleResultsWES.samples,
-                       perSampleResultsRNA.samples))
-
-  }
-
-  def aggregateAcrossRuns(state: PipelineResult)(
-      implicit tsc: TaskSystemComponents): Future[Boolean] =
-    Future.successful(true)
-
-  val persistenceFilename = "__PastRuns"
-  def last(implicit tsc: TaskSystemComponents): Future[PipelineResult] = {
-    import cats.data.OptionT
-    import cats.implicits._
-    (for {
-      eValue <- OptionT(EValue.getByName[PipelineResult](persistenceFilename))
-      pipelineResult <- OptionT.liftF(eValue.get)
-    } yield pipelineResult)
-      .getOrElseF(Future.successful(PipelineResult.empty))
-  }
-
-  def persist(t: PipelineResult)(implicit tsc: TaskSystemComponents) =
-    for {
-      _ <- EValue(t, persistenceFilename)
-    } yield t
-
-  private def extractQCFiles(
-      sampleResults: PerSamplePipelineResult,
-      fastpReports: Seq[FastpReport]): Seq[SampleMetrics] =
-    sampleResults.samples.toSeq.map { sample =>
-      val fastpReportsOfSample = fastpReports.find { fp =>
-        fp.sampleId == sample.sampleId &&
-        fp.project == sample.project &&
-        fp.runId == sample.runId
-      }.get
-      SampleMetrics(
-        sample.alignmentQC.alignmentSummary,
-        sample.targetSelectionQC.hsMetrics,
-        sample.duplicationQC.markDuplicateMetrics,
-        fastpReportsOfSample,
-        sample.wgsQC.wgsMetrics,
-        sample.gvcfQC.summary,
-        sample.project,
-        sample.sampleId,
-        sample.runId
-      )
+  private def startFastpReports(perSampleFastQs: PerSamplePerRunFastQ)(
+      implicit tsc: TaskSystemComponents): Future[FastpReport] =
+    tsc.withFilePrefix(
+      Seq("projects",
+          perSampleFastQs.project,
+          perSampleFastQs.sampleId,
+          "fastp",
+          perSampleFastQs.runId)) { implicit tsc =>
+      Fastp.report(perSampleFastQs)(ResourceConfig.fastp)
     }
 
-  def startFastpReports(perSampleFastQs: Seq[PerSampleFastQ])(
-      implicit tsc: TaskSystemComponents): Future[Seq[FastpReport]] = {
+  private def inRunQCFolder[T](runId: RunId)(f: TaskSystemComponents => T)(
+      implicit tsc: TaskSystemComponents) =
+    tsc.withFilePrefix(Seq("runQC", runId))(f)
 
-    Future.traverse(perSampleFastQs)(fq =>
-      tsc.withFilePrefix(Seq("fastp", fq.project, fq.runId)) { implicit tsc =>
-        Fastp.report(fq)(ResourceConfig.fastp)
-    })
-  }
-  def startReadQCPlots(perSampleFastQs: Seq[PerSampleFastQ], runId: RunId)(
-      implicit tsc: TaskSystemComponents): Future[ReadQCResult] =
-    tsc.withFilePrefix(Seq("readqc", runId)) { implicit tsc =>
-      ReadQC.readQC(ReadQCInput(perSampleFastQs.toSet, runId))(
-        ResourceConfig.minimal)
-    }
+  private def inDeliverablesFolder[T](f: TaskSystemComponents => T)(
+      implicit tsc: TaskSystemComponents) =
+    tsc.withFilePrefix(Seq("deliverables"))(f)
 
-}
+  private val emptyWesResult =
+    Future.successful(Option.empty[SingleSamplePipelineResult])
 
-case class PerSamplePipelineInput(demultiplexed: Set[PerSampleFastQ],
-                                  reference: ReferenceFasta,
-                                  knownSites: Set[VCF],
-                                  selectionTargetIntervals: BedFile,
-                                  dbSnpVcf: VCF,
-                                  variantEvaluationIntervals: BedFile)
-    extends WithSharedFiles(
-      demultiplexed.toSeq.flatMap(_.files) ++ reference.files ++ knownSites
-        .flatMap(_.files) ++ selectionTargetIntervals.files ++ dbSnpVcf.files ++ variantEvaluationIntervals.files: _*)
+  private val emptyRNASeqResult =
+    Future.successful(Option.empty[SingleSamplePipelineResultRNA])
 
-case class PerSamplePipelineInputRNASeq(demultiplexed: Set[PerSampleFastQ],
-                                        reference: ReferenceFasta,
-                                        gtf: GTFFile,
-                                        readLengths: Set[(ReadType, Int)])
-    extends WithSharedFiles(
-      demultiplexed.toSeq.flatMap(_.files) ++ reference.files ++ gtf.files: _*)
-
-case class SingleSamplePipelineInput(demultiplexed: PerSampleFastQ,
-                                     knownSites: Set[VCF],
-                                     indexedReference: IndexedReferenceFasta,
-                                     selectionTargetIntervals: BedFile,
-                                     dbSnpVcf: VCF,
-                                     variantEvaluationIntervals: BedFile)
-    extends WithSharedFiles(
-      demultiplexed.files ++ indexedReference.files ++ knownSites.flatMap(
-        _.files) ++ selectionTargetIntervals.files: _*)
-
-case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
-                                      haplotypeCallerReferenceCalls: VCF,
-                                      gvcf: VCF,
-                                      project: Project,
-                                      sampleId: SampleId,
-                                      runId: RunId,
-                                      alignmentQC: AlignmentQCResult,
-                                      duplicationQC: DuplicationQCResult,
-                                      targetSelectionQC: SelectionQCResult,
-                                      wgsQC: CollectWholeGenomeMetricsResult,
-                                      gvcfQC: VariantCallingMetricsResult)
-    extends WithSharedFiles(
-      bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.files ++ gvcf.files: _*)
-
-case class PerSamplePipelineResult(samples: Set[SingleSamplePipelineResult])
-    extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
-
-case class PerSamplePipelineResultRNASeq(samples: Set[StarResult])
-    extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
-
-object ProtoPipeline extends StrictLogging {
-
-  private def selectReadType(fqs: Seq[FastQWithSampleMetadata],
-                             readType: ReadType) =
-    fqs
-      .filter(_.readType == readType)
-      .headOption
-      .map(_.fastq)
-
-  /**
-    * @param readAssignment Mapping between members of a read pair and numbers assigned by bcl2fastq.
-    * @param umi Number assigned by bcl2fastq, if any
-    *
-    * e.g. if R1 is the first member of the pair and R2 is the second member of the pair
-    * then (1,2)
-    * if R1 is the first member of the pair, R2 is the UMI, R3 is the second member of the pair
-    * then (1,3) and if you want to process the umi then pass Some(2) to the umi param.
-    * if R1 is the second member of the pair (for whatever reason) and R2 is the first then pass (2,1)
-    */
-  def groupBySample(demultiplexed: DemultiplexedReadData,
-                    readAssignment: (Int, Int),
-                    umi: Option[Int],
-                    runId: RunId): Seq[PerSampleFastQ] =
-    demultiplexed.fastqs
-      .groupBy { fq =>
-        (fq.project, fq.sampleId)
-      }
-      .toSeq
-      .map {
-        case ((project, sampleId), perSampleFastQs) =>
-          val perLaneFastQs =
-            perSampleFastQs
-              .groupBy(s => (s.lane, s.partition))
-              .toSeq
-              .map(_._2)
-              .map { (fqsInLane: Set[FastQWithSampleMetadata]) =>
-                val maybeRead1 =
-                  selectReadType(fqsInLane.toSeq, ReadType(readAssignment._1))
-
-                val maybeRead2 =
-                  selectReadType(fqsInLane.toSeq, ReadType(readAssignment._2))
-
-                val maybeUmi = umi.flatMap(umiReadNumber =>
-                  selectReadType(fqsInLane.toSeq, ReadType(umiReadNumber)))
-
-                val lane = {
-                  val distinctLanesInGroup = fqsInLane.map(_.lane)
-                  assert(distinctLanesInGroup.size == 1) // due to groupBy
-                  distinctLanesInGroup.head
-                }
-
-                val partition = {
-                  val distinctPartitionsInGroup = fqsInLane.map(_.partition)
-                  assert(distinctPartitionsInGroup.size == 1) // due to groupBy
-                  distinctPartitionsInGroup.head
-                }
-
-                for {
-                  read1 <- maybeRead1
-                  read2 <- maybeRead2
-                } yield FastQPerLane(lane, read1, read2, maybeUmi, partition)
-              }
-              .flatten
-          PerSampleFastQ(
-            perLaneFastQs.toSet,
-            project,
-            sampleId,
-            runId
-          )
-      }
-
-  private def fetchReference(runConfiguration: RunConfiguration)(
-      implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) = {
-    tsc.withFilePrefix(Seq("references")) { implicit tsc =>
-      val file = new File(runConfiguration.referenceFasta)
-      val fileName = file.getName
-      logger.debug(s"Fetching reference $file")
-      SharedFile(file, fileName).map(ReferenceFasta(_)).andThen {
-        case Success(_) =>
-          logger.debug(s"Fetched reference")
-        case Failure(e) =>
-          logger.error(s"Failed to fetch reference $file", e)
-
-      }
-    }
-  }
-
-  private def fetchSampleSheet(path: String)(implicit tsc: TaskSystemComponents,
-                                             ec: ExecutionContext) = {
-    tsc.withFilePrefix(Seq("sampleSheets")) { implicit tsc =>
-      val file = new File(path)
-      val fileName = file.getName
-      logger.debug(s"Fetching sample sheet $file")
-      SharedFile(file, fileName).map(SampleSheetFile(_)).andThen {
-        case Success(_) =>
-          logger.debug(s"Fetched reference")
-        case Failure(e) =>
-          logger.error(s"Failed to fetch reference $file", e)
-
-      }
-    }
-  }
-
-  private def fetchGlobalIndexSet(runConfiguration: RunConfiguration)(
-      implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) =
-    runConfiguration.globalIndexSet match {
-      case None       => Future.successful(None)
-      case Some(path) => fetchFile("references", path).map(Some(_))
-    }
-  private def fetchGenemodel(runConfiguration: RunConfiguration)(
-      implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) =
-    fetchFile("references", runConfiguration.geneModelGtf).map(GTFFile(_))
-
-  private def fetchVariantEvaluationIntervals(
-      runConfiguration: RunConfiguration)(implicit tsc: TaskSystemComponents,
-                                          ec: ExecutionContext) =
-    fetchFile("references", runConfiguration.variantEvaluationIntervals)
-      .map(BedFile(_))
-
-  private def fetchDbSnpVcf(runConfiguration: RunConfiguration)(
-      implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) =
-    for {
-      vcf <- fetchFile("references", runConfiguration.dbSnpVcf)
-      vcfidx <- fetchFile("references", runConfiguration.dbSnpVcf + ".idx")
-    } yield VCF(vcf, Some(vcfidx))
-
-  private def fetchFile(folderName: String, path: String)(
-      implicit tsc: TaskSystemComponents) = {
-    tsc.withFilePrefix(Seq(folderName)) { implicit tsc =>
-      val file = new File(path)
-      val fileName = file.getName
-      logger.debug(s"Fetching $file")
-      SharedFile(file, fileName)
-    }
-  }
-
-  private def fetchTargetIntervals(runConfiguration: RunConfiguration)(
-      implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) = {
-    tsc.withFilePrefix(Seq("references")) { implicit tsc =>
-      val file = new File(runConfiguration.targetIntervals)
-      val fileName = file.getName
-      logger.debug(s"Fetching target interval file $file")
-      SharedFile(file, fileName).map(BedFile(_)).andThen {
-        case Success(_) =>
-          logger.debug(s"Fetched target intervals (capture kit definition)")
-        case Failure(e) =>
-          logger.error(s"Failed to target intervals $file", e)
-
-      }
-    }
-  }
-  private def fetchKnownSitesFiles(runConfiguration: RunConfiguration)(
-      implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) = {
-    val files =
-      runConfiguration.bqsrKnownSites
-
-    val fileListWithIndices = files.map { vcfFile =>
-      (new File(vcfFile), new File(vcfFile + ".idx"))
-    }
-    val vcfFilesFuture = fileListWithIndices.map {
-      case (vcf, vcfIdx) =>
-        logger.debug(s"Fetching known sites vcf $vcf with its index $vcfIdx")
-        for {
-          vcf <- SharedFile(vcf, vcf.getName)
-          vcfIdx <- SharedFile(vcfIdx, vcfIdx.getName)
-        } yield VCF(vcf, Some(vcfIdx))
-    }
-    Future.sequence(vcfFilesFuture).andThen {
-      case Success(_) =>
-        logger.debug(s"Fetched known sites vcfs")
-      case Failure(e) =>
-        logger.error("Failed to fetch known sites files", e)
-    }
-  }
-
-  val singleSampleWES =
-    AsyncTask[SingleSamplePipelineInput, SingleSamplePipelineResult](
-      "__persample-single",
-      1) {
-      case SingleSamplePipelineInput(demultiplexed,
-                                     knownSites,
-                                     indexedReference,
-                                     selectionTargetIntervals,
-                                     dbSnpVcf,
-                                     variantEvaluationIntervals) =>
-        implicit computationEnvironment =>
-          log.info(s"Processing demultiplexed sample $demultiplexed")
-          releaseResources
-
-          def intoIntermediateFolder[T] =
-            appendToFilePrefix[T](
-              Seq(demultiplexed.project, demultiplexed.runId, "intermediate"))
-
-          def intoFinalFolder[T] =
-            appendToFilePrefix[T](
-              Seq(demultiplexed.project, demultiplexed.runId))
-
-          def intoQCFolder[T] =
-            appendToFilePrefix[T](
-              Seq(demultiplexed.project, demultiplexed.runId, "QC"))
-
-          for {
-
-            MarkDuplicateResult(alignedSample, duplicationQC) <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                BWAAlignment
-                  .alignFastqPerSample(
-                    PerSampleBWAAlignmentInput(demultiplexed.lanes,
-                                               demultiplexed.project,
-                                               demultiplexed.sampleId,
-                                               demultiplexed.runId,
-                                               indexedReference))(
-                    ResourceConfig.minimal)
-            }
-
-            coordinateSorted <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                BWAAlignment.sortByCoordinateAndIndex(alignedSample.bam)(
-                  ResourceConfig.sortBam)
-            }
-
-            _ <- alignedSample.bam.file.delete
-
-            bqsrTable <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                BaseQualityScoreRecalibration.trainBQSR(
-                  TrainBQSRInput(coordinateSorted,
-                                 indexedReference,
-                                 knownSites.toSet))(ResourceConfig.trainBqsr)
-            }
-            recalibrated <- intoFinalFolder { implicit computationEnvironment =>
-              BaseQualityScoreRecalibration.applyBQSR(
-                ApplyBQSRInput(coordinateSorted, indexedReference, bqsrTable))(
-                ResourceConfig.applyBqsr)
-            }
-            _ <- coordinateSorted.bam.delete
-            _ <- coordinateSorted.bai.delete
-
-            alignmentQC <- intoQCFolder { implicit computationEnvironment =>
-              AlignmentQC.general(
-                AlignmentQCInput(recalibrated, indexedReference))(
-                ResourceConfig.minimal)
-            }
-            targetSelectionQC <- intoQCFolder {
-              implicit computationEnvironment =>
-                AlignmentQC.hybridizationSelection(
-                  SelectionQCInput(recalibrated,
-                                   indexedReference,
-                                   selectionTargetIntervals))(
-                  ResourceConfig.minimal)
-            }
-            wgsQC <- intoQCFolder { implicit computationEnvironment =>
-              AlignmentQC.wholeGenomeMetrics(
-                CollectWholeGenomeMetricsInput(recalibrated, indexedReference))(
-                ResourceConfig.minimal)
-            }
-
-            haplotypeCallerReferenceCalls <- intoFinalFolder {
-              implicit computationEnvironment =>
-                HaplotypeCaller.haplotypeCaller(
-                  HaplotypeCallerInput(recalibrated, indexedReference))(
-                  ResourceConfig.minimal)
-            }
-
-            GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                HaplotypeCaller.genotypeGvcfs(
-                  GenotypeGVCFsInput(
-                    Set(haplotypeCallerReferenceCalls),
-                    indexedReference,
-                    dbSnpVcf,
-                    demultiplexed.project + "." + demultiplexed.sampleId + ".single"))(
-                  ResourceConfig.minimal)
-            }
-
-            gvcf <- intoFinalFolder { implicit computationEnvironment =>
-              HaplotypeCaller.mergeVcfs(MergeVCFInput(
-                genotypesScattered,
-                demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
-                ResourceConfig.minimal)
-            }
-
-            gvcfQC <- intoQCFolder { implicit computationEnvironment =>
-              HaplotypeCaller.collectVariantCallingMetrics(
-                CollectVariantCallingMetricsInput(indexedReference,
-                                                  gvcf,
-                                                  dbSnpVcf,
-                                                  variantEvaluationIntervals))(
-                ResourceConfig.minimal)
-            }
-
-          } yield
-            SingleSamplePipelineResult(
-              bam = recalibrated,
-              haplotypeCallerReferenceCalls = haplotypeCallerReferenceCalls,
-              gvcf = gvcf,
-              project = demultiplexed.project,
-              runId = demultiplexed.runId,
-              sampleId = demultiplexed.sampleId,
-              alignmentQC = alignmentQC,
-              duplicationQC = duplicationQC,
-              targetSelectionQC = targetSelectionQC,
-              wgsQC = wgsQC,
-              gvcfQC = gvcfQC
-            )
-
-    }
-
-  val allSamplesWES =
-    AsyncTask[PerSamplePipelineInput, PerSamplePipelineResult](
-      "__persample-allsamples",
-      1) {
-      case PerSamplePipelineInput(demultiplexed,
-                                  referenceFasta,
-                                  knownSites,
-                                  selectionTargetIntervals,
-                                  dbSnpVcf,
-                                  variantEvaluationIntervals) =>
-        implicit computationEnvironment =>
-          releaseResources
-          computationEnvironment.withFilePrefix(Seq("projects")) {
-            implicit computationEnvironment =>
-              for {
-                indexedFasta <- BWAAlignment.indexReference(referenceFasta)(
-                  ResourceConfig.indexReference)
-
-                processedSamples <- Future
-                  .traverse(demultiplexed.toSeq) { perSampleFastQs =>
-                    ProtoPipeline.singleSampleWES(
-                      SingleSamplePipelineInput(perSampleFastQs,
-                                                knownSites,
-                                                indexedFasta,
-                                                selectionTargetIntervals,
-                                                dbSnpVcf,
-                                                variantEvaluationIntervals))(
-                      ResourceConfig.minimal)
-                  }
-
-              } yield PerSamplePipelineResult(processedSamples.toSet)
-          }
-
-    }
-
-  val allSamplesRNASeq =
-    AsyncTask[PerSamplePipelineInputRNASeq, PerSamplePipelineResultRNASeq](
-      "__rna-persample-allsamples",
-      1) {
-      case PerSamplePipelineInputRNASeq(demultiplexed,
-                                        referenceFasta,
-                                        gtf,
-                                        readLengths) =>
-        implicit computationEnvironment =>
-          releaseResources
-          computationEnvironment.withFilePrefix(Seq("projects")) {
-            implicit computationEnvironment =>
-              val allLanesOfAllSamples: Seq[(PerSampleFastQ, FastQPerLane)] =
-                demultiplexed.toSeq.flatMap { perSampleFastQs =>
-                  perSampleFastQs.lanes.map(lane => (perSampleFastQs, lane))
-                }
-
-              def inProjectFolder[T](project: Project, run: RunId) =
-                appendToFilePrefix[T](Seq(project, run))
-
-              if (allLanesOfAllSamples.isEmpty)
-                Future.successful(PerSamplePipelineResultRNASeq(Set.empty))
-              else
-                for {
-                  indexedFasta <- StarAlignment.indexReference(referenceFasta)(
-                    ResourceConfig.createStarIndex)
-
-                  processedSamples <- Future
-                    .traverse(demultiplexed) { sample =>
-                      inProjectFolder(sample.project, sample.runId) {
-                        implicit computationEnvironment =>
-                          StarAlignment.alignSample(StarAlignmentInput(
-                            fastqs = sample.lanes,
-                            project = sample.project,
-                            sampleId = sample.sampleId,
-                            runId = sample.runId,
-                            reference = indexedFasta,
-                            gtf = gtf.file,
-                            readLength = readLengths.map(_._2).max
-                          ))(ResourceConfig.starAlignment)
-                      }
-
-                    }
-
-                } yield PerSamplePipelineResultRNASeq(processedSamples.toSet)
-          }
-
-    }
-
-  def select(selector: Selector, samples: Seq[PerSampleFastQ]) =
-    samples.filter { sample =>
-      val lanes = sample.lanes.map { fqLane =>
-        Metadata(sample.runId, fqLane.lane, sample.sampleId, sample.project)
-      }
-      lanes.exists(selector.isSelected)
-
-    }
-
-  def parseReadLengthFromRunInfo(
-      run: RunfolderReadyForProcessing): Map[ReadType, Int] = {
-    val content = fileutils.openSource(
-      new File(run.runFolderPath + "/RunInfo.xml"))(_.mkString)
-    parseReadLength(content)
-  }
-
-  def parseReadLength(s: String) = {
-    val root = scala.xml.XML.loadString(s)
-    (root \ "Run" \ "Reads" \ "Read")
-      .map { node =>
-        (node \@ "Number", node \@ "NumCycles")
-      }
-      .map {
-        case (number, cycles) =>
-          ReadType(number.toInt) -> cycles.toInt
-      }
-      .toMap
-
-  }
-}
-
-object SingleSamplePipelineInput {
-  implicit val encoder: Encoder[SingleSamplePipelineInput] =
-    deriveEncoder[SingleSamplePipelineInput]
-  implicit val decoder: Decoder[SingleSamplePipelineInput] =
-    deriveDecoder[SingleSamplePipelineInput]
-}
-
-object PerSamplePipelineInput {
-  implicit val encoder: Encoder[PerSamplePipelineInput] =
-    deriveEncoder[PerSamplePipelineInput]
-  implicit val decoder: Decoder[PerSamplePipelineInput] =
-    deriveDecoder[PerSamplePipelineInput]
-}
-
-object PerSamplePipelineResult {
-  implicit val encoder: Encoder[PerSamplePipelineResult] =
-    deriveEncoder[PerSamplePipelineResult]
-  implicit val decoder: Decoder[PerSamplePipelineResult] =
-    deriveDecoder[PerSamplePipelineResult]
-}
-
-object SingleSamplePipelineResult {
-  implicit val encoder: Encoder[SingleSamplePipelineResult] =
-    deriveEncoder[SingleSamplePipelineResult]
-  implicit val decoder: Decoder[SingleSamplePipelineResult] =
-    deriveDecoder[SingleSamplePipelineResult]
-}
-
-object PerSamplePipelineInputRNASeq {
-  implicit val encoder: Encoder[PerSamplePipelineInputRNASeq] =
-    deriveEncoder[PerSamplePipelineInputRNASeq]
-  implicit val decoder: Decoder[PerSamplePipelineInputRNASeq] =
-    deriveDecoder[PerSamplePipelineInputRNASeq]
-}
-
-object PerSamplePipelineResultRNASeq {
-  implicit val encoder: Encoder[PerSamplePipelineResultRNASeq] =
-    deriveEncoder[PerSamplePipelineResultRNASeq]
-  implicit val decoder: Decoder[PerSamplePipelineResultRNASeq] =
-    deriveDecoder[PerSamplePipelineResultRNASeq]
-}
-
-object PipelineResult {
-  implicit val encoder: Encoder[PipelineResult] =
-    deriveEncoder[PipelineResult]
-  implicit val decoder: Decoder[PipelineResult] =
-    deriveDecoder[PipelineResult]
-
-  val empty = PipelineResult(Set(), Set())
 }

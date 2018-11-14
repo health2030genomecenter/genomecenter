@@ -33,8 +33,7 @@ object AlignmentSummaryMetrics {
 
     def apply(picardFileContents: String,
               project: Project,
-              sampleId: SampleId,
-              runId: RunId): Seq[Root] = {
+              sampleId: SampleId): Seq[Root] = {
 
       val lines = scala.io.Source
         .fromString(picardFileContents)
@@ -55,6 +54,9 @@ object AlignmentSummaryMetrics {
 
       def laneFromReadGroup(readGroup: String): Lane =
         Lane(readGroup.split("\\.").last.toInt)
+
+      def runIdFromReadGroup(readGroup: String): RunId =
+        RunId(readGroup.split("\\.").head.trim)
 
       object H {
         val rg = "READ_GROUP"
@@ -117,12 +119,9 @@ object AlignmentSummaryMetrics {
         )
 
         val lane = laneFromReadGroup(g(H.rg))
+        val runId = runIdFromReadGroup(g(H.rg))
         val sampleIdInFile = g(H.sample)
-        val readGroupInFile = g(H.rg)
 
-        require(
-          runId + "." + lane == readGroupInFile,
-          s"unexpected run and lane. picard output file has $readGroupInFile we have run:$runId and lane: $lane")
         require(
           project + "." + sampleId == sampleIdInFile,
           s"unexpected project and sampleId. picard output file has $sampleIdInFile we have prj:$project and sample: $sampleId"

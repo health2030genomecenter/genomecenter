@@ -18,13 +18,14 @@ class FastpTestSuite
 
       val result = withTaskSystem(testConfig) { implicit ts =>
         val input =
-          PerSampleFastQ(
+          PerSamplePerRunFastQ(
             Set(
               FastQPerLane(
                 lane = lane,
                 read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
                 read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
                 umi = None,
+                runId = runId,
                 partition = PartitionId(0)
               )),
             project = project,

@@ -55,8 +55,7 @@ case class SampleMetrics(alignmentSummary: SharedFile,
                          wgsMetrics: SharedFile,
                          gvcfQCMetrics: SharedFile,
                          project: Project,
-                         sampleId: SampleId,
-                         runId: RunId)
+                         sampleId: SampleId)
     extends WithSharedFiles(alignmentSummary,
                             hsMetrics,
                             duplicationMetrics,
@@ -64,7 +63,7 @@ case class SampleMetrics(alignmentSummary: SharedFile,
                             gvcfQCMetrics,
                             fastpReport.json)
 
-case class RunQCTableInput(runId: RunId, samples: Seq[SampleMetrics])
+case class RunQCTableInput(fileName: String, samples: Seq[SampleMetrics])
     extends WithSharedFiles(samples.flatMap(_.files): _*)
 
 case class RunQCTable(table: SharedFile, htmlTable: SharedFile)
@@ -85,6 +84,8 @@ object AlignmentQC {
     val right = false
     val lines = metrics
       .sortBy(_._1.project.toString)
+      .sortBy(_._1.sampleId.toString)
+      .sortBy(_._1.runId.toString)
       .sortBy(_._1.lane.toInt)
       .map {
         case (alignment,
@@ -107,6 +108,7 @@ object AlignmentQC {
             Seq(
               project -> left,
               sampleId -> left,
+              runId -> left,
               lane.toString -> left,
               baitSet -> left,
               f"${genomeTerritory / 1E6}%10.2fMb" -> right,
@@ -143,7 +145,7 @@ object AlignmentQC {
       .mkString("\n")
 
     val header = Html.mkHeader(
-      List("Proj", "Sample", "Lane", "CaptureKit"),
+      List("Proj", "Sample", "Run", "Lane", "CaptureKit"),
       List(
         "GenomeSize" -> right,
         "TotalReads" -> right,
@@ -214,7 +216,7 @@ object AlignmentQC {
 
   val runQCTable =
     AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 1) {
-      case RunQCTableInput(runId, sampleMetrics) =>
+      case RunQCTableInput(fileName, sampleMetrics) =>
         implicit computationEnvironment =>
           def read(f: File) = fileutils.openSource(f)(_.mkString)
           def parseAlignmentSummaries(m: SampleMetrics) =
@@ -222,7 +224,7 @@ object AlignmentQC {
               .map(read)
               .map(txt =>
                 AlignmentSummaryMetrics
-                  .Root(txt, m.project, m.sampleId, m.runId))
+                  .Root(txt, m.project, m.sampleId))
           def parseFastpReport(m: SampleMetrics) =
             m.fastpReport.json.file
               .map(read)
@@ -235,35 +237,36 @@ object AlignmentQC {
           def parseHsMetrics(m: SampleMetrics) =
             m.hsMetrics.file
               .map(read)
-              .map(txt => HsMetrics.Root(txt, m.project, m.sampleId, m.runId))
+              .map(txt => HsMetrics.Root(txt, m.project, m.sampleId))
           def parseWgsMetrics(m: SampleMetrics) =
             m.wgsMetrics.file
               .map(read)
-              .map(txt => WgsMetrics.Root(txt, m.project, m.sampleId, m.runId))
+              .map(txt => WgsMetrics.Root(txt, m.project, m.sampleId))
           def parseDupMetrics(m: SampleMetrics) =
             m.duplicationMetrics.file
               .map(read)
-              .map(txt =>
-                DuplicationMetrics.Root(txt, m.project, m.sampleId, m.runId))
+              .map(txt => DuplicationMetrics.Root(txt, m.project, m.sampleId))
 
           def parseVariantCallingMetrics(m: SampleMetrics) =
             m.gvcfQCMetrics.file
               .map(read)
               .map(txt =>
-                VariantCallingMetrics.Root(txt, m.project, m.sampleId, m.runId))
+                VariantCallingMetrics.Root(txt, m.project, m.sampleId))
 
           def parse(m: SampleMetrics) =
             for {
-              alignmentSummariesPerLane <- parseAlignmentSummaries(m)
+              alignmentSummariesPerLanePerRun <- parseAlignmentSummaries(m)
               fastpReport <- parseFastpReport(m)
-              hsMetricsPerLane <- parseHsMetrics(m)
+              hsMetricsPerLanePerRun <- parseHsMetrics(m)
               dupMetrics <- parseDupMetrics(m)
               wgsMetrics <- parseWgsMetrics(m)
               variantQCMetrics <- parseVariantCallingMetrics(m)
             } yield {
-              alignmentSummariesPerLane.map { alSummaryOfLane =>
-                val lane = alSummaryOfLane.lane
-                val hsMetricsOfLane = hsMetricsPerLane.find(_.lane == lane).get
+              alignmentSummariesPerLanePerRun.map { alSummaryOfLane =>
+                val hsMetricsOfLane = hsMetricsPerLanePerRun
+                  .find(hs =>
+                    hs.lane == alSummaryOfLane.lane && hs.runId == alSummaryOfLane.runId)
+                  .get
                 (alSummaryOfLane,
                  hsMetricsOfLane,
                  dupMetrics,
@@ -286,12 +289,12 @@ object AlignmentQC {
             table <- {
               val table = makeTable(metrics)
               SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
-                         runId + ".qc.table")
+                         fileName + ".wes.qc.table")
             }
             htmlTable <- {
               val table = makeHtmlTable(metrics)
               SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
-                         runId + ".qc.table.html")
+                         fileName + ".wes.qc.table.html")
             }
           } yield RunQCTable(table, htmlTable)
 

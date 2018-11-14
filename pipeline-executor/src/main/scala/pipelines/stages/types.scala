@@ -38,7 +38,7 @@ case class FastQWithSampleMetadata(project: Project,
                                    fastq: FastQ)
     extends WithSharedFiles(fastq.file)
 
-case class PerSampleFastQ(
+case class PerSamplePerRunFastQ(
     lanes: Set[FastQPerLane],
     project: Project,
     sampleId: SampleId,
@@ -46,13 +46,38 @@ case class PerSampleFastQ(
 ) extends WithSharedFiles(
       lanes
         .flatMap(fq => List(fq.read1.file, fq.read2.file))
-        .toSeq: _*)
+        .toSeq: _*) {
+  def withoutRunId = PerSampleFastQ(lanes, project, sampleId)
+}
+
+case class PerSampleFastQ(
+    lanes: Set[FastQPerLane],
+    project: Project,
+    sampleId: SampleId,
+) extends WithSharedFiles(
+      lanes
+        .flatMap(fq => List(fq.read1.file, fq.read2.file))
+        .toSeq: _*) {
+
+  def ++(that: PerSampleFastQ) = {
+    assert(this.project == that.project)
+    assert(this.sampleId == that.sampleId)
+    PerSampleFastQ(lanes ++ that.lanes, project, sampleId)
+  }
+  def runIdTag =
+    lanes
+      .map(_.runId)
+      .toSeq
+      .distinct
+      .map(_.toString)
+      .sorted
+      .mkString(".")
+}
 
 case class FastQPerLaneWithMetadata(
     lane: FastQPerLane,
     project: Project,
     sampleId: SampleId,
-    runId: RunId
 ) extends WithSharedFiles(lane.read1.file, lane.read2.file)
 
 case class BamWithSampleMetadataPerLane(project: Project,
@@ -64,14 +89,10 @@ case class BamWithSampleMetadataPerLane(project: Project,
 
 case class BamsWithSampleMetadata(project: Project,
                                   sampleId: SampleId,
-                                  runId: RunId,
                                   bams: Set[Bam])
     extends ResultWithSharedFiles(bams.map(_.file).toSeq: _*)
 
-case class BamWithSampleMetadata(project: Project,
-                                 sampleId: SampleId,
-                                 runId: RunId,
-                                 bam: Bam)
+case class BamWithSampleMetadata(project: Project, sampleId: SampleId, bam: Bam)
     extends WithSharedFiles(bam.files: _*)
 
 case class CoordinateSortedBamWithSampleMetadata(project: Project,
@@ -93,7 +114,8 @@ case class CoordinateSortedBam(bam: SharedFile, bai: SharedFile)
       bam <- bam.file
     } yield bam
 }
-case class FastQPerLane(lane: Lane,
+case class FastQPerLane(runId: RunId,
+                        lane: Lane,
                         read1: FastQ,
                         read2: FastQ,
                         umi: Option[FastQ],
@@ -252,4 +274,11 @@ object GTFFile {
     deriveEncoder[GTFFile]
   implicit val decoder: Decoder[GTFFile] =
     deriveDecoder[GTFFile]
+}
+
+object PerSamplePerRunFastQ {
+  implicit val encoder: Encoder[PerSamplePerRunFastQ] =
+    deriveEncoder[PerSamplePerRunFastQ]
+  implicit val decoder: Decoder[PerSamplePerRunFastQ] =
+    deriveDecoder[PerSamplePerRunFastQ]
 }

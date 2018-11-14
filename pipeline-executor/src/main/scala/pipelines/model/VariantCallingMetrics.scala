@@ -9,7 +9,6 @@ object VariantCallingMetrics {
   case class Root(
       project: Project,
       sampleId: SampleId,
-      runId: RunId,
       metrics: Metrics
   )
 
@@ -28,8 +27,7 @@ object VariantCallingMetrics {
 
     def apply(picardFileContents: String,
               project: Project,
-              sampleId: SampleId,
-              runId: RunId): Root = {
+              sampleId: SampleId): Root = {
 
       val lines = scala.io.Source
         .fromString(picardFileContents)
@@ -91,10 +89,7 @@ object VariantCallingMetrics {
           novelIndel = g(H.NUM_IN_DB_SNP_INDELS).toInt
         )
 
-        Root(metrics = metrics,
-             sampleId = sampleId,
-             project = project,
-             runId = runId)
+        Root(metrics = metrics, sampleId = sampleId, project = project)
 
       }.head
 

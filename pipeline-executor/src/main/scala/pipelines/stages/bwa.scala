@@ -31,12 +31,13 @@ case class PerSampleBWAAlignmentInput(
     fastqs: Set[FastQPerLane],
     project: Project,
     sampleId: SampleId,
-    runId: RunId,
-    reference: IndexedReferenceFasta
+    reference: IndexedReferenceFasta,
+    bamOfPreviousRuns: Option[Bam]
 ) extends WithSharedFiles(
-      fastqs
+      (fastqs
         .flatMap(fq => List(fq.read1.file, fq.read2.file))
-        .toSeq :+ reference.fasta: _*)
+        .toSeq :+ reference.fasta) ++ bamOfPreviousRuns.toSeq
+        .flatMap(_.files): _*)
 
 case class DuplicationQCResult(markDuplicateMetrics: SharedFile)
     extends WithSharedFiles(markDuplicateMetrics)
@@ -105,8 +106,8 @@ object BWAAlignment {
       case PerSampleBWAAlignmentInput(fastqs,
                                       project,
                                       sampleId,
-                                      runId,
-                                      reference) =>
+                                      reference,
+                                      bamOfPreviousRuns) =>
         implicit computationEnvironment =>
           releaseResources
 
@@ -130,7 +131,7 @@ object BWAAlignment {
                                        lane.read2,
                                        project,
                                        sampleId,
-                                       runId,
+                                       lane.runId,
                                        lane.lane,
                                        lane.partition,
                                        reference,
@@ -140,10 +141,10 @@ object BWAAlignment {
           for {
             alignedLanes <- Future.sequence(fastqs.map(alignLane))
             merged <- mergeAndMarkDuplicate(
-              BamsWithSampleMetadata(project,
-                                     sampleId,
-                                     runId,
-                                     alignedLanes.map(_.bam)))(
+              BamsWithSampleMetadata(
+                project,
+                sampleId,
+                alignedLanes.map(_.bam) ++ bamOfPreviousRuns.toSet))(
               ResourceConfig.picardMergeAndMarkDuplicates)
             _ <- Future.traverse(alignedLanes.map(_.bam))(_.file.delete)
 
@@ -217,7 +218,7 @@ object BWAAlignment {
     AsyncTask[BamsWithSampleMetadata, MarkDuplicateResult](
       "__merge-markduplicate",
       1) {
-      case BamsWithSampleMetadata(project, sampleId, runId, bams) =>
+      case BamsWithSampleMetadata(project, sampleId, bams) =>
         implicit computationEnvironment =>
           val picardJar = extractPicardJar()
 
@@ -266,7 +267,7 @@ object BWAAlignment {
               Exec.bash(logDiscriminator = "markduplicates." + sampleId,
                         onError = Exec.ThrowIfNonZero)(bashScript)
 
-              val nameStub = project + "." + sampleId + "." + runId
+              val nameStub = project + "." + sampleId
 
               Files.deleteRecursively(new File(tempFolder))
 
@@ -286,7 +287,7 @@ object BWAAlignment {
                                   deleteFile = true)
               } yield
                 MarkDuplicateResult(
-                  BamWithSampleMetadata(project, sampleId, runId, Bam(bam)),
+                  BamWithSampleMetadata(project, sampleId, Bam(bam)),
                   DuplicationQCResult(duplicateMetric))
 
             }

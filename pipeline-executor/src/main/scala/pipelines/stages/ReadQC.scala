@@ -54,7 +54,7 @@ object ReadQC {
             metrics: Seq[(SampleId, Lane, ReadType, readqc.Metrics)])
           : Future[SharedFile] = {
           val plot = ReadQCPlot.make(metrics)
-          SharedFile(plot, s"$runId.reads.pdf", true)
+          SharedFile(plot, s"$runId.readqc.pdf", true)
         }
 
         for {
@@ -69,7 +69,7 @@ object ReadQC {
 
           metricsPlots <- plotMetricsFile(metrics)
           metricsFile <- EValue(PerSamplePerLanePerReadMetrics(metrics),
-                                "readQC." + runId + ".js")
+                                runId + ".readqc.js")
         } yield ReadQCResult(metricsFile, metricsPlots)
 
   }

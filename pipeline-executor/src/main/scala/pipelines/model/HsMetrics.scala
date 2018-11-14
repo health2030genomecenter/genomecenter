@@ -37,8 +37,7 @@ object HsMetrics {
 
     def apply(picardFileContents: String,
               project: Project,
-              sampleId: SampleId,
-              runId: RunId): Seq[Root] = {
+              sampleId: SampleId): Seq[Root] = {
 
       val lines = scala.io.Source
         .fromString(picardFileContents)
@@ -61,6 +60,9 @@ object HsMetrics {
 
       def laneFromReadGroup(readGroup: String): Lane =
         Lane(readGroup.split("\\.").last.toInt)
+
+      def runIdFromReadGroup(readGroup: String): RunId =
+        RunId(readGroup.split("\\.").head.trim)
 
       object H {
         val READ_GROUP = "READ_GROUP"
@@ -133,12 +135,9 @@ object HsMetrics {
         )
 
         val lane = laneFromReadGroup(g(H.READ_GROUP))
+        val runId = runIdFromReadGroup(g(H.READ_GROUP))
         val sampleIdInFile = g(H.SAMPLE)
-        val readGroupInFile = g(H.READ_GROUP)
 
-        require(
-          runId + "." + lane == readGroupInFile,
-          s"unexpected run and lane. picard output file has $readGroupInFile we have run:$runId and lane: $lane")
         require(
           project + "." + sampleId == sampleIdInFile,
           s"unexpected project and sampleId. picard output file has $sampleIdInFile we have prj:$project and sample: $sampleId"

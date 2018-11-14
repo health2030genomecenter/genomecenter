@@ -21,8 +21,7 @@ class MarkDuplicatesTestSuite
           BamsWithSampleMetadata(
             bams = Set(Bam(await(SharedFile(bam, "some.bam")))),
             project = project,
-            sampleId = sampleId,
-            runId = runId
+            sampleId = sampleId
           )
 
         val future =
@@ -35,7 +34,6 @@ class MarkDuplicatesTestSuite
 
       val (alignedSample, localBam) = result.get
       alignedSample.bam.project shouldBe project
-      alignedSample.bam.runId shouldBe runId
       localBam.canRead shouldBe true
       new File(localBam.getParentFile, localBam.getName + ".stderr").canRead shouldBe true
 

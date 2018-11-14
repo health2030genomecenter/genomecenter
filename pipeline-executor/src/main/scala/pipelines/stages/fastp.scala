@@ -32,8 +32,8 @@ object Fastp {
   }
 
   val report =
-    AsyncTask[PerSampleFastQ, FastpReport]("__fastp-report", 1) {
-      case PerSampleFastQ(lanes, project, sampleId, runId) =>
+    AsyncTask[PerSamplePerRunFastQ, FastpReport]("__fastp-report", 1) {
+      case PerSamplePerRunFastQ(lanes, project, sampleId, runId) =>
         implicit computationEnvironment =>
           val fastpExecutable = extractFastpExecutable()
 

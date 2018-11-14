@@ -9,7 +9,6 @@ object WgsMetrics {
   case class Root(
       project: Project,
       sampleId: SampleId,
-      runId: RunId,
       metrics: Metrics
   )
 
@@ -37,8 +36,7 @@ object WgsMetrics {
 
     def apply(picardFileContents: String,
               project: Project,
-              sampleId: SampleId,
-              runId: RunId): Root = {
+              sampleId: SampleId): Root = {
 
       val lines = scala.io.Source
         .fromString(picardFileContents)
@@ -127,10 +125,7 @@ object WgsMetrics {
           pctCoverage100x = g(H.PCT_100X).toDouble
         )
 
-        Root(metrics = metrics,
-             sampleId = sampleId,
-             project = project,
-             runId = runId)
+        Root(metrics = metrics, sampleId = sampleId, project = project)
 
       }.head
 

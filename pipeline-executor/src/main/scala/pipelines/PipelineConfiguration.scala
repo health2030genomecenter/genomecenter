@@ -30,7 +30,8 @@ object PipelineConfiguration extends StrictLogging {
     if (config.hasPath("stateLog")) {
       val file = new File(config.getString("stateLog"))
       logger.info("Saving pipeline state to " + file)
-      new FilePipelineState(file)
+      // new FilePipelineState(file)
+      ???
     } else {
       logger.info("Discarding pipeline state.")
       new InMemoryPipelineState

@@ -9,7 +9,7 @@ import scala.concurrent.Future
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 
-case class RunQCTableRNAInput(runId: RunId, samples: Set[StarResult])
+case class RunQCTableRNAInput(fileName: String, samples: Set[StarResult])
     extends WithSharedFiles(samples.toList.flatMap(_.files): _*)
 
 object RunQCRNA {
@@ -68,6 +68,7 @@ object RunQCRNA {
             Seq(
               project -> left,
               sampleId -> left,
+              runId -> left,
               f"${numberOfReads / 1E6}%10.2fM" -> right,
               f"$meanReadLength%13.2f" -> right,
               f"${uniquelyMappedReads / 1E6}%10.2fM" -> right,
@@ -80,7 +81,7 @@ object RunQCRNA {
       .mkString("\n")
 
     val header = mkHeader(
-      List("Proj", "Sample"),
+      List("Proj", "Sample", "Run"),
       List(
         "TotalReads" -> right,
         "MeanReadLength" -> right,
@@ -97,7 +98,7 @@ object RunQCRNA {
 
   val runQCTable =
     AsyncTask[RunQCTableRNAInput, SharedFile]("__runqctable_rna", 1) {
-      case RunQCTableRNAInput(runId, samples) =>
+      case RunQCTableRNAInput(fileName, samples) =>
         implicit computationEnvironment =>
           implicit val materializer =
             computationEnvironment.components.actorMaterializer
@@ -105,7 +106,8 @@ object RunQCRNA {
           for {
             parsedMetrics <- Future.traverse(samples.toSeq) {
               case StarResult(log,
-                              BamWithSampleMetadata(project, sample, run, _)) =>
+                              run,
+                              BamWithSampleMetadata(project, sample, _)) =>
                 log.source
                   .runFold(ByteString.empty)(_ ++ _)
                   .map(_.utf8String)
@@ -116,7 +118,7 @@ object RunQCRNA {
             html = makeHtmlTable(parsedMetrics)
             file <- SharedFile(
               Source.single(ByteString(html.getBytes("UTF-8"))),
-              runId + ".star.qc.table.html")
+              fileName + ".star.qc.table.html")
           } yield file
     }
 }

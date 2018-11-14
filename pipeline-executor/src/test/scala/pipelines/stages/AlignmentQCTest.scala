@@ -17,20 +17,17 @@ class AlignmentQCTest
   test("Render table") {
     new Fixture {
       val dup = DuplicationMetrics
-        .Root(duplicationMetricsText, project, sampleId, runId)
+        .Root(duplicationMetricsText, project, sampleId)
       val als = AlignmentSummaryMetrics
-        .Root(alignmentSummaryMetricsText, project, sampleId, runId)
+        .Root(alignmentSummaryMetricsText, project, sampleId)
       val hs = HsMetrics
-        .Root(hsMetricsFile, project, sampleId, runId)
+        .Root(hsMetricsFile, project, sampleId)
       val wgs = WgsMetrics
-        .Root(wgsMetricsFile, project, sampleId, runId)
+        .Root(wgsMetricsFile, project, sampleId)
       val fastp = FastpReportModel
         .Root(fastpText, project, sampleId, runId)
       val vcfQc =
-        VariantCallingMetrics.Root(variantCallingMetrics,
-                                   project,
-                                   sampleId,
-                                   runId)
+        VariantCallingMetrics.Root(variantCallingMetrics, project, sampleId)
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
@@ -43,20 +40,17 @@ class AlignmentQCTest
   test("Render html table") {
     new Fixture {
       val dup = DuplicationMetrics
-        .Root(duplicationMetricsText, project, sampleId, runId)
+        .Root(duplicationMetricsText, project, sampleId)
       val als = AlignmentSummaryMetrics
-        .Root(alignmentSummaryMetricsText, project, sampleId, runId)
+        .Root(alignmentSummaryMetricsText, project, sampleId)
       val hs = HsMetrics
-        .Root(hsMetricsFile, project, sampleId, runId)
+        .Root(hsMetricsFile, project, sampleId)
       val wgs = WgsMetrics
-        .Root(wgsMetricsFile, project, sampleId, runId)
+        .Root(wgsMetricsFile, project, sampleId)
       val fastp = FastpReportModel
         .Root(fastpText, project, sampleId, runId)
       val vcfQc =
-        VariantCallingMetrics.Root(variantCallingMetrics,
-                                   project,
-                                   sampleId,
-                                   runId)
+        VariantCallingMetrics.Root(variantCallingMetrics, project, sampleId)
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
@@ -71,12 +65,9 @@ class AlignmentQCTest
       Given("an output table from picard's DuplicationMetrics")
       When("we try to parse it")
       DuplicationMetrics
-        .Root(duplicationMetricsText, project, sampleId, runId)
+        .Root(duplicationMetricsText, project, sampleId)
       DuplicationMetrics
-        .Root(duplicationMetricsText2,
-              Project("project1"),
-              SampleId("GIB"),
-              runId)
+        .Root(duplicationMetricsText2, Project("project1"), SampleId("GIB"))
       Then("it should not fail")
     }
   }
@@ -86,7 +77,7 @@ class AlignmentQCTest
       Given("an output table from picard's AlignmentSummaryMetrics")
       When("we try to parse it")
       AlignmentSummaryMetrics
-        .Root(alignmentSummaryMetricsText, project, sampleId, runId)
+        .Root(alignmentSummaryMetricsText, project, sampleId)
       Then("it should not fail")
     }
   }
@@ -96,7 +87,7 @@ class AlignmentQCTest
       Given("an output table from picard's HsMetrics")
       When("we try to parse it")
       HsMetrics
-        .Root(hsMetricsFile, project, sampleId, runId)
+        .Root(hsMetricsFile, project, sampleId)
       Then("it should not fail")
     }
   }
@@ -190,7 +181,7 @@ class AlignmentQCTest
       fileutils.openSource(result.get) { s =>
         val data = s.mkString
         WgsMetrics
-          .Root(data, project, sampleId, runId)
+          .Root(data, project, sampleId)
           .metrics
           .genomeTerritory shouldBe 55809553L
       }

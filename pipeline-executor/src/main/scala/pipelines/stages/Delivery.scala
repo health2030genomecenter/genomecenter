@@ -10,15 +10,8 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 
 case class CollectDeliverablesInput(
-    runId: RunId,
-    fastqs: Set[PerSampleFastQ],
-    wesBams: Set[SingleSamplePipelineResult],
-    rnaSeqBams: Set[StarResult],
-    fastp: Set[FastpReport]
-) extends WithSharedFiles(
-      fastqs.toSeq.flatMap(_.files) ++ wesBams.toSeq
-        .flatMap(_.files) ++ rnaSeqBams.toSeq.flatMap(_.files) ++ fastp.toSeq
-        .flatMap(_.files): _*)
+    samples: Set[SampleResult]
+) extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 case class DeliverableList(lists: Seq[(Project, SharedFile)])
     extends WithSharedFiles(lists.map(_._2): _*)
@@ -26,10 +19,10 @@ case class DeliverableList(lists: Seq[(Project, SharedFile)])
 object Delivery {
 
   def extractFastqList(
-      fastqs: Set[PerSampleFastQ]): Map[Project, Seq[SharedFile]] =
+      fastqs: Set[PerSamplePerRunFastQ]): Map[Project, Seq[SharedFile]] =
     fastqs.toSeq
       .map {
-        case PerSampleFastQ(lanes, project, _, _) =>
+        case PerSamplePerRunFastQ(lanes, project, _, _) =>
           val fastqs = lanes.toSeq
             .flatMap(lane => List(lane.read1, lane.read2) ++ lane.umi.toList)
             .map(_.file)
@@ -57,7 +50,7 @@ object Delivery {
 
   def extractBamListFromRnaSeqResults(rnaSeqResults: Set[StarResult]) =
     rnaSeqResults.toSeq
-      .map { case StarResult(_, bam) => (bam.project, bam.bam.file) }
+      .map { case StarResult(_, _, bam) => (bam.project, bam.bam.file) }
       .groupBy { case (project, _) => project }
       .map {
         case (project, pairs) =>
@@ -74,30 +67,36 @@ object Delivery {
           (project, pairs.map(_._2))
       }
 
+  def inAll(runs: Seq[SampleResult])(
+      f: SampleResult => Map[Project, Seq[SharedFile]]) =
+    runs
+      .map(f)
+      .reduce((a, b) => tasks.util.addMaps(a, b)(_ ++ _))
+
   val collectDeliverables =
     AsyncTask[CollectDeliverablesInput, DeliverableList](
       "__collectdeliverables",
       1) {
-      case CollectDeliverablesInput(runId,
-                                    fastqs,
-                                    wesResults,
-                                    rnaSeqResults,
-                                    fastp) =>
+      case CollectDeliverablesInput(samples) =>
         implicit computationEnvironment =>
           def inProjectFolder[T](project: Project) =
             appendToFilePrefix[T](Seq(project))
 
           val collectedFastqs: Map[Project, Seq[SharedFile]] =
-            extractFastqList(fastqs)
+            inAll(samples.toSeq)(sample =>
+              extractFastqList(sample.demultiplexed.toSet))
 
           val wesBamAndVcfs: Map[Project, Seq[SharedFile]] =
-            extractBamAndVcfList(wesResults)
+            inAll(samples.toSeq)(sample =>
+              extractBamAndVcfList(sample.wes.toSet))
 
           val collectedRnaSeqBam: Map[Project, Seq[SharedFile]] =
-            extractBamListFromRnaSeqResults(rnaSeqResults)
+            inAll(samples.toSeq)(sample =>
+              extractBamListFromRnaSeqResults(sample.rna.map(_.star).toSet))
 
           val collectedFastp: Map[Project, Seq[SharedFile]] =
-            extractFastp(fastp)
+            inAll(samples.toSeq)(sample =>
+              extractFastp(sample.fastpReports.toSet))
 
           val collectedFiles = List(collectedRnaSeqBam,
                                     wesBamAndVcfs,
@@ -120,11 +119,20 @@ object Delivery {
                 val source =
                   Source.single(ByteString(pathList.sorted.mkString("\n")))
 
+                val runsIncluded = samples
+                  .flatMap(_.runFolders)
+                  .toSeq
+                  .map(_.runId)
+                  .distinct
+                  .sortBy(_.toString)
+                  .mkString(".")
+
                 for {
                   pathListFile <- inProjectFolder(project) {
                     implicit computationEnvironment =>
-                      SharedFile(source,
-                                 project + "." + runId + ".deliverables.list")
+                      SharedFile(
+                        source,
+                        project + s".$runsIncluded" + ".deliverables.list")
                   }
                 } yield (project, pathListFile)
             }

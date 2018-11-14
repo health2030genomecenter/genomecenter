@@ -3,16 +3,25 @@ package org.gc.pipelines.application
 import scala.concurrent.Future
 import tasks._
 
-trait Pipeline[T] {
+import org.gc.pipelines.model.{Project, SampleId, RunId}
+
+trait Pipeline[DemultiplexedSample, SampleResult] {
   def canProcess(r: RunfolderReadyForProcessing): Boolean
-  def execute(r: RunfolderReadyForProcessing)(
-      implicit tsc: TaskSystemComponents): Future[Option[T]]
+  def demultiplex(r: RunfolderReadyForProcessing)(
+      implicit tsc: TaskSystemComponents): Future[Seq[DemultiplexedSample]]
 
-  def combine(t1: T, t2: T): T
+  def getKeysOfDemultiplexedSample(
+      d: DemultiplexedSample): (Project, SampleId, RunId)
+  def getKeysOfSampleResult(d: SampleResult): (Project, SampleId, RunId)
 
-  def aggregateAcrossRuns(state: T)(
-      implicit tsc: TaskSystemComponents): Future[Boolean]
+  def processCompletedRun(samples: Seq[SampleResult])(
+      implicit tsc: TaskSystemComponents): Future[(RunId, Boolean)]
+  def processCompletedProject(samples: Seq[SampleResult])(
+      implicit tsc: TaskSystemComponents): Future[(Project, Boolean)]
 
-  def last(implicit tsc: TaskSystemComponents): Future[T]
-  def persist(t: T)(implicit tsc: TaskSystemComponents): Future[T]
+  def processSample(runConfiguration: RunfolderReadyForProcessing,
+                    pastSampleResult: Option[SampleResult],
+                    demultiplexedSample: DemultiplexedSample)(
+      implicit tsc: TaskSystemComponents): Future[Option[SampleResult]]
+
 }

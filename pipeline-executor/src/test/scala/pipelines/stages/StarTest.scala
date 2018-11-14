@@ -44,6 +44,7 @@ class StarAlignmentTestSuite
           StarAlignmentInput(
             fastqs = Set(
               FastQPerLane(
+                runId,
                 Lane(1),
                 FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
                 FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),

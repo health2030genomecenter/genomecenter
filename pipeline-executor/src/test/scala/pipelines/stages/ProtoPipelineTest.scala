@@ -15,6 +15,8 @@ import org.gc.pipelines.application.{
   Selector
 }
 
+import scala.concurrent.Await
+
 class ProtopipelineTestSuite
     extends FunSuite
     with Matchers
@@ -23,9 +25,9 @@ class ProtopipelineTestSuite
 
   test("parse RunInfo.xml") {
     new Fixture {
-      ProtoPipeline.parseReadLength(runInfoContent) shouldBe Map(1 -> 50,
-                                                                 2 -> 7,
-                                                                 3 -> 50)
+      ProtoPipelineStages.parseReadLength(runInfoContent) shouldBe Map(1 -> 50,
+                                                                       2 -> 7,
+                                                                       3 -> 50)
     }
   }
 
@@ -41,12 +43,38 @@ class ProtopipelineTestSuite
                                       runFolderPath = runFolderPath,
                                       runConfiguration = runConfiguration)
         val pipeline = new ProtoPipeline()
-        val future = pipeline.execute(run)
         import scala.concurrent.duration._
-        val result =
-          scala.concurrent.Await.result(future, atMost = 400000 seconds)
+        val demultiplexedSamples =
+          Await.result(pipeline.demultiplex(run), atMost = 400000 seconds)
 
-        result.isDefined shouldBe true
+        demultiplexedSamples.nonEmpty shouldBe true
+        demultiplexedSamples.size shouldBe 4
+        demultiplexedSamples.map(dm => (dm.project, dm.sampleId)).toSet shouldBe
+          Set(("project2", "sample2"),
+              ("project1", "GIB"),
+              ("project3", "sample3"),
+              ("project1", "GIB2"))
+
+        val processedSamples =
+          demultiplexedSamples.take(2).map { demultiplexedSample =>
+            Await.result(pipeline.processSample(run, None, demultiplexedSample),
+                         atMost = 400000 seconds)
+          }
+
+        Await.result(
+          pipeline.processCompletedRun(processedSamples.flatMap(_.toSeq)),
+          atMost = 400000 seconds)
+
+        Await.result(
+          pipeline.processCompletedProject(processedSamples.flatMap(_.toSeq)),
+          atMost = 400000 seconds)
+
+        demultiplexedSamples.take(1).map { demultiplexedSample =>
+          Await.result(pipeline.processSample(run,
+                                              Some(processedSamples.head.get),
+                                              demultiplexedSample),
+                       atMost = 400000 seconds)
+        }
 
         Then(
           "a run and lane specific folder should be created at the root of the storage")
@@ -136,24 +164,17 @@ class ProtopipelineTestSuite
         // project3Folder.canRead shouldBe false
 
         And("runQC file should be present")
-        // new File(basePath.getAbsolutePath + s"/runQC/$runId.qc.table").canRead shouldBe true
+        // new File(basePath.getAbsolutePath + s"/runQC/$runId.wes.qc.table").canRead shouldBe true
 
         When("executing the same runfolder again")
 
-        scala.concurrent.Await.result(pipeline.execute(run),
-                                      atMost = 400000 seconds)
+        // val result2 = scala.concurrent.Await.result(pipeline.execute(run),
+        //                                             atMost = 400000 seconds)
 
         Then("project3 should be demultiplexed")
         // project3Folder.canRead shouldBe true
         And("project1 alignment should not reexecute")
-        // project1RecalibratedBam.lastModified shouldBe project1Timestamp
-
-        And("delivery folder should be present")
-      // val deliverablesFolder =
-      // new File(basePath.getAbsolutePath + "/deliverables")
-      // deliverablesFolder.canRead shouldBe true
-      // new File(
-      // deliverablesFolder.getAbsolutePath + "/project1.whateverRunId.all.deliverables.list").canRead shouldBe true
+      // project1RecalibratedBam.lastModified shouldBe project1Timestamp
 
       }
 
