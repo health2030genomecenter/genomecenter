@@ -53,7 +53,7 @@ object ReadQC {
         def plotMetricsFile(
             metrics: Seq[(SampleId, Lane, ReadType, readqc.Metrics)])
           : Future[SharedFile] = {
-          val plot = ReadQCPlot.make(metrics)
+          val plot = ReadQCPlot.make(metrics, runId)
           SharedFile(plot, s"$runId.reads.pdf", true)
         }
 
