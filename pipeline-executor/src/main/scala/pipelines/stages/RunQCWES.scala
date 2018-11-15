@@ -135,7 +135,8 @@ object AlignmentQC {
               f"$totalSnps%s" -> right,
               f"$snpsInDbSnp%s" -> right,
               f"$novelSnp%s" -> right,
-              f"$dbSnpTiTv%11.2f%%" -> right,
+              f"$dbSnpTiTv%11.2f" -> right,
+              f"$novelTiTv%11.2f" -> right,
               f"$totalIndel%s" -> right,
               f"$indelsInDbSnp%s" -> right,
               f"$novelIndel%s" -> right
