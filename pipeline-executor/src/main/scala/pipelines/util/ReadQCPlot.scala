@@ -8,7 +8,8 @@ import org.nspl.awtrenderer._
 
 object ReadQCPlot {
 
-  def make(metrics: Seq[(SampleId, Lane, ReadType, readqc.Metrics)]): File = {
+  def make(metrics: Seq[(SampleId, Lane, ReadType, readqc.Metrics)],
+           title: String): File = {
     val baseQPerSamplePerLanePerRead = {
       val data = metrics.zipWithIndex
         .map {
@@ -210,6 +211,7 @@ object ReadQCPlot {
 
     val compositePlot =
       group(
+        TextBox(title, fontSize = 2.0 fts),
         cycleBaseQsPlots,
         cyclesN,
         baseQPerSamplePerLanePerRead,
