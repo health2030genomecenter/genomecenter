@@ -110,9 +110,13 @@ class PipelinesApplication[T](
     .watchTermination() {
       case (mat, future) =>
         future.onComplete {
-          case _ =>
+          case e =>
+            e.failed.foreach { e =>
+              logger.error("Unexpected exception ", e)
+            }
             closeProcessingFinishedSource()
             taskSystem.shutdown
+            actorSystem.terminate
         }
         mat
     }
