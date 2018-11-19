@@ -218,10 +218,13 @@ object ProtoPipelineStages extends StrictLogging {
     }
 
   def parseReadLengthFromRunInfo(
-      run: RunfolderReadyForProcessing): Map[ReadType, Int] = {
-    val content = fileutils.openSource(
-      new File(run.runFolderPath + "/RunInfo.xml"))(_.mkString)
-    parseReadLength(content)
+      run: RunfolderReadyForProcessing): Either[String, Map[ReadType, Int]] = {
+    val file = new File(run.runFolderPath + "/RunInfo.xml")
+    if (file.canRead) {
+      val content = fileutils.openSource(
+        new File(run.runFolderPath + "/RunInfo.xml"))(_.mkString)
+      Right(parseReadLength(content))
+    } else Left("Can't read " + file)
   }
 
   def parseReadLength(s: String) = {

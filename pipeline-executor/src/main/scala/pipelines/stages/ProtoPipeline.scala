@@ -69,76 +69,83 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                     demultiplexedSample: PerSamplePerRunFastQ)(
       implicit tsc: TaskSystemComponents): Future[Option[SampleResult]] = {
 
-    val readLengths = ProtoPipelineStages.parseReadLengthFromRunInfo(r)
+    ProtoPipelineStages.parseReadLengthFromRunInfo(r) match {
+      case Left(error) =>
+        logger.error(s"$error")
+        Future.successful(None)
+      case Right(readLengths) =>
+        logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
 
-    logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
+        for {
+          reference <- ProtoPipelineStages.fetchReference(r.runConfiguration)
+          knownSites <- ProtoPipelineStages.fetchKnownSitesFiles(
+            r.runConfiguration)
+          gtf <- ProtoPipelineStages.fetchGenemodel(r.runConfiguration)
+          selectionTargetIntervals <- ProtoPipelineStages.fetchTargetIntervals(
+            r.runConfiguration)
+          dbSnpVcf <- ProtoPipelineStages.fetchDbSnpVcf(r.runConfiguration)
+          variantEvaluationIntervals <- ProtoPipelineStages
+            .fetchVariantEvaluationIntervals(r.runConfiguration)
 
-    for {
-      reference <- ProtoPipelineStages.fetchReference(r.runConfiguration)
-      knownSites <- ProtoPipelineStages.fetchKnownSitesFiles(r.runConfiguration)
-      gtf <- ProtoPipelineStages.fetchGenemodel(r.runConfiguration)
-      selectionTargetIntervals <- ProtoPipelineStages.fetchTargetIntervals(
-        r.runConfiguration)
-      dbSnpVcf <- ProtoPipelineStages.fetchDbSnpVcf(r.runConfiguration)
-      variantEvaluationIntervals <- ProtoPipelineStages
-        .fetchVariantEvaluationIntervals(r.runConfiguration)
+          fastpReport = startFastpReports(demultiplexedSample)
 
-      fastpReport = startFastpReports(demultiplexedSample)
+          samplesForWESAnalysis = ProtoPipelineStages.select(
+            r.runConfiguration.wesSelector,
+            demultiplexedSample)
 
-      samplesForWESAnalysis = ProtoPipelineStages.select(
-        r.runConfiguration.wesSelector,
-        demultiplexedSample)
+          samplesForRNASeqAnalysis = ProtoPipelineStages.select(
+            r.runConfiguration.rnaSelector,
+            demultiplexedSample)
 
-      samplesForRNASeqAnalysis = ProtoPipelineStages.select(
-        r.runConfiguration.rnaSelector,
-        demultiplexedSample)
+          _ = {
+            logger.info(
+              s"Demultiplexed samples from run ${r.runId} : $demultiplexedSample")
+            logger.info(
+              s"WES samples from run ${r.runId} : $samplesForWESAnalysis")
+            logger.info(
+              s"RNASEQ samples from run ${r.runId} : $samplesForRNASeqAnalysis")
+          }
 
-      _ = {
-        logger.info(
-          s"Demultiplexed samples from run ${r.runId} : $demultiplexedSample")
-        logger.info(s"WES samples from run ${r.runId} : $samplesForWESAnalysis")
-        logger.info(
-          s"RNASEQ samples from run ${r.runId} : $samplesForRNASeqAnalysis")
-      }
+          perSampleResultsWES = samplesForWESAnalysis.fold(emptyWesResult)(
+            wes(
+              _,
+              reference,
+              knownSites.toSeq,
+              selectionTargetIntervals,
+              dbSnpVcf,
+              variantEvaluationIntervals,
+              fastpReport.map(Seq(_)),
+              pastSampleResult.flatMap(_.wes.map(_.uncalibrated))
+            ))
 
-      perSampleResultsWES = samplesForWESAnalysis.fold(emptyWesResult)(
-        wes(
-          _,
-          reference,
-          knownSites.toSeq,
-          selectionTargetIntervals,
-          dbSnpVcf,
-          variantEvaluationIntervals,
-          fastpReport.map(Seq(_)),
-          pastSampleResult.flatMap(_.wes.map(_.uncalibrated))
-        ))
+          perSampleResultsRNA = samplesForRNASeqAnalysis.fold(
+            emptyRNASeqResult)(rna(_, reference, gtf, readLengths))
 
-      perSampleResultsRNA = samplesForRNASeqAnalysis.fold(emptyRNASeqResult)(
-        rna(_, reference, gtf, readLengths))
+          perSampleResultsWES <- perSampleResultsWES
+          perSampleResultsRNA <- perSampleResultsRNA
 
-      perSampleResultsWES <- perSampleResultsWES
-      perSampleResultsRNA <- perSampleResultsRNA
+          fastpReport <- fastpReport
 
-      fastpReport <- fastpReport
+        } yield {
+          val pastFastpReports = pastSampleResult.toSeq.flatMap(_.fastpReports)
+          val pastDemultiplexed =
+            pastSampleResult.toSeq.flatMap(_.demultiplexed)
+          val pastRunFolders = pastSampleResult.toSeq.flatMap(_.runFolders)
 
-    } yield {
-      val pastFastpReports = pastSampleResult.toSeq.flatMap(_.fastpReports)
-      val pastDemultiplexed = pastSampleResult.toSeq.flatMap(_.demultiplexed)
-      val pastRunFolders = pastSampleResult.toSeq.flatMap(_.runFolders)
+          Some(
+            SampleResult(
+              wes = perSampleResultsWES,
+              rna = perSampleResultsRNA,
+              demultiplexed = pastDemultiplexed :+ demultiplexedSample,
+              fastpReports = pastFastpReports :+ fastpReport,
+              runFolders = pastRunFolders :+ r,
+              sampleId = demultiplexedSample.sampleId,
+              project = demultiplexedSample.project
+            )
+          )
+        }
 
-      Some(
-        SampleResult(
-          wes = perSampleResultsWES,
-          rna = perSampleResultsRNA,
-          demultiplexed = pastDemultiplexed :+ demultiplexedSample,
-          fastpReports = pastFastpReports :+ fastpReport,
-          runFolders = pastRunFolders :+ r,
-          sampleId = demultiplexedSample.sampleId,
-          project = demultiplexedSample.project
-        )
-      )
     }
-
   }
 
   private def wes(samplesForWESAnalysis: PerSamplePerRunFastQ,

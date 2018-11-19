@@ -33,7 +33,12 @@ case class RunConfiguration(
 
 case class RunfolderReadyForProcessing(runId: RunId,
                                        runFolderPath: String,
-                                       runConfiguration: RunConfiguration)
+                                       runConfiguration: RunConfiguration) {
+  def isValid = {
+    new File(runFolderPath).canRead &&
+    new File(runFolderPath, "RunInfo.xml").canRead
+  }
+}
 
 object RunfolderReadyForProcessing {
   implicit val encoder: Encoder[RunfolderReadyForProcessing] =

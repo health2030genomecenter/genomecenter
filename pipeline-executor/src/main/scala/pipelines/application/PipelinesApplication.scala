@@ -64,6 +64,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
           !contains
       }
       .map(_._2)
+      .filter(_.isValid)
       .mapAsync(1) { run =>
         for {
           _ <- pipelineState.registerNewRun(run)
