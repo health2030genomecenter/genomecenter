@@ -60,16 +60,22 @@ class PipelinesApplication[T](
 
   (previousUnfinishedRuns ++ futureRuns)
     .mapAsync(1000) { run =>
-      if (!pipeline.canProcess(run))
-        Future.successful((run, None))
-      else
-        for {
-          result <- pipeline.execute(run).recover {
-            case error =>
-              logger.error(s"$pipeline failed on ${run.runId}", error)
-              None
-          }
-        } yield (run, result)
+      try {
+        if (!pipeline.canProcess(run))
+          Future.successful((run, None))
+        else
+          for {
+            result <- pipeline.execute(run).recover {
+              case error =>
+                logger.error(s"$pipeline failed on ${run.runId}", error)
+                None
+            }
+          } yield (run, result)
+      } catch {
+        case error: Exception =>
+          logger.error(s"$pipeline failed on ${run.runId}", error)
+          Future.successful((run, None))
+      }
 
     }
     .mapAsync(1) {
