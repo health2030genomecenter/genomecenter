@@ -309,6 +309,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
             }
             closeProcessingFinishedSource()
             taskSystem.shutdown
+            actorSystem.terminate
         }
         mat
     }
