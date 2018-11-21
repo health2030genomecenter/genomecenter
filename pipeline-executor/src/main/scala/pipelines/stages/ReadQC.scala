@@ -19,7 +19,7 @@ case class ReadQCResult(metrics: EValue[PerSamplePerLanePerReadMetrics],
                         plots: SharedFile)
     extends WithSharedFiles(plots)
 
-case class ReadQCInput(samples: Set[PerSampleFastQ], runId: RunId)
+case class ReadQCInput(samples: Set[PerSampleFastQ], title: String)
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object ReadQC {
@@ -30,7 +30,7 @@ object ReadQC {
       .getAbsolutePath
 
   val readQC = AsyncTask[ReadQCInput, ReadQCResult]("__readqc", 1) {
-    case ReadQCInput(samples, runId) =>
+    case ReadQCInput(samples, title) =>
       implicit computationEnvironment =>
         releaseResources
 
@@ -44,32 +44,35 @@ object ReadQC {
                        (fastqPartitiosOfLane.map(_.read2), ReadType(2)))
         } yield
           (
+            sample.project,
             sample.sampleId,
+            fastqPartitiosOfLane.head.runId,
             fastqPartitiosOfLane.head.lane,
             read._2,
             read._1
           )
 
         def plotMetricsFile(
-            metrics: Seq[(SampleId, Lane, ReadType, readqc.Metrics)])
+            metrics: Seq[
+              (Project, SampleId, RunId, Lane, ReadType, readqc.Metrics)])
           : Future[SharedFile] = {
-          val plot = ReadQCPlot.make(metrics, runId)
-          SharedFile(plot, s"$runId.readsqc.pdf", true)
+          val plot = ReadQCPlot.make(metrics, title)
+          SharedFile(plot, s"$title.readsqc.pdf", true)
         }
 
         for {
 
           metrics <- Future.traverse(units) {
-            case (sample, lane, read, fastqs) =>
+            case (project, sample, run, lane, read, fastqs) =>
               for {
                 metrics <- readQCPerUnit(ReadQCPerUnitInput(fastqs.toSet))(
                   ResourceConfig.readQC)
-              } yield (sample, lane, read, metrics.metrics)
+              } yield (project, sample, run, lane, read, metrics.metrics)
           }
 
           metricsPlots <- plotMetricsFile(metrics)
           metricsFile <- EValue(PerSamplePerLanePerReadMetrics(metrics),
-                                runId + ".readqc.js")
+                                title + ".readqc.js")
         } yield ReadQCResult(metricsFile, metricsPlots)
 
   }

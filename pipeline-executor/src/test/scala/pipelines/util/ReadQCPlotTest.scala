@@ -16,7 +16,9 @@ class ReadQCPlotTestSuite extends FunSuite {
     val d3 = Distribution(300d, 10d, 250d, 330d)
     val d4 = Distribution(400d, 10d, 350d, 440d)
     val data = Seq(
-      (SampleId("s1"),
+      (Project("1"),
+       SampleId("s1"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -26,9 +28,12 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d3, 200)),
          numberOfDistinct13Mers = 19,
          readNumber = 1000L,
-         gcFraction = 0.6
+         gcFraction = 0.6,
+         readLength = d4
        )),
-      (SampleId("s2"),
+      (Project("1"),
+       SampleId("s2"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -38,9 +43,12 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d3, 200)),
          numberOfDistinct13Mers = 13,
          readNumber = 1000L,
-         gcFraction = 0.5
+         gcFraction = 0.5,
+         readLength = d4
        )),
-      (SampleId("s3"),
+      (Project("1"),
+       SampleId("s3"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -50,9 +58,12 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d3, 200)),
          numberOfDistinct13Mers = 13,
          readNumber = 1000L,
-         gcFraction = 0.5
+         gcFraction = 0.5,
+         readLength = d4
        )),
-      (SampleId("s4"),
+      (Project("1"),
+       SampleId("s4"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -62,9 +73,12 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d3, 200)),
          numberOfDistinct13Mers = 13,
          readNumber = 1000L,
-         gcFraction = 0.5
+         gcFraction = 0.5,
+         readLength = d4
        )),
-      (SampleId("s5"),
+      (Project("1"),
+       SampleId("s5"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -74,9 +88,12 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d3, 200)),
          numberOfDistinct13Mers = 13,
          readNumber = 1300L,
-         gcFraction = 0.5
+         gcFraction = 0.5,
+         readLength = d4
        )),
-      (SampleId("s6"),
+      (Project("1"),
+       SampleId("s6"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -86,9 +103,12 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d3, 200)),
          numberOfDistinct13Mers = 13,
          readNumber = 1000L,
-         gcFraction = 0.5
+         gcFraction = 0.5,
+         readLength = d4
        )),
-      (SampleId("s7"),
+      (Project("1"),
+       SampleId("s7"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -98,9 +118,12 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d3, 200)),
          numberOfDistinct13Mers = 13,
          readNumber = 1000L,
-         gcFraction = 0.5
+         gcFraction = 0.5,
+         readLength = d4
        )),
-      (SampleId("s8"),
+      (Project("1"),
+       SampleId("s8"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -110,9 +133,12 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d3, 200)),
          numberOfDistinct13Mers = 13,
          readNumber = 1000L,
-         gcFraction = 0.5
+         gcFraction = 0.5,
+         readLength = d4
        )),
-      (SampleId("s9"),
+      (Project("1"),
+       SampleId("s9"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -122,9 +148,12 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d2, 200)),
          numberOfDistinct13Mers = 13,
          readNumber = 1000L,
-         gcFraction = 0.5
+         gcFraction = 0.5,
+         readLength = d4
        )),
-      (SampleId("s10"),
+      (Project("1"),
+       SampleId("s10"),
+       RunId("1"),
        Lane(1),
        ReadType(1),
        Metrics(
@@ -134,7 +163,8 @@ class ReadQCPlotTestSuite extends FunSuite {
                       CycleNumberMetrics(3, d1, 200)),
          numberOfDistinct13Mers = 13,
          readNumber = 1000L,
-         gcFraction = 0.5
+         gcFraction = 0.5,
+         readLength = d4
        ))
     )
   }

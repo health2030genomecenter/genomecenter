@@ -60,7 +60,8 @@ case class Metrics(
     cycles: Seq[CycleNumberMetrics],
     numberOfDistinct13Mers: Int,
     readNumber: Long,
-    gcFraction: Double
+    gcFraction: Double,
+    readLength: Distribution
 )
 
 object Metrics {
@@ -113,6 +114,7 @@ object ReadQC {
     val cycleBaseN = Array.fill(2000)(0L)
     var maxCycle = -1
     var readNumber = 0L
+    val readLengthDistribution = new DistributionSummary
 
     // This is the maximum which fits into a plain java array
     val kmerLength = 13
@@ -129,9 +131,12 @@ object ReadQC {
       val bases = read.bases
       val qual = read.baseQ
 
+      readLengthDistribution.add(bases.length)
+
       if (bases.length >= kmerLength) {
         kmers(stringToInt(bases, max = kmerLength)) = 1
       }
+
       {
         var cycleIdx = 0
         qual.foreach { baseQ =>
@@ -184,7 +189,8 @@ object ReadQC {
       cycles = cycles,
       numberOfDistinct13Mers = kmers.count(_ > 0),
       readNumber = readNumber,
-      gcFraction = gcFraction
+      gcFraction = gcFraction,
+      readLength = readLengthDistribution.make
     )
 
   }

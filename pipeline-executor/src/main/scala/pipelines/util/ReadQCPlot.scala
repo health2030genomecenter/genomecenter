@@ -8,12 +8,13 @@ import org.nspl.awtrenderer._
 
 object ReadQCPlot {
 
-  def make(metrics: Seq[(SampleId, Lane, ReadType, readqc.Metrics)],
-           title: String): File = {
+  def make(
+      metrics: Seq[(Project, SampleId, RunId, Lane, ReadType, readqc.Metrics)],
+      title: String): File = {
     val baseQPerSamplePerLanePerRead = {
       val data = metrics.zipWithIndex
         .map {
-          case ((_, _, readType, metrics), idx) =>
+          case ((_, _, _, _, readType, metrics), idx) =>
             val color = if (readType == 1) 0d else 1d
             (
               idx.toDouble + .6, //x
@@ -31,7 +32,7 @@ object ReadQCPlot {
       boxplotImpl(
         data,
         xnames = metrics.map {
-          case (sample, lane, read, _) => sample + "." + lane + "." + read
+          case (_, sample, _, lane, read, _) => sample + "." + lane + "." + read
         },
         boxColor = ManualColor(Map(0d -> Color.red, 1d -> Color.blue)),
         ylab = "BaseQ",
@@ -41,10 +42,54 @@ object ReadQCPlot {
       )
     }
 
+    val maxMeanCoveragePlot = {
+      val coverages = metrics
+        .groupBy { case (project, sample, _, _, _, _) => (project, sample) }
+        .toSeq
+        .map {
+          case ((project, sample), groups) =>
+            val total = groups.map { group =>
+              val metrics = group._6
+              metrics.readLength.mean * metrics.readNumber
+            }.sum
+            val hg19GenomeSizeNExcluded = 2897310462L
+            val maxMeanCoverage = total / hg19GenomeSizeNExcluded
+            (project, sample, maxMeanCoverage)
+
+        }
+
+      val data = coverages.zipWithIndex
+        .map {
+          case ((_, _, cov), idx) =>
+            (
+              cov,
+              idx.toDouble
+            )
+        }
+      val xnames = coverages.zipWithIndex.map {
+        case ((_, sample, _), idx) =>
+          (idx.toDouble, sample)
+      }
+      xyplot(
+        data -> bar(
+          horizontal = true,
+          fill = ManualColor(Map(0d -> Color.red, 1d -> Color.blue))))(
+        xlab = "Max mean coverage",
+        yNumTicks = 0,
+        ynames = xnames,
+        yCustomGrid = true,
+        yHeight = 60 fts,
+        yLabFontSize = 0.5 fts,
+        xLabDistance = 0.3 fts,
+        yAxisMargin = 0.01,
+        ygrid = false
+      )
+    }
+
     val readNumberPerSamplePerLanePerRead = {
       val data = metrics.zipWithIndex
         .map {
-          case ((_, _, readType, metrics), idx) =>
+          case ((_, _, _, _, readType, metrics), idx) =>
             val color = if (readType == 1) 0d else 1d
             (
               metrics.readNumber.toDouble,
@@ -53,7 +98,7 @@ object ReadQCPlot {
             )
         }
       val xnames = metrics.zipWithIndex.map {
-        case ((sample, lane, read, _), idx) =>
+        case ((_, sample, _, lane, read, _), idx) =>
           (idx.toDouble, sample + "." + lane + "." + read)
       }
       xyplot(
@@ -75,7 +120,7 @@ object ReadQCPlot {
     val uniquemersPerSamplePerLanePerRead = {
       val data = metrics.zipWithIndex
         .map {
-          case ((_, _, readType, metrics), idx) =>
+          case ((_, _, _, _, readType, metrics), idx) =>
             val color = if (readType == 1) 0d else 1d
             (
               metrics.numberOfDistinct13Mers.toDouble,
@@ -85,7 +130,7 @@ object ReadQCPlot {
         }
 
       val xnames = metrics.zipWithIndex.map {
-        case ((sample, lane, read, _), idx) =>
+        case ((_, sample, _, lane, read, _), idx) =>
           (idx.toDouble, sample + "." + lane + "." + read)
       }
       xyplot(
@@ -107,7 +152,7 @@ object ReadQCPlot {
     val gcPerSamplePerLanePerRead = {
       val data = metrics.zipWithIndex
         .map {
-          case ((_, _, readType, metrics), idx) =>
+          case ((_, _, _, _, readType, metrics), idx) =>
             val color = if (readType == 1) 0d else 1d
             (
               metrics.gcFraction,
@@ -116,7 +161,7 @@ object ReadQCPlot {
             )
         }
       val xnames = metrics.zipWithIndex.map {
-        case ((sample, lane, read, _), idx) =>
+        case ((_, sample, _, lane, read, _), idx) =>
           (idx.toDouble, sample + "." + lane + "." + read)
       }
       xyplot(
@@ -137,8 +182,9 @@ object ReadQCPlot {
     }
 
     def makeCyclesBaseQ(
-        metrics: Seq[(SampleId, Lane, ReadType, readqc.Metrics)]) = {
-      val samples = metrics.map(_._1).distinct
+        metrics: Seq[
+          (Project, SampleId, RunId, Lane, ReadType, readqc.Metrics)]) = {
+      val samples = metrics.map(_._2).distinct
       val colors = DiscreteColors(samples.size)
       val legend = samples.zipWithIndex
         .map {
@@ -148,7 +194,7 @@ object ReadQCPlot {
         .sortBy(_._1.toString)
       val sample2Color = samples.zipWithIndex.toMap
       val lines = metrics.flatMap {
-        case (sample, _, _, metrics) =>
+        case (_, sample, _, _, _, metrics) =>
           val meanLine = metrics.cycles.map {
             case CycleNumberMetrics(cycleIdx, baseQ, _) =>
               (cycleIdx.toDouble, baseQ.mean)
@@ -176,7 +222,7 @@ object ReadQCPlot {
     val cycleBaseQsPlots = makeCyclesBaseQ(metrics)
 
     val cyclesN = {
-      val samples = metrics.map(_._1).distinct
+      val samples = metrics.map(_._2).distinct
       val colors = DiscreteColors(samples.size)
       val legend = samples.zipWithIndex
         .map {
@@ -186,7 +232,7 @@ object ReadQCPlot {
         .sortBy(_._1.toString)
       val sample2Color = samples.zipWithIndex.toMap
       val lines = metrics.flatMap {
-        case (sample, _, _, metrics) =>
+        case (_, sample, _, _, _, metrics) =>
           val meanLine = metrics.cycles.map {
             case CycleNumberMetrics(cycleIdx, _, ns) =>
               (cycleIdx.toDouble, ns.toDouble)
@@ -216,6 +262,7 @@ object ReadQCPlot {
         cyclesN,
         baseQPerSamplePerLanePerRead,
         group(readNumberPerSamplePerLanePerRead,
+              maxMeanCoveragePlot,
               uniquemersPerSamplePerLanePerRead,
               gcPerSamplePerLanePerRead,
               HorizontalStack(Right, 0)),

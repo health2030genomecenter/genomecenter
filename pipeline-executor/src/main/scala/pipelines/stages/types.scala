@@ -137,7 +137,7 @@ case class BedFile(file: SharedFile) extends WithSharedFiles(file)
 case class GTFFile(file: SharedFile) extends WithSharedFiles(file)
 
 case class PerSamplePerLanePerReadMetrics(
-    seq: Seq[(SampleId, Lane, ReadType, org.gc.readqc.Metrics)])
+    seq: Seq[(Project, SampleId, RunId, Lane, ReadType, org.gc.readqc.Metrics)])
 
 //
 // Codecs from here on
