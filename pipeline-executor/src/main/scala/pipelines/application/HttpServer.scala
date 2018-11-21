@@ -2,6 +2,7 @@ package org.gc.pipelines.application
 
 import com.typesafe.scalalogging.StrictLogging
 import org.gc.pipelines.util.ActorSource
+import org.gc.pipelines.model.RunId
 import akka.stream.Materializer
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -31,41 +32,45 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
 
   private[pipelines] val route =
     post {
-      path("runfolder") {
-        entity(as[Seq[RunfolderDTO]]) { runFolders =>
-          val invalidPath = runFolders.exists {
-            case RunfolderDTO(path, _) =>
-              !new java.io.File(path).canRead ||
-                !new java.io.File(path, "RunInfo.xml").canRead
-          }
-
-          if (invalidPath) {
-            complete(akka.http.scaladsl.model.StatusCodes.BadRequest)
-          } else {
-            runFolders.foreach {
-              case dto @ RunfolderDTO(runFolderPath, configurationFile) =>
-                logger.info(s"Got $runFolderPath")
-                val runFolder = new java.io.File(runFolderPath)
-
-                val maybeRunFolderReadyEvent =
-                  RunfolderReadyForProcessing.readFolderWithConfigFile(
-                    runFolder,
-                    new File(configurationFile)
-                  )
-
-                maybeRunFolderReadyEvent match {
-                  case Left(error) =>
-                    logger.info(s"$dto failed to parse due to error $error.")
-                  case Right(runFolderReadyEvent) =>
-                    sourceActor ! Append(runFolderReadyEvent)
-                }
-
+      path("delete" / Segment) { runId =>
+        sourceActor ! Delete(RunId(runId))
+        complete(akka.http.scaladsl.model.StatusCodes.OK)
+      } ~
+        path("runfolder") {
+          entity(as[Seq[RunfolderDTO]]) { runFolders =>
+            val invalidPath = runFolders.exists {
+              case RunfolderDTO(path, _) =>
+                !new java.io.File(path).canRead ||
+                  !new java.io.File(path, "RunInfo.xml").canRead
             }
-            complete(akka.http.scaladsl.model.StatusCodes.OK)
-          }
-        }
 
-      }
+            if (invalidPath) {
+              complete(akka.http.scaladsl.model.StatusCodes.BadRequest)
+            } else {
+              runFolders.foreach {
+                case dto @ RunfolderDTO(runFolderPath, configurationFile) =>
+                  logger.info(s"Got $runFolderPath")
+                  val runFolder = new java.io.File(runFolderPath)
+
+                  val maybeRunFolderReadyEvent =
+                    RunfolderReadyForProcessing.readFolderWithConfigFile(
+                      runFolder,
+                      new File(configurationFile)
+                    )
+
+                  maybeRunFolderReadyEvent match {
+                    case Left(error) =>
+                      logger.info(s"$dto failed to parse due to error $error.")
+                    case Right(runFolderReadyEvent) =>
+                      sourceActor ! Append(runFolderReadyEvent)
+                  }
+
+              }
+              complete(akka.http.scaladsl.model.StatusCodes.OK)
+            }
+          }
+
+        }
     }
 
   val port = 9099
