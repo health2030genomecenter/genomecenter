@@ -17,9 +17,9 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
     with SequencingCompleteEventSource {
 
   val (sourceActor, source, closeSource) =
-    ActorSource.make[RunfolderReadyForProcessing]
+    ActorSource.make[Command]
 
-  val events = source
+  val commands = source
 
   case class RunfolderDTO(path: String, configurationFilePath: String)
   object RunfolderDTO {
@@ -34,7 +34,9 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
       path("runfolder") {
         entity(as[Seq[RunfolderDTO]]) { runFolders =>
           val invalidPath = runFolders.exists {
-            case RunfolderDTO(path, _) => !new java.io.File(path).canRead
+            case RunfolderDTO(path, _) =>
+              !new java.io.File(path).canRead ||
+                !new java.io.File(path, "RunInfo.xml").canRead
           }
 
           if (invalidPath) {
@@ -55,7 +57,7 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
                   case Left(error) =>
                     logger.info(s"$dto failed to parse due to error $error.")
                   case Right(runFolderReadyEvent) =>
-                    sourceActor ! runFolderReadyEvent
+                    sourceActor ! Append(runFolderReadyEvent)
                 }
 
             }

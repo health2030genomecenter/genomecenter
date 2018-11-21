@@ -6,7 +6,9 @@ import org.gc.pipelines.model.RunId
 
 trait PipelineState {
   def pastRuns: Future[List[RunfolderReadyForProcessing]]
-  def registerNewRun(r: RunfolderReadyForProcessing): Future[Unit]
+  def registered(r: RunfolderReadyForProcessing)
+    : Future[Option[RunfolderReadyForProcessing]]
+  def deleted(runId: RunId): Future[Unit]
   def contains(r: RunId): Future[Boolean]
 }
 
@@ -19,9 +21,13 @@ class InMemoryPipelineState extends PipelineState with StrictLogging {
     logger.debug(s"Querying incomplete runs (${past.size})")
     Future.successful(past)
   }
-  def registerNewRun(r: RunfolderReadyForProcessing) = synchronized {
+  def registered(r: RunfolderReadyForProcessing) = synchronized {
     logger.info(s"Registering run ${r.runId}")
     past = r :: past
+    Future.successful(Some(r))
+  }
+  def deleted(runId: RunId) = synchronized {
+    past = past.filterNot(_.runId == runId)
     Future.successful(())
   }
 

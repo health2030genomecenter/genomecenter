@@ -13,7 +13,7 @@ import akka.stream.{OverflowStrategy, FlowShape}
 import tasks._
 import com.typesafe.scalalogging.StrictLogging
 import akka.actor.ActorSystem
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 import org.gc.pipelines.util.ActorSource
 import org.gc.pipelines.util.AkkaStreamComponents.{unzipThenMerge, deduplicate}
@@ -45,31 +45,37 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
   }
 
   private val previousUnfinishedRuns =
-    Source.fromFuture(pipelineState.pastRuns).mapConcat(identity)
+    Source.fromFuture(pipelineState.pastRuns)
 
   private val futureRuns =
-    eventSource.events
-      .mapAsync(1) { run =>
-        logger.info(s"Got run ${run.runId}")
-        pipelineState.contains(run.runId).map(contains => (contains, run))
-      }
-      .filter {
-        case (contains, run) =>
-          if (contains) {
-            logger.info(
-              s"Dropping ${run.runId} because it is already processed or under processing. You have to invalidate this run first.")
-          } else {
-            logger.debug(s"New run received ${run.runId}")
-          }
-          !contains
-      }
-      .map(_._2)
-      .filter(_.isValid)
-      .mapAsync(1) { run =>
-        for {
-          _ <- pipelineState.registerNewRun(run)
-        } yield run
-      }
+    previousUnfinishedRuns.flatMapConcat { pastRuns =>
+      eventSource.commands
+        .mapAsync(1) {
+          case Delete(runId) =>
+            logger.info(s"Deleting $runId")
+            pipelineState.deleted(runId).map(_ => None)
+          case Append(run) =>
+            logger.info(s"Got run ${run.runId}")
+            val valid = run.isValid
+            val duplicate = pastRuns.contains(run.runId)
+
+            if (!valid) {
+              logger.info(s"$run is not valid (readable?)")
+              Future.successful(None)
+            } else if (duplicate) {
+              logger.info(
+                s"Dropping ${run.runId} because it is already processed or under processing. You have to delete this run first, then restart the application.")
+              Future.successful(None)
+
+            } else {
+              logger.debug(s"New run received ${run.runId}")
+              pipelineState.registered(run)
+
+            }
+        }
+        .filter(_.isDefined)
+        .map(_.get)
+    }
 
   private val (processingFinishedListener,
                _processingFinishedSource,
@@ -86,7 +92,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
   implicit val taskSystemComponents = taskSystem.components
   implicit val materializer = taskSystemComponents.actorMaterializer
 
-  (previousUnfinishedRuns ++ futureRuns)
+  (previousUnfinishedRuns.mapConcat(identity) ++ futureRuns)
     .filter(pipeline.canProcess)
     .via(demultiplex)
     .via(accountAndProcess)

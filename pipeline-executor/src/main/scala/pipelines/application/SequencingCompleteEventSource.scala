@@ -1,14 +1,21 @@
 package org.gc.pipelines.application
 
 import akka.stream.scaladsl.{Source, Merge}
+import org.gc.pipelines.model.RunId
+
+sealed trait Command
+
+case class Append(runFolder: RunfolderReadyForProcessing) extends Command
+
+case class Delete(runId: RunId) extends Command
 
 trait SequencingCompleteEventSource {
-  def events: Source[RunfolderReadyForProcessing, _]
+  def commands: Source[Command, _]
 }
 
 object EmptySequencingCompleteEventSource
     extends SequencingCompleteEventSource {
-  def events = Source.empty[RunfolderReadyForProcessing]
+  def commands = Source.empty[Command]
 }
 
 case class CompositeSequencingCompleteEventSource(
@@ -16,7 +23,7 @@ case class CompositeSequencingCompleteEventSource(
     second: SequencingCompleteEventSource,
     rest: SequencingCompleteEventSource*)
     extends SequencingCompleteEventSource {
-  def events =
-    Source.combine(first.events, second.events, rest.map(_.events): _*)(count =>
-      Merge(count))
+  def commands =
+    Source.combine(first.commands, second.commands, rest.map(_.commands): _*)(
+      count => Merge(count))
 }

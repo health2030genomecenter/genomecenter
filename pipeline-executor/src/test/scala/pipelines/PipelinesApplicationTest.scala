@@ -211,7 +211,7 @@ class PipelinesApplicationTest
 class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
     extends SequencingCompleteEventSource
     with StrictLogging {
-  def events =
+  def commands =
     Source
       .tick(
         1 seconds,
@@ -238,6 +238,7 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
           else
             run.copy(runId = RunId(run.runId + idx))
       }
+      .map(Append(_))
 }
 
 case class FakeDemultiplexed(

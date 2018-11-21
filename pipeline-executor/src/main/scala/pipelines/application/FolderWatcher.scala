@@ -21,7 +21,7 @@ case class FolderWatcherEventSource(folderWhereRunFoldersArePlaced: String,
     with StrictLogging {
   private val fs = FileSystems.getDefault
 
-  def events: Source[RunfolderReadyForProcessing, _] =
+  def commands: Source[Command, _] =
     DirectoryChangesSource(fs.getPath(folderWhereRunFoldersArePlaced),
                            pollInterval = 1 second,
                            maxBufferSize = 1000)
@@ -48,7 +48,7 @@ case class FolderWatcherEventSource(folderWhereRunFoldersArePlaced: String,
           parsedRunFolder
       }
       .collect {
-        case Right(runFolderReady) => runFolderReady
+        case Right(runFolderReady) => Append(runFolderReady)
       }
 
 }

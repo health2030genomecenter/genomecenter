@@ -49,7 +49,7 @@ class FolderWatcherEventSourceTest
       FolderWatcherEventSource(folderWhereRunFoldersArePlaced =
                                  watchedFolder.getAbsolutePath,
                                fileSignalingCompletion = fileNameToWatch,
-                               configFileFolder = runFolder).events
+                               configFileFolder = runFolder).commands
 
     val probe = TestProbe()
     source.to(Sink.actorRef(probe.ref, "completed")).run()

@@ -56,7 +56,7 @@ class HttpEventSourceTest
     Given("a folder watch event source")
     val server = new HttpServer
     val source =
-      server.events
+      server.commands
 
     val probe = TestProbe()
     source.to(Sink.actorRef(probe.ref, "completed")).run()
