@@ -313,7 +313,7 @@ object BWAAlignment {
 
           val bwaExecutable = extractBwaExecutable()
 
-          val bwaNumberOfThreads = math.max(1, resourceAllocated.cpu - 1)
+          val bwaNumberOfThreads = math.max(1, resourceAllocated.cpu)
 
           val markAdapterMetricsFileOutput =
             TempFile.createTempFile(".markAdapterMetrics").getAbsolutePath
