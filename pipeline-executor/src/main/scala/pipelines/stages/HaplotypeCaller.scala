@@ -62,9 +62,17 @@ case class GenotypeGVCFsResult(sites: VCF, genotypesScattered: Seq[VCF])
     extends WithSharedFiles(
       sites.files ++ genotypesScattered.flatMap(_.files): _*)
 
+case class TrainSnpVQSRInput(
+    vcf: VCF,
+    hapmap: VCF,
+    omni: VCF,
+    oneKg: VCF,
+    knownSites: VCF,
+) extends WithSharedFiles(
+      vcf.files ++ hapmap.files ++ omni.files ++ oneKg.files ++ knownSites.files: _*)
+
 case class TrainIndelVQSRInput(
     vcf: VCF,
-    reference: IndexedReferenceFasta,
     millsAnd1Kg: VCF,
     knownSites: VCF,
 ) extends WithSharedFiles(
@@ -75,16 +83,103 @@ case class TrainVQSRResult(
     tranches: SharedFile
 ) extends WithSharedFiles(recal, tranches)
 
+case class ApplyVQSRInput(
+    vcf: VCF,
+    snpRecal: SharedFile,
+    snpTranches: SharedFile,
+    indelRecal: SharedFile,
+    indelTranches: SharedFile
+) extends WithSharedFiles(
+      vcf.files ++ List(snpRecal, snpTranches, indelRecal, indelTranches): _*)
+
 object HaplotypeCaller {
 
-  val trainIndelVQSR =
-    AsyncTask[TrainIndelVQSRInput, TrainVQSRResult]("__train-vqsr-indel", 1) {
-      case TrainIndelVQSRInput(vcf, reference, millsAnd1Kg, knownSites) =>
+  val applyVQSR =
+    AsyncTask[ApplyVQSRInput, VCF]("__apply-vqsr", 1) {
+      case ApplyVQSRInput(vcf,
+                          snpRecal,
+                          snpTranches,
+                          indelRecal,
+                          indelTranches) =>
+        implicit computationEnvironment =>
+          for {
+            localVCF <- vcf.localFile
+            snpRecal <- snpRecal.file
+            snpTranches <- snpTranches.file
+            indelRecal <- indelRecal.file
+            indelTranches <- indelTranches.file
+            result <- {
+
+              val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
+              val tmpStdOut = TempFile.createTempFile(".stdout")
+              val tmpStdErr = TempFile.createTempFile(".stderr")
+              val tmpVcf = TempFile.createTempFile(".tmp.vcf.gz")
+              val finalVcf = TempFile.createTempFile(".vcf.gz")
+              val javaTmpDir =
+                s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
+
+              /*
+               * 99.7 magic number is from https://github.com/gatk-workflows/broad-prod-wgs-germline-snps-indels/blob/904564ad46af8d69ffc4077b579185317b2dc53b/JointGenotypingWf.hg38.inputs.json
+               */
+              Exec.bash(logDiscriminator = "vqsr-apply-indel",
+                        onError = Exec.ThrowIfNonZero)(s"""\\
+        java ${JVM.serial} $javaTmpDir ${JVM.maxHeap} \\
+          ${GATK.javaArguments(5)} \\
+            -jar $gatkJar ApplyVQSR \\
+              -V ${localVCF.getAbsolutePath} \\
+              -O ${tmpVcf.getAbsolutePath} \\
+              --tranches-file ${indelTranches.getAbsolutePath} \\
+              --recal-file ${indelRecal.getAbsolutePath} \\
+              --create-output-variant-index true \\
+              -mode INDEL \\
+              --truth-sensitivity-filter-level 99.7
+        > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+      """)
+
+              Exec.bash(logDiscriminator = "vqsr-apply-indel",
+                        onError = Exec.ThrowIfNonZero)(s"""\\
+        java ${JVM.serial} $javaTmpDir ${JVM.maxHeap} \\
+          ${GATK.javaArguments(5)} \\
+            -jar $gatkJar ApplyVQSR \\
+              -V ${tmpVcf.getAbsolutePath} \\
+              -O ${finalVcf.getAbsolutePath} \\
+              --tranches-file ${snpTranches.getAbsolutePath} \\
+              --recal-file ${snpRecal.getAbsolutePath} \\
+              --create-output-variant-index true \\
+              -mode SNP \\
+              --truth-sensitivity-filter-level 99.7
+        > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+      """)
+
+              val nameStub = vcf.vcf.name.stripSuffix(".vcf.gz") + ".vqsr"
+              tmpVcf.delete
+
+              val expectVcfIndex = new File(finalVcf.getAbsolutePath + ".tbi")
+
+              for {
+                _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
+                _ <- SharedFile(tmpStdErr, nameStub + ".stderr", true)
+                vcf <- SharedFile(finalVcf, nameStub + ".vcf.gz", true)
+                vcfidx <- SharedFile(expectVcfIndex,
+                                     nameStub + ".vcf.gz.tbi",
+                                     true)
+
+              } yield VCF(vcf, Some(vcfidx))
+
+            }
+          } yield result
+
+    }
+
+  val trainSnpVQSR =
+    AsyncTask[TrainSnpVQSRInput, TrainVQSRResult]("__train-vqsr-snp", 1) {
+      case TrainSnpVQSRInput(vcf, hapmap, omni, knownSites, oneKg) =>
         implicit computationEnvironment =>
           for {
             localVcf <- vcf.localFile
-            reference <- reference.localFile
-            millsAnd1Kg <- millsAnd1Kg.localFile
+            hapmap <- hapmap.localFile
+            omni <- omni.localFile
+            oneKg <- oneKg.localFile
             knownSites <- knownSites.localFile
             result <- {
               val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
@@ -97,6 +192,75 @@ object HaplotypeCaller {
                 s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
               /* values are from the broad worfklow */
+              val tranches =
+                List(100.0, 99.95, 99.9, 99.8, 99.6, 99.5, 99.4, 99.3, 99.0,
+                  98.0, 97.0, 90.0).mkString("-tranche", "-tranche", "")
+
+              /* values are from the broad worfklow
+               *  I removed DP annotation as some suggest
+               *  that it is not appropriate for exomes due to high variation
+               *  in coverage due to capture
+               */
+              val annotations =
+                List("QD", "MQRankSum", "ReadPosRankSum", "FS", "MQ", "SOR")
+                  .mkString(" -an ", " -an ", "")
+
+              Exec.bash(logDiscriminator = "vqsr-train-indel",
+                        onError = Exec.ThrowIfNonZero)(s"""\\
+        java ${JVM.serial} $javaTmpDir ${JVM.maxHeap} \\
+          ${GATK.javaArguments(5)} \\
+            -jar $gatkJar VariantRecalibrator \\
+              -V ${localVcf.getAbsolutePath} \\
+              -O ${recalOutput.getAbsolutePath} \\
+              --tranches-file ${trancheOutput.getAbsolutePath} \\
+              --trust-all-polymorphic \\
+              $tranches \\
+              $annotations \\
+              -mode SNP \\
+              --max-gaussians 6 \\
+              -resource hapmap,known=false,training=true,truth=true,prior=15:${hapmap.getAbsolutePath} \\
+              -resource omni,known=false,training=true,truth=true,prior=12:${omni.getAbsolutePath} \\
+              -resource 1000G,known=false,training=true,truth=false,prior=10:${oneKg.getAbsolutePath} \\
+              -resource dbsnp,known=true,training=false,truth=false,prior=7:${knownSites}
+        > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+      """)
+
+              val nameStub = vcf.vcf.name + ".vqsr.train.snp"
+
+              for {
+                _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
+                _ <- SharedFile(tmpStdErr, nameStub + ".stderr", true)
+                recal <- SharedFile(recalOutput, nameStub + ".recal", true)
+                tranches <- SharedFile(trancheOutput,
+                                       nameStub + ".tranches",
+                                       true)
+
+              } yield TrainVQSRResult(recal = recal, tranches = tranches)
+            }
+
+          } yield result
+    }
+  val trainIndelVQSR =
+    AsyncTask[TrainIndelVQSRInput, TrainVQSRResult]("__train-vqsr-indel", 1) {
+      case TrainIndelVQSRInput(vcf, millsAnd1Kg, knownSites) =>
+        implicit computationEnvironment =>
+          for {
+            localVcf <- vcf.localFile
+            millsAnd1Kg <- millsAnd1Kg.localFile
+            knownSites <- knownSites.localFile
+            result <- {
+              val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
+
+              val tmpStdOut = TempFile.createTempFile(".stdout")
+              val tmpStdErr = TempFile.createTempFile(".stderr")
+              val recalOutput = TempFile.createTempFile(".recal")
+              val trancheOutput = TempFile.createTempFile(".tranches")
+              val javaTmpDir =
+                s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
+
+              /* values are from the broad worfklow
+               * https://github.com/gatk-workflows/broad-prod-wgs-germline-snps-indels/blob/904564ad46af8d69ffc4077b579185317b2dc53b/JointGenotypingWf.hg38.inputs.json
+               */
               val tranches = List(100.0, 99.95, 99.9, 99.5, 99.0, 97.0, 96.0,
                 95.0, 94.0, 93.5, 93.0, 92.0, 91.0,
                 90.0).mkString(" -tranche ", " -tranche ", "")
@@ -562,4 +726,17 @@ object TrainIndelVQSRInput {
     deriveEncoder[TrainIndelVQSRInput]
   implicit val decoder: Decoder[TrainIndelVQSRInput] =
     deriveDecoder[TrainIndelVQSRInput]
+}
+
+object TrainSnpVQSRInput {
+  implicit val encoder: Encoder[TrainSnpVQSRInput] =
+    deriveEncoder[TrainSnpVQSRInput]
+  implicit val decoder: Decoder[TrainSnpVQSRInput] =
+    deriveDecoder[TrainSnpVQSRInput]
+}
+object ApplyVQSRInput {
+  implicit val encoder: Encoder[ApplyVQSRInput] =
+    deriveEncoder[ApplyVQSRInput]
+  implicit val decoder: Decoder[ApplyVQSRInput] =
+    deriveDecoder[ApplyVQSRInput]
 }
