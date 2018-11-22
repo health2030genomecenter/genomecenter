@@ -216,19 +216,25 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
       .tick(
         1 seconds,
         2 seconds,
-        RunfolderReadyForProcessing(RunId("fake"),
-                                    "fakePath",
-                                    RunConfiguration(false,
-                                                     Set.empty,
-                                                     "fake",
-                                                     "fake",
-                                                     Set(),
-                                                     Selector.empty,
-                                                     Selector.empty,
-                                                     None,
-                                                     "fake",
-                                                     "fake",
-                                                     "fake"))
+        RunfolderReadyForProcessing(
+          RunId("fake"),
+          "fakePath",
+          RunConfiguration(false,
+                           Set.empty,
+                           "fake",
+                           "fake",
+                           Set(),
+                           Selector.empty,
+                           Selector.empty,
+                           None,
+                           "fake",
+                           "fake",
+                           "fake",
+                           "fake",
+                           "fake",
+                           "fake",
+                           "fake")
+        )
       )
       .take(take.toLong)
       .zipWithIndex

@@ -28,7 +28,11 @@ case class RunConfiguration(
     globalIndexSet: Option[String],
     geneModelGtf: String,
     dbSnpVcf: String,
-    variantEvaluationIntervals: String
+    variantEvaluationIntervals: String,
+    vqsrMillsAnd1Kg: String,
+    vqsrHapmap: String,
+    vqsrOmni: String,
+    vqsrOneKg: String
 )
 
 case class RunfolderReadyForProcessing(runId: RunId,
@@ -126,7 +130,11 @@ object RunConfiguration {
             else None,
           dbSnpVcf = config.getString("dbSnpVcf"),
           variantEvaluationIntervals =
-            config.getString("variantEvaluationIntervals")
+            config.getString("variantEvaluationIntervals"),
+          vqsrMillsAnd1Kg = config.getString("vqsrMillsAnd1Kg"),
+          vqsrHapmap = config.getString("vqsrHapmap"),
+          vqsrOmni = config.getString("vqsrOmni"),
+          vqsrOneKg = config.getString("vqsrOneKg")
         )
       }
       .toEither

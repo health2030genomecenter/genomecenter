@@ -86,6 +86,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           dbSnpVcf <- ProtoPipelineStages.fetchDbSnpVcf(r.runConfiguration)
           variantEvaluationIntervals <- ProtoPipelineStages
             .fetchVariantEvaluationIntervals(r.runConfiguration)
+          vqsrTrainingFiles <- ProtoPipelineStages.fetchVqsrTrainingFiles(
+            r.runConfiguration)
 
           fastpReport = startFastpReports(demultiplexedSample)
 
@@ -115,7 +117,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
               dbSnpVcf,
               variantEvaluationIntervals,
               fastpReport.map(Seq(_)),
-              pastSampleResult.flatMap(_.wes.map(_.uncalibrated))
+              pastSampleResult.flatMap(_.wes.map(_.uncalibrated)),
+              vqsrTrainingFiles
             ))
 
           perSampleResultsRNA = samplesForRNASeqAnalysis.fold(
@@ -155,7 +158,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                   dbSnpVcf: VCF,
                   variantEvaluationIntervals: BedFile,
                   fastpReports: Future[Seq[FastpReport]],
-                  previousUncalibratedBam: Option[Bam])(
+                  previousUncalibratedBam: Option[Bam],
+                  vqsrTrainingFiles: VQSRTrainingFiles)(
       implicit tsc: TaskSystemComponents) =
     for {
       perSampleResultsWES <- ProtoPipelineStages.singleSampleWES(
@@ -166,7 +170,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           selectionTargetIntervals,
           dbSnpVcf,
           variantEvaluationIntervals,
-          previousUncalibratedBam
+          previousUncalibratedBam,
+          vqsrTrainingFiles
         ))(ResourceConfig.minimal)
 
       fastpReports <- fastpReports

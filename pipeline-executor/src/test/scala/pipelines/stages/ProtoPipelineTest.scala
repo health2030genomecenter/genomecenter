@@ -313,7 +313,11 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       globalIndexSet = Some(globalIndexSetFilePath),
       geneModelGtf = gtfFile.getAbsolutePath,
       dbSnpVcf = knownSitesVCF.getAbsolutePath,
-      variantEvaluationIntervals = targetIntervals
+      variantEvaluationIntervals = targetIntervals,
+      vqsrMillsAnd1Kg = knownSitesVCF.getAbsolutePath,
+      vqsrHapmap = knownSitesVCF.getAbsolutePath,
+      vqsrOmni = knownSitesVCF.getAbsolutePath,
+      vqsrOneKg = knownSitesVCF.getAbsolutePath
     )
 
     val (testConfig, basePath) = makeTestConfig

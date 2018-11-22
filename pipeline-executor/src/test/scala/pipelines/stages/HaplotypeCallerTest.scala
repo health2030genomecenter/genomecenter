@@ -18,14 +18,20 @@ class HaplotypeCallerTest
       Given("a gvcf file and a reference")
       val result = withTaskSystem(testConfig) { implicit ts =>
         val indexedFasta = fetchIndexedReference(referenceFile)
+        val dbsnpvcf = VCF(await(SharedFile(vcf, "dbsnp.vcf")),
+                           Some(await(SharedFile(vcfIdx, "dbsnp.vcf.idx"))))
+
         val input = GenotypeGVCFsInput(
           Set(
             VCF(await(SharedFile(gvcf, "some.vcf.gz")),
                 Some(await(SharedFile(gvcfIndex, "some.vcf.gz.tbi"))))),
           indexedFasta,
-          VCF(await(SharedFile(vcf, "dbsnp.vcf")),
-              Some(await(SharedFile(vcfIdx, "dbsnp.vcf.idx")))),
-          "boo"
+          dbsnpvcf,
+          "boo",
+          dbsnpvcf,
+          dbsnpvcf,
+          dbsnpvcf,
+          dbsnpvcf
         )
 
         When("genotyping them")

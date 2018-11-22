@@ -139,6 +139,13 @@ case class GTFFile(file: SharedFile) extends WithSharedFiles(file)
 case class PerSamplePerLanePerReadMetrics(
     seq: Seq[(Project, SampleId, RunId, Lane, ReadType, org.gc.readqc.Metrics)])
 
+case class VQSRTrainingFiles(
+    millsAnd1Kg: VCF,
+    oneKg: VCF,
+    hapmap: VCF,
+    omni: VCF
+) extends WithSharedFiles(
+      millsAnd1Kg.files ++ oneKg.files ++ hapmap.files ++ omni.files: _*)
 //
 // Codecs from here on
 //
@@ -274,6 +281,13 @@ object GTFFile {
     deriveEncoder[GTFFile]
   implicit val decoder: Decoder[GTFFile] =
     deriveDecoder[GTFFile]
+}
+
+object VQSRTrainingFiles {
+  implicit val encoder: Encoder[VQSRTrainingFiles] =
+    deriveEncoder[VQSRTrainingFiles]
+  implicit val decoder: Decoder[VQSRTrainingFiles] =
+    deriveDecoder[VQSRTrainingFiles]
 }
 
 object PerSamplePerRunFastQ {

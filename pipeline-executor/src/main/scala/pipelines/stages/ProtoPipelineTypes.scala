@@ -55,10 +55,11 @@ case class SingleSamplePipelineInput(demultiplexed: PerSampleFastQ,
                                      selectionTargetIntervals: BedFile,
                                      dbSnpVcf: VCF,
                                      variantEvaluationIntervals: BedFile,
-                                     bamOfPreviousRuns: Option[Bam])
+                                     bamOfPreviousRuns: Option[Bam],
+                                     vqsrTrainingFiles: VQSRTrainingFiles)
     extends WithSharedFiles(demultiplexed.files ++ reference.files ++ knownSites
       .flatMap(_.files) ++ selectionTargetIntervals.files ++ bamOfPreviousRuns.toSeq
-      .flatMap(_.files): _*)
+      .flatMap(_.files) ++ vqsrTrainingFiles.files: _*)
 
 case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
                                       uncalibrated: Bam,

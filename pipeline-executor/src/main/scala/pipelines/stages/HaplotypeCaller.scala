@@ -50,7 +50,11 @@ case class GenotypeGVCFsOnIntervalInput(targetVcfs: Set[VCF],
 case class GenotypeGVCFsInput(targetVcfs: Set[VCF],
                               reference: IndexedReferenceFasta,
                               dbSnpVcf: VCF,
-                              name: String)
+                              name: String,
+                              millsAnd1Kg: VCF,
+                              oneKg: VCF,
+                              hapmap: VCF,
+                              omni: VCF)
     extends WithSharedFiles(
       targetVcfs.toSeq
         .flatMap(_.files) ++ reference.files ++ dbSnpVcf.files: _*)
@@ -173,14 +177,14 @@ object HaplotypeCaller {
 
   val trainSnpVQSR =
     AsyncTask[TrainSnpVQSRInput, TrainVQSRResult]("__train-vqsr-snp", 1) {
-      case TrainSnpVQSRInput(vcf, hapmap, omni, knownSites, oneKg) =>
+      case input =>
         implicit computationEnvironment =>
           for {
-            localVcf <- vcf.localFile
-            hapmap <- hapmap.localFile
-            omni <- omni.localFile
-            oneKg <- oneKg.localFile
-            knownSites <- knownSites.localFile
+            localVcf <- input.vcf.localFile
+            hapmap <- input.hapmap.localFile
+            omni <- input.omni.localFile
+            oneKg <- input.oneKg.localFile
+            knownSites <- input.knownSites.localFile
             result <- {
               val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
 
@@ -225,7 +229,7 @@ object HaplotypeCaller {
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """)
 
-              val nameStub = vcf.vcf.name + ".vqsr.train.snp"
+              val nameStub = input.vcf.vcf.name + ".vqsr.train.snp"
 
               for {
                 _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
@@ -242,12 +246,12 @@ object HaplotypeCaller {
     }
   val trainIndelVQSR =
     AsyncTask[TrainIndelVQSRInput, TrainVQSRResult]("__train-vqsr-indel", 1) {
-      case TrainIndelVQSRInput(vcf, millsAnd1Kg, knownSites) =>
+      case input =>
         implicit computationEnvironment =>
           for {
-            localVcf <- vcf.localFile
-            millsAnd1Kg <- millsAnd1Kg.localFile
-            knownSites <- knownSites.localFile
+            localVcf <- input.vcf.localFile
+            millsAnd1Kg <- input.millsAnd1Kg.localFile
+            knownSites <- input.knownSites.localFile
             result <- {
               val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
 
@@ -288,7 +292,7 @@ object HaplotypeCaller {
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """)
 
-              val nameStub = vcf.vcf.name + ".vqsr.train.indel"
+              val nameStub = input.vcf.vcf.name + ".vqsr.train.indel"
 
               for {
                 _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
@@ -306,36 +310,84 @@ object HaplotypeCaller {
 
   val genotypeGvcfs =
     AsyncTask[GenotypeGVCFsInput, GenotypeGVCFsResult]("__genotypegvcfs", 1) {
-      case GenotypeGVCFsInput(vcfs, reference, dbsnp, name) =>
+      case input =>
         implicit computationEnvironment =>
           releaseResources
 
+          def intoVQSRIntermediateFolder[T] =
+            appendToFilePrefix[T](Seq("vqsr_intermediate", input.name))
           def intoScattersFolder[T] =
-            appendToFilePrefix[T](Seq("genotypegvcfs_scatters", name))
+            appendToFilePrefix[T](Seq("genotypegvcfs_scatters", input.name))
+          def intoSitesOnlyFolder[T] =
+            appendToFilePrefix[T](Seq("sitesOnly_intermediate", input.name))
 
           for {
-            dict <- reference.dict
+            dict <- input.reference.dict
             intervals = BaseQualityScoreRecalibration
               .createIntervals(dict)
               .filterNot(_ == "unmapped")
             scattered <- Future.traverse(intervals) { interval =>
               intoScattersFolder { implicit computationEnvironment =>
                 genotypeGvcfsOnInterval(
-                  GenotypeGVCFsOnIntervalInput(vcfs,
-                                               reference,
-                                               dbsnp,
+                  GenotypeGVCFsOnIntervalInput(input.targetVcfs,
+                                               input.reference,
+                                               input.dbSnpVcf,
                                                interval,
-                                               name))(
+                                               input.name))(
                   ResourceConfig.genotypeGvcfs)
               }
             }
             scatteredGenotypes = scattered.map(_.genotypes)
             scatteredSites = scattered.map(_.sites)
-            gatheredSites <- mergeVcfs(
-              MergeVCFInput(scatteredSites, name + ".sites_only.vcf.gz"))(
-              ResourceConfig.minimal)
+            gatheredSites <- intoSitesOnlyFolder {
+              implicit computationEnvironment =>
+                mergeVcfs(
+                  MergeVCFInput(scatteredSites,
+                                input.name + ".sites_only.vcf.gz"))(
+                  ResourceConfig.minimal)
+            }
+            vqsrIndelModel <- intoVQSRIntermediateFolder {
+              implicit computationEnvironment =>
+                trainIndelVQSR(
+                  TrainIndelVQSRInput(gatheredSites,
+                                      millsAnd1Kg = input.millsAnd1Kg,
+                                      knownSites = input.dbSnpVcf))(
+                  ResourceConfig.vqsrTrainIndel)
+            }
+            vqsrSnpModel <- intoVQSRIntermediateFolder {
+              implicit computationEnvironment =>
+                trainSnpVQSR(
+                  TrainSnpVQSRInput(gatheredSites,
+                                    hapmap = input.hapmap,
+                                    omni = input.omni,
+                                    oneKg = input.oneKg,
+                                    knownSites = input.dbSnpVcf))(
+                  ResourceConfig.vqsrTrainSnp)
+            }
+            scatteredRecalibrated <- Future.traverse(scatteredGenotypes) {
+              vcf =>
+                intoScattersFolder { implicit computationEnvironment =>
+                  applyVQSR(
+                    ApplyVQSRInput(vcf,
+                                   snpRecal = vqsrSnpModel.recal,
+                                   snpTranches = vqsrSnpModel.tranches,
+                                   indelRecal = vqsrIndelModel.recal,
+                                   indelTranches = vqsrIndelModel.tranches))(
+                    ResourceConfig.vqsrApply)
+                }
+            }
+            recalibredSitesOnly <- applyVQSR(
+              ApplyVQSRInput(gatheredSites,
+                             snpRecal = vqsrSnpModel.recal,
+                             snpTranches = vqsrSnpModel.tranches,
+                             indelRecal = vqsrIndelModel.recal,
+                             indelTranches = vqsrIndelModel.tranches))(
+              ResourceConfig.vqsrApply)
             _ <- Future.traverse(scatteredSites)(_.vcf.delete)
-          } yield GenotypeGVCFsResult(gatheredSites, scatteredGenotypes)
+            _ <- Future.traverse(scatteredGenotypes)(_.vcf.delete)
+            _ <- gatheredSites.vcf.delete
+          } yield
+            GenotypeGVCFsResult(recalibredSitesOnly, scatteredRecalibrated)
     }
 
   val genotypeGvcfsOnInterval =
