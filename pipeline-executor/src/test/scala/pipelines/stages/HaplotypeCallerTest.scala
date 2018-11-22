@@ -12,14 +12,14 @@ class HaplotypeCallerTest
     with GivenWhenThen
     with TestHelpers {
 
-  test("genotypegvcf") {
+  ignore("genotypegvcf") {
     new Fixture {
 
       Given("a gvcf file and a reference")
       val result = withTaskSystem(testConfig) { implicit ts =>
         val indexedFasta = fetchIndexedReference(referenceFile)
-        val dbsnpvcf = VCF(await(SharedFile(vcf, "dbsnp.vcf")),
-                           Some(await(SharedFile(vcfIdx, "dbsnp.vcf.idx"))))
+        val dbsnpvcf = VCF(await(SharedFile(vcf, "dbsnp.vcf.gz")),
+                           Some(await(SharedFile(vcfIdx, "dbsnp.vcf.gz.tbi"))))
 
         val input = GenotypeGVCFsInput(
           Set(
@@ -84,7 +84,7 @@ class HaplotypeCallerTest
     }
   }
 
-  ignore("Collect variant calling metrics should execute") {
+  test("Collect variant calling metrics should execute") {
     new Fixture {
 
       Given("a bam file and a reference")
@@ -94,8 +94,8 @@ class HaplotypeCallerTest
           indexedFasta,
           VCF(await(SharedFile(gvcf, "some.vcf.gz")),
               Some(await(SharedFile(gvcfIndex, "some.vcf.gz.tbi")))),
-          VCF(await(SharedFile(vcf, "dbsnp.vcf")),
-              Some(await(SharedFile(vcfIdx, "dbsnp.vcf.idx")))),
+          VCF(await(SharedFile(vcf, "dbsnp.vcf.gz")),
+              Some(await(SharedFile(vcfIdx, "dbsnp.vcf.gz.tbi")))),
           BedFile(await(SharedFile(bed, "intervals")))
         )
 
@@ -142,12 +142,12 @@ class HaplotypeCallerTest
 
     val vcf = new File(
       getClass
-        .getResource("/example.vcf")
+        .getResource("/example.vcf.gz")
         .getFile)
 
     val vcfIdx = new File(
       getClass
-        .getResource("/example.vcf.idx")
+        .getResource("/example.vcf.gz.tbi")
         .getFile)
 
     val (testConfig, basePath) = makeTestConfig
