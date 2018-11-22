@@ -62,7 +62,83 @@ case class GenotypeGVCFsResult(sites: VCF, genotypesScattered: Seq[VCF])
     extends WithSharedFiles(
       sites.files ++ genotypesScattered.flatMap(_.files): _*)
 
+case class TrainIndelVQSRInput(
+    vcf: VCF,
+    reference: IndexedReferenceFasta,
+    millsAnd1Kg: VCF,
+    knownSites: VCF,
+) extends WithSharedFiles(
+      vcf.files ++ millsAnd1Kg.files ++ knownSites.files: _*)
+
+case class TrainVQSRResult(
+    recal: SharedFile,
+    tranches: SharedFile
+) extends WithSharedFiles(recal, tranches)
+
 object HaplotypeCaller {
+
+  val trainIndelVQSR =
+    AsyncTask[TrainIndelVQSRInput, TrainVQSRResult]("__train-vqsr-indel", 1) {
+      case TrainIndelVQSRInput(vcf, reference, millsAnd1Kg, knownSites) =>
+        implicit computationEnvironment =>
+          for {
+            localVcf <- vcf.localFile
+            reference <- reference.localFile
+            millsAnd1Kg <- millsAnd1Kg.localFile
+            knownSites <- knownSites.localFile
+            result <- {
+              val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
+
+              val tmpStdOut = TempFile.createTempFile(".stdout")
+              val tmpStdErr = TempFile.createTempFile(".stderr")
+              val recalOutput = TempFile.createTempFile(".recal")
+              val trancheOutput = TempFile.createTempFile(".tranches")
+              val javaTmpDir =
+                s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
+
+              /* values are from the broad worfklow */
+              val tranches = List(100.0, 99.95, 99.9, 99.5, 99.0, 97.0, 96.0,
+                95.0, 94.0, 93.5, 93.0, 92.0, 91.0,
+                90.0).mkString(" -tranche ", " -tranche ", "")
+
+              /* values are from the broad worfklow */
+              val annotations =
+                List("FS", "ReadPosRankSum", "MQRankSum", "QD", "SOR", "DP")
+                  .mkString(" -an ", " -an ", "")
+
+              Exec.bash(logDiscriminator = "vqsr-train-indel",
+                        onError = Exec.ThrowIfNonZero)(s"""\\
+        java ${JVM.g1} $javaTmpDir ${JVM.maxHeap} \\
+          ${GATK.javaArguments(5)} \\
+            -jar $gatkJar VariantRecalibrator \\
+              -V ${localVcf.getAbsolutePath} \\
+              -O ${recalOutput.getAbsolutePath} \\
+              --tranches-file ${trancheOutput.getAbsolutePath} \\
+              --trust-all-polymorphic \\
+              $tranches \\
+              $annotations \\
+              -mode INDEL \\
+              --max-gaussians 4 \\
+              -resource mills,known=false,training=true,truth=true,prior=12:${millsAnd1Kg} \\
+              -resource dbsnp,known=true,training=false,truth=false,prior=2:${knownSites} \\
+        > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+      """)
+
+              val nameStub = vcf.vcf.name + ".vqsr.train.indel"
+
+              for {
+                _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
+                _ <- SharedFile(tmpStdErr, nameStub + ".stderr", true)
+                recal <- SharedFile(recalOutput, nameStub + ".recal", true)
+                tranches <- SharedFile(trancheOutput,
+                                       nameStub + ".tranches",
+                                       true)
+
+              } yield TrainVQSRResult(recal = recal, tranches = tranches)
+            }
+
+          } yield result
+    }
 
   val genotypeGvcfs =
     AsyncTask[GenotypeGVCFsInput, GenotypeGVCFsResult]("__genotypegvcfs", 1) {
@@ -472,4 +548,18 @@ object GenotypesOnInterval {
     deriveEncoder[GenotypesOnInterval]
   implicit val decoder: Decoder[GenotypesOnInterval] =
     deriveDecoder[GenotypesOnInterval]
+}
+
+object TrainVQSRResult {
+  implicit val encoder: Encoder[TrainVQSRResult] =
+    deriveEncoder[TrainVQSRResult]
+  implicit val decoder: Decoder[TrainVQSRResult] =
+    deriveDecoder[TrainVQSRResult]
+}
+
+object TrainIndelVQSRInput {
+  implicit val encoder: Encoder[TrainIndelVQSRInput] =
+    deriveEncoder[TrainIndelVQSRInput]
+  implicit val decoder: Decoder[TrainIndelVQSRInput] =
+    deriveDecoder[TrainIndelVQSRInput]
 }
