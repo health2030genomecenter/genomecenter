@@ -48,34 +48,34 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
     Source.fromFuture(pipelineState.pastRuns)
 
   private val futureRuns =
-    previousUnfinishedRuns.flatMapConcat { pastRuns =>
-      eventSource.commands
-        .mapAsync(1) {
-          case Delete(runId) =>
-            logger.info(s"Deleting $runId")
-            pipelineState.deleted(runId).map(_ => None)
-          case Append(run) =>
-            logger.info(s"Got run ${run.runId}")
-            val valid = run.isValid
-            val duplicate = pastRuns.contains(run.runId)
+    eventSource.commands
+      .mapAsync(1) {
+        case Delete(runId) =>
+          logger.info(s"Deleting $runId")
+          pipelineState.invalidated(runId).map(_ => None)
+        case Append(run) =>
+          logger.info(s"Got run ${run.runId}")
+          val valid = run.isValid
 
-            if (!valid) {
-              logger.info(s"$run is not valid (readable?)")
-              Future.successful(None)
-            } else if (duplicate) {
-              logger.info(
-                s"Dropping ${run.runId} because it is already processed or under processing. You have to delete this run first, then restart the application.")
-              Future.successful(None)
+          if (!valid) {
+            logger.info(s"$run is not valid (readable?)")
+            Future.successful(None)
+          } else
+            for {
+              duplicate <- pipelineState.contains(run.runId)
+              r <- if (duplicate) {
+                logger.info(
+                  s"Dropping ${run.runId} because it is already processed or under processing. You have to delete this run first, then restart the application.")
+                Future.successful(None)
+              } else {
+                logger.debug(s"New run received ${run.runId}")
+                pipelineState.registered(run)
+              }
+            } yield r
 
-            } else {
-              logger.debug(s"New run received ${run.runId}")
-              pipelineState.registered(run)
-
-            }
-        }
-        .filter(_.isDefined)
-        .map(_.get)
-    }
+      }
+      .filter(_.isDefined)
+      .map(_.get)
 
   private val (processingFinishedListener,
                _processingFinishedSource,

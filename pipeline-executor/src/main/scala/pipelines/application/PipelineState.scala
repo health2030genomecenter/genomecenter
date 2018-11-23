@@ -8,7 +8,7 @@ trait PipelineState {
   def pastRuns: Future[List[RunfolderReadyForProcessing]]
   def registered(r: RunfolderReadyForProcessing)
     : Future[Option[RunfolderReadyForProcessing]]
-  def deleted(runId: RunId): Future[Unit]
+  def invalidated(runId: RunId): Future[Unit]
   def contains(r: RunId): Future[Boolean]
 }
 
@@ -26,8 +26,7 @@ class InMemoryPipelineState extends PipelineState with StrictLogging {
     past = r :: past
     Future.successful(Some(r))
   }
-  def deleted(runId: RunId) = synchronized {
-    past = past.filterNot(_.runId == runId)
+  def invalidated(runId: RunId) = synchronized {
     Future.successful(())
   }
 

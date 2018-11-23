@@ -2,8 +2,6 @@ package org.gc.pipelines
 
 import org.scalatest._
 
-import org.scalatest.{Matchers, BeforeAndAfterAll}
-
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import tasks._
@@ -13,7 +11,6 @@ import com.typesafe.config.ConfigFactory
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.ActorMaterializer
-import akka.testkit.TestKit
 import com.typesafe.scalalogging.StrictLogging
 
 import org.gc.pipelines.application._
@@ -22,45 +19,46 @@ import org.gc.pipelines.model._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class PipelinesApplicationTest
-    extends TestKit(ActorSystem("PipelinesApplication"))
-    with FunSuiteLike
-    with BeforeAndAfterAll
+    extends FunSuite
     with GivenWhenThen
     with Matchers {
 
-  override def afterAll: Unit = {
-    TestKit.shutdownActorSystem(system)
+  test("file based state logging should work") {
+    val file = fileutils.TempFile.createTempFile("log")
+    val pipelineState = new FilePipelineState(file)
+
+    val run = RunfolderReadyForProcessing(
+      RunId("fake"),
+      "fakePath",
+      RunConfiguration(false,
+                       Set.empty,
+                       "fake",
+                       "fake",
+                       Set(),
+                       Selector.empty,
+                       Selector.empty,
+                       None,
+                       "fake",
+                       "fake",
+                       "fake",
+                       "fake",
+                       "fake",
+                       "fake",
+                       "fake")
+    )
+
+    pipelineState.registered(run)
+
+    Await.result((new FilePipelineState(file)).pastRuns, 5 seconds) shouldBe List(
+      run)
+
+    pipelineState.invalidated(run.runId)
+    Await.result((new FilePipelineState(file)).pastRuns, 5 seconds) shouldBe Nil
   }
-
-  // test("file based state logging should work") {
-  //   val file = fileutils.TempFile.createTempFile("log")
-  //   val pipelineState = new FilePipelineState(file)
-
-  //   val run = RunfolderReadyForProcessing(RunId("fake"),
-  //                                         "fakePath",
-  //                                         RunConfiguration(false,
-  //                                                          Set.empty,
-  //                                                          "fake",
-  //                                                          "fake",
-  //                                                          Set(),
-  //                                                          Selector.empty,
-  //                                                          Selector.empty,
-  //                                                          None,
-  //                                                          "fake",
-  //                                                          "fake",
-  //                                                          "fake"))
-
-  //   pipelineState.registerNewRun(run)
-
-  //   Await.result((new FilePipelineState(file)).incompleteRuns, 5 seconds) shouldBe List(
-  //     run)
-
-  //   pipelineState.processingFinished(run)
-  //   Await.result((new FilePipelineState(file)).incompleteRuns, 5 seconds) shouldBe Nil
-  // }
 
   test(
     "pipelines application should react if a RunfolderReady event is received") {
+    implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
   tasks.cache.enabled = false
@@ -121,6 +119,7 @@ class PipelinesApplicationTest
 
   test(
     "pipelines application should not react if the same RunfolderReady event is received multiple times") {
+    implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
   tasks.cache.enabled = false
@@ -151,6 +150,7 @@ class PipelinesApplicationTest
 
   test(
     "pipelines application should respect the pipeline's `canProcess` method") {
+    implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
   tasks.cache.enabled = false
@@ -179,6 +179,7 @@ class PipelinesApplicationTest
   }
 
   test("pipelines application should survive a failing pipeline") {
+    implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
   tasks.cache.enabled = false
@@ -203,7 +204,6 @@ class PipelinesApplicationTest
         case RunFinished(_, success) => success
       }
       .count(identity) shouldBe 0
-
   }
 
 }
@@ -211,6 +211,13 @@ class PipelinesApplicationTest
 class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
     extends SequencingCompleteEventSource
     with StrictLogging {
+
+  val runFolder = fileutils.TempFile.createTempFile(".temp")
+  runFolder.delete
+  runFolder.mkdirs
+  val runInfo = new java.io.File(runFolder, "RunInfo.xml")
+  new java.io.FileOutputStream(runInfo).close
+
   def commands =
     Source
       .tick(
@@ -218,7 +225,7 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
         2 seconds,
         RunfolderReadyForProcessing(
           RunId("fake"),
-          "fakePath",
+          runFolder.getAbsolutePath,
           RunConfiguration(false,
                            Set.empty,
                            "fake",
