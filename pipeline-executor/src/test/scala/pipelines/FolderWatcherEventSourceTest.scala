@@ -12,6 +12,7 @@ import akka.stream.ActorMaterializer
 import akka.testkit.{TestKit, TestProbe}
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.application.dto._
 import org.gc.pipelines.model._
 import fileutils._
 
@@ -40,7 +41,8 @@ class FolderWatcherEventSourceTest
     val configurationFile = "config-runid"
     val configurationFileContent =
       "geneModelGtf=b\nglobalIndexSet=b\nautomatic=true\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\ndemultiplexing=[]\ndbSnpVcf=b\nvariantEvaluationIntervals=b"
-    val runConfiguration = RunConfiguration(configurationFileContent)
+    val runConfiguration =
+      RunConfigurationDTO(configurationFileContent).map(_.toRunConfiguration)
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)
 

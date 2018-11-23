@@ -3,9 +3,9 @@ package org.gc.pipelines.application
 import io.circe._
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import java.io.File
-import com.typesafe.config.{ConfigFactory, Config}
-import scala.collection.JavaConverters._
+
 import org.gc.pipelines.model._
+import org.gc.pipelines.application.dto.RunConfigurationDTO
 
 case class DemultiplexingConfiguration(
     sampleSheet: String,
@@ -56,22 +56,22 @@ object RunfolderReadyForProcessing {
 
     val runId = runFolder.getAbsoluteFile.getName
     val runConfigurationFile = new File(configFileFolder, "config-" + runId)
-    RunConfiguration(runConfigurationFile).map(
-      runConfiguration =>
+    RunConfigurationDTO(runConfigurationFile).map(
+      runConfigurationDTO =>
         RunfolderReadyForProcessing(RunId(runId),
                                     runFolder.getAbsolutePath,
-                                    runConfiguration))
+                                    runConfigurationDTO.toRunConfiguration))
   }
 
   def readFolderWithConfigFile(runFolder: File, runConfigurationFile: File)
     : Either[String, RunfolderReadyForProcessing] = {
 
     val runId = runFolder.getAbsoluteFile.getName
-    RunConfiguration(runConfigurationFile).map(
-      runConfiguration =>
+    RunConfigurationDTO(runConfigurationFile).map(
+      runConfigurationDTO =>
         RunfolderReadyForProcessing(RunId(runId),
                                     runFolder.getAbsolutePath,
-                                    runConfiguration))
+                                    runConfigurationDTO.toRunConfiguration))
   }
 }
 
@@ -87,61 +87,5 @@ object RunConfiguration {
     deriveEncoder[RunConfiguration]
   implicit val decoder: Decoder[RunConfiguration] =
     deriveDecoder[RunConfiguration]
-
-  def apply(content: String): Either[String, RunConfiguration] =
-    scala.util
-      .Try {
-
-        val config = ConfigFactory.parseString(content)
-
-        def getSelector(path: String) =
-          if (config.hasPath(path)) Selector(config.getConfig(path))
-          else Selector.empty
-
-        def getDemultiplexings(config: Config) = DemultiplexingConfiguration(
-          sampleSheet = config.getString("sampleSheet"),
-          demultiplexingId = DemultiplexingId(config.getString("id")),
-          readAssignment = {
-            val list = config.getIntList("readAssignment").asScala
-            (list(0), list(1))
-          },
-          umi =
-            config.getIntList("umiReadNumber").asScala.headOption.map(_.toInt),
-          extraBcl2FastqArguments =
-            config.getStringList("extraBcl2FastqArguments").asScala
-        )
-
-        RunConfiguration(
-          demultiplexingRuns = config
-            .getConfigList("demultiplexing")
-            .asScala
-            .map(getDemultiplexings)
-            .toSet,
-          automatic = config.getBoolean("automatic"),
-          referenceFasta = config.getString("referenceFasta"),
-          targetIntervals = config.getString("targetIntervals"),
-          bqsrKnownSites = config.getStringList("bqsr.knownSites").asScala.toSet,
-          wesSelector = getSelector("wes"),
-          rnaSelector = getSelector("rna"),
-          geneModelGtf = config.getString("geneModelGtf"),
-          globalIndexSet =
-            if (config.hasPath("globalIndexSet"))
-              Some(config.getString("globalIndexSet"))
-            else None,
-          dbSnpVcf = config.getString("dbSnpVcf"),
-          variantEvaluationIntervals =
-            config.getString("variantEvaluationIntervals"),
-          vqsrMillsAnd1Kg = config.getString("vqsrMillsAnd1Kg"),
-          vqsrHapmap = config.getString("vqsrHapmap"),
-          vqsrOmni = config.getString("vqsrOmni"),
-          vqsrOneKg = config.getString("vqsrOneKg")
-        )
-      }
-      .toEither
-      .left
-      .map(_.toString)
-
-  def apply(file: File): Either[String, RunConfiguration] =
-    apply(fileutils.openSource(file)(_.mkString))
 
 }

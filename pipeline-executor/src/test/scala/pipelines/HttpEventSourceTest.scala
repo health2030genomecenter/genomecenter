@@ -20,6 +20,7 @@ import akka.http.scaladsl.model.{
 }
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.application.dto._
 import org.gc.pipelines.model._
 import fileutils._
 
@@ -49,7 +50,8 @@ class HttpEventSourceTest
     val runConfigurationFileContent =
       "geneModelGtf=b\nglobalIndexSet=b\nautomatic=true\nreferenceFasta=b\ntargetIntervals=b\nbqsr.knownSites=[]\ndemultiplexing=[]\ndbSnpVcf=b\nvariantEvaluationIntervals=b"
 
-    val runConfiguration = RunConfiguration(runConfigurationFileContent)
+    val runConfiguration =
+      RunConfigurationDTO(runConfigurationFileContent).map(_.toRunConfiguration)
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)
 
