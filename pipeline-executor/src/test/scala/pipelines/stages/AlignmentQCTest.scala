@@ -24,6 +24,8 @@ class AlignmentQCTest
         .Root(hsMetricsFile, project, sampleId)
       val wgs = WgsMetrics
         .Root(wgsMetricsFile, project, sampleId)
+      val insertSize = InsertSizeMetrics
+        .Root(insertSizeMetricsText, project, sampleId)
       val fastp = FastpReportModel
         .Root(fastpText, project, sampleId, runId)
       val vcfQc =
@@ -31,7 +33,7 @@ class AlignmentQCTest
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
-        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs, vcfQc)
+        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs, vcfQc, insertSize)
       }
       (AlignmentQC.makeTable(joined))
     }
@@ -41,6 +43,8 @@ class AlignmentQCTest
     new Fixture {
       val dup = DuplicationMetrics
         .Root(duplicationMetricsText, project, sampleId)
+      val insertSize = InsertSizeMetrics
+        .Root(insertSizeMetricsText, project, sampleId)
       val als = AlignmentSummaryMetrics
         .Root(alignmentSummaryMetricsText, project, sampleId)
       val hs = HsMetrics
@@ -54,7 +58,7 @@ class AlignmentQCTest
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
-        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs, vcfQc)
+        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs, vcfQc, insertSize)
       }
       println(AlignmentQC.makeHtmlTable(joined))
     }
@@ -200,16 +204,6 @@ class AlignmentQCTest
     val referenceFile = new File(
       getClass
         .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta")
-        .getFile)
-
-    val vcf = new File(
-      getClass
-        .getResource("/example.vcf")
-        .getFile)
-
-    val vcfIdx = new File(
-      getClass
-        .getResource("/example.vcf.idx")
         .getFile)
 
     val (testConfig, basePath) = makeTestConfig
@@ -853,6 +847,305 @@ coverage	high_quality_coverage_count
 TOTAL_SNPS	NUM_IN_DB_SNP	NOVEL_SNPS	FILTERED_SNPS	PCT_DBSNP	DBSNP_TITV	NOVEL_TITV	TOTAL_INDELS	NOVEL_INDELS	FILTERED_INDELS	PCT_DBSNP_INDELS	NUM_IN_DB_SNP_INDELS	DBSNP_INS_DEL_RATIO	NOVEL_INS_DEL_RATIO	TOTAL_MULTIALLELIC_SNPS	NUM_IN_DB_SNP_MULTIALLELIC	TOTAL_COMPLEX_INDELS	NUM_IN_DB_SNP_COMPLEX_INDELS	SNP_REFERENCE_BIAS	NUM_SINGLETONS
 0	0	0	0	?	0	0	0	0	0	?	0	0	0	0	0	0	0	?	0
 
+
+"""
+
+    val insertSizeMetricsText =
+      """## htsjdk.samtools.metrics.StringHeader
+# CollectMultipleMetrics  --INPUT /private/var/folders/8g/8hnt4z2j5lq8m0tqqlddx7891x22q8/T/tasks2018_11_23_18_04_19/tasks2018_11_23_18_04_19513054381560356401.temp/some.bam --ASSUME_SORTED true --OUTPUT /var/folders/8g/8hnt4z2j5lq8m0tqqlddx7891x22q8/T/fileutil2018_11_23_18_04_210/fileutil2018_11_23_18_04_21827496703813495769.qc --METRIC_ACCUMULATION_LEVEL READ_GROUP --METRIC_ACCUMULATION_LEVEL ALL_READS --PROGRAM CollectAlignmentSummaryMetrics --PROGRAM CollectInsertSizeMetrics --PROGRAM CollectSequencingArtifactMetrics --REFERENCE_SEQUENCE /private/var/folders/8g/8hnt4z2j5lq8m0tqqlddx7891x22q8/T/tasks2018_11_23_18_04_19/tasks2018_11_23_18_04_19513054381560356401.temp/referenceFasta.fasta  --STOP_AFTER 0 --INCLUDE_UNPAIRED false --VERBOSITY INFO --QUIET false --VALIDATION_STRINGENCY STRICT --COMPRESSION_LEVEL 5 --MAX_RECORDS_IN_RAM 500000 --CREATE_INDEX false --CREATE_MD5_FILE false --GA4GH_CLIENT_SECRETS client_secrets.json --help false --version false --showHidden false --USE_JDK_DEFLATER false --USE_JDK_INFLATER false
+## htsjdk.samtools.metrics.StringHeader
+# Started on: Fri Nov 23 18:04:44 CET 2018
+
+## METRICS CLASS	picard.analysis.InsertSizeMetrics
+MEDIAN_INSERT_SIZE	MODE_INSERT_SIZE	MEDIAN_ABSOLUTE_DEVIATION	MIN_INSERT_SIZE	MAX_INSERT_SIZE	MEAN_INSERT_SIZE	STANDARD_DEVIATION	READ_PAIRS	PAIR_ORIENTATION	WIDTH_OF_10_PERCENT	WIDTH_OF_20_PERCENT	WIDTH_OF_30_PERCENT	WIDTH_OF_40_PERCENT	WIDTH_OF_50_PERCENT	WIDTH_OF_60_PERCENT	WIDTH_OF_70_PERCENT	WIDTH_OF_80_PERCENT	WIDTH_OF_90_PERCENT	WIDTH_OF_95_PERCENT	WIDTH_OF_99_PERCENT	SAMPLE	LIBRARY	READ_GROUP
+501	519	33	302	682	500.1382	48.971636	5000	FR	13	27	37	53	67	83	103	127	161	191	251			
+501	519	33	302	682	500.1382	48.971636	5000	FR	13	27	37	53	67	83	103	127	161	191	251	someProject.someSampleId	someProject.someSampleId	someRunId.1
+
+## HISTOGRAM	java.lang.Integer
+insert_size	All_Reads.fr_count	someRunId.1.fr_count
+302	1	1
+338	1	1
+339	1	1
+343	1	1
+345	2	2
+347	1	1
+349	1	1
+350	1	1
+351	1	1
+352	1	1
+353	1	1
+355	2	2
+357	1	1
+358	2	2
+361	3	3
+363	1	1
+366	1	1
+367	1	1
+368	2	2
+369	1	1
+370	1	1
+371	1	1
+372	2	2
+373	2	2
+375	1	1
+376	1	1
+377	4	4
+379	1	1
+380	1	1
+381	2	2
+382	2	2
+383	4	4
+385	1	1
+386	6	6
+388	1	1
+389	6	6
+390	3	3
+391	4	4
+392	2	2
+393	7	7
+394	3	3
+395	3	3
+397	7	7
+398	4	4
+399	2	2
+400	4	4
+401	6	6
+402	7	7
+403	5	5
+404	8	8
+405	5	5
+406	6	6
+407	9	9
+408	9	9
+409	10	10
+410	7	7
+411	3	3
+412	10	10
+413	8	8
+414	13	13
+415	8	8
+416	8	8
+417	11	11
+418	8	8
+419	11	11
+420	14	14
+421	19	19
+422	10	10
+423	10	10
+424	10	10
+425	11	11
+426	16	16
+427	12	12
+428	16	16
+429	17	17
+430	24	24
+431	13	13
+432	21	21
+433	15	15
+434	13	13
+435	17	17
+436	16	16
+437	15	15
+438	20	20
+439	19	19
+440	27	27
+441	20	20
+442	17	17
+443	17	17
+444	20	20
+445	19	19
+446	22	22
+447	20	20
+448	19	19
+449	30	30
+450	22	22
+451	24	24
+452	21	21
+453	26	26
+454	27	27
+455	22	22
+456	27	27
+457	27	27
+458	27	27
+459	27	27
+460	31	31
+461	27	27
+462	36	36
+463	27	27
+464	31	31
+465	29	29
+466	34	34
+467	30	30
+468	29	29
+469	33	33
+470	39	39
+471	37	37
+472	34	34
+473	24	24
+474	30	30
+475	33	33
+476	39	39
+477	36	36
+478	26	26
+479	34	34
+480	32	32
+481	33	33
+482	33	33
+483	43	43
+484	43	43
+485	26	26
+486	41	41
+487	36	36
+488	50	50
+489	30	30
+490	39	39
+491	44	44
+492	36	36
+493	35	35
+494	36	36
+495	46	46
+496	49	49
+497	40	40
+498	35	35
+499	37	37
+500	34	34
+501	47	47
+502	28	28
+503	34	34
+504	46	46
+505	51	51
+506	48	48
+507	41	41
+508	43	43
+509	49	49
+510	43	43
+511	26	26
+512	42	42
+513	35	35
+514	41	41
+515	48	48
+516	50	50
+517	38	38
+518	39	39
+519	57	57
+520	47	47
+521	40	40
+522	34	34
+523	30	30
+524	35	35
+525	35	35
+526	39	39
+527	32	32
+528	27	27
+529	45	45
+530	34	34
+531	30	30
+532	38	38
+533	25	25
+534	37	37
+535	31	31
+536	38	38
+537	24	24
+538	28	28
+539	32	32
+540	31	31
+541	28	28
+542	27	27
+543	26	26
+544	23	23
+545	28	28
+546	22	22
+547	37	37
+548	24	24
+549	27	27
+550	24	24
+551	16	16
+552	20	20
+553	22	22
+554	26	26
+555	21	21
+556	18	18
+557	27	27
+558	23	23
+559	23	23
+560	12	12
+561	22	22
+562	18	18
+563	15	15
+564	18	18
+565	24	24
+566	18	18
+567	10	10
+568	19	19
+569	14	14
+570	14	14
+571	15	15
+572	12	12
+573	21	21
+574	11	11
+575	15	15
+576	10	10
+577	15	15
+578	20	20
+579	9	9
+580	13	13
+581	10	10
+582	12	12
+583	9	9
+584	9	9
+585	9	9
+586	6	6
+587	1	1
+588	11	11
+589	9	9
+590	4	4
+591	10	10
+592	8	8
+593	5	5
+594	8	8
+595	10	10
+596	5	5
+597	6	6
+598	5	5
+599	8	8
+600	3	3
+601	6	6
+602	5	5
+603	7	7
+605	3	3
+606	3	3
+607	3	3
+608	5	5
+609	3	3
+610	2	2
+611	5	5
+612	2	2
+614	4	4
+615	2	2
+616	5	5
+617	1	1
+618	3	3
+619	2	2
+620	2	2
+621	2	2
+622	1	1
+623	1	1
+624	3	3
+625	1	1
+627	1	1
+628	1	1
+630	2	2
+631	1	1
+632	3	3
+634	1	1
+635	1	1
+639	1	1
+641	1	1
+643	1	1
+647	1	1
+648	1	1
+660	1	1
+682	1	1
 
 """
 

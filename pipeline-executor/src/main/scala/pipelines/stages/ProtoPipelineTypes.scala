@@ -37,7 +37,8 @@ case class SampleResult(
         sample.wgsQC.wgsMetrics,
         sample.gvcfQC.summary,
         sample.project,
-        sample.sampleId
+        sample.sampleId,
+        sample.alignmentQC.insertSizeMetrics
       )
     }
 }

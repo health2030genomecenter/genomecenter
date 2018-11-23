@@ -40,13 +40,15 @@ case class AlignmentQCResult(
     biasSummary: SharedFile,
     errorSummary: SharedFile,
     preAdapterDetail: SharedFile,
-    preAdapterSummary: SharedFile
+    preAdapterSummary: SharedFile,
+    insertSizeMetrics: SharedFile
 ) extends WithSharedFiles(alignmentSummary,
                             biasDetail,
                             biasSummary,
                             errorSummary,
                             preAdapterDetail,
-                            preAdapterSummary)
+                            preAdapterSummary,
+                            insertSizeMetrics)
 
 case class SampleMetrics(alignmentSummary: SharedFile,
                          hsMetrics: SharedFile,
@@ -55,13 +57,15 @@ case class SampleMetrics(alignmentSummary: SharedFile,
                          wgsMetrics: SharedFile,
                          gvcfQCMetrics: SharedFile,
                          project: Project,
-                         sampleId: SampleId)
+                         sampleId: SampleId,
+                         insertSizeMetrics: SharedFile)
     extends WithSharedFiles(alignmentSummary,
                             hsMetrics,
                             duplicationMetrics,
                             wgsMetrics,
                             gvcfQCMetrics,
-                            fastpReport.json)
+                            fastpReport.json,
+                            insertSizeMetrics)
 
 case class RunQCTableInput(fileName: String, samples: Seq[SampleMetrics])
     extends WithSharedFiles(samples.flatMap(_.files): _*)
@@ -78,7 +82,8 @@ object AlignmentQC {
          DuplicationMetrics.Root,
          FastpReportModel.Root,
          WgsMetrics.Root,
-         VariantCallingMetrics.Root)]): String = {
+         VariantCallingMetrics.Root,
+         InsertSizeMetrics.Root)]): String = {
 
     val left = true
     val right = false
@@ -93,7 +98,8 @@ object AlignmentQC {
               dups,
               fastpMetrics,
               wgsMetrics,
-              vcfMetrics) =>
+              vcfMetrics,
+              insertSizeMetrics) =>
           import alignment.pairMetrics._
           import targetSelection.metrics._
           import dups.metrics._
@@ -101,6 +107,7 @@ object AlignmentQC {
           import fastpMetrics.metrics._
           import wgsMetrics.metrics._
           import vcfMetrics.metrics._
+          import insertSizeMetrics.metrics._
 
           val totalReads = alignment.pairMetrics.totalReads
 
@@ -127,7 +134,7 @@ object AlignmentQC {
               f"${pctTargetBases30 * 100}%11.2f%%" -> right,
               f"${pctTargetBases50 * 100}%11.2f%%" -> right,
               f"$gcContent%6.2f" -> right,
-              insertSizePeak.toString -> right,
+              modeInsertSize.toString -> right,
               f"${pctCoverage10x * 100}%11.2f%%" -> right,
               f"${pctCoverage20x * 100}%11.2f%%" -> right,
               f"${pctCoverage60x * 100}%11.2f%%" -> right,
@@ -191,22 +198,30 @@ object AlignmentQC {
          DuplicationMetrics.Root,
          FastpReportModel.Root,
          WgsMetrics.Root,
-         VariantCallingMetrics.Root)]): String = {
+         VariantCallingMetrics.Root,
+         InsertSizeMetrics.Root)]): String = {
     val header =
       "Proj          Sample        Lane   CptrKit              TotRds   MeanTrgtCov %PfRds %PfRdsAligned %PfUqRdsAligned   %Dup   DupRds OptDupRds BadCycles %Chimera %TrgtBase10 %TrgtBase30 %TrgtBase50    GC InsertSizePeak"
 
     val lines = metrics
       .map {
-        case (alignment, targetSelection, dups, fastpMetrics, _, _) =>
+        case (alignment,
+              targetSelection,
+              dups,
+              fastpMetrics,
+              _,
+              _,
+              insertSizeMetrics) =>
           import alignment.pairMetrics._
           import targetSelection.metrics._
           import dups.metrics._
           import alignment._
           import fastpMetrics.metrics._
+          import insertSizeMetrics.metrics._
 
           val totalReads = alignment.pairMetrics.totalReads
 
-          f"$project%-14s$sampleId%-14s$lane%-7s$baitSet%-15s${totalReads / 1E6}%10.2fMb$meanTargetCoverage%13.1fx${pctPfReads * 100}%6.2f%%${pctPfReadsAligned * 100}%13.2f%%${pctPfUniqueReadsAligned * 100}%15.2f%%${pctDuplication * 100}%6.2f%%${readPairDuplicates / 1E6}%7.2fMb${readPairOpticalDuplicates / 1E6}%8.2fMb$badCycles%10s$pctChimeras%8.2f%%${pctTargetBases10 * 100}%11.2f%%${pctTargetBases30 * 100}%11.2f%%${pctTargetBases50 * 100}%11.2f%%$gcContent%6.2f$insertSizePeak%15s"
+          f"$project%-14s$sampleId%-14s$lane%-7s$baitSet%-15s${totalReads / 1E6}%10.2fMb$meanTargetCoverage%13.1fx${pctPfReads * 100}%6.2f%%${pctPfReadsAligned * 100}%13.2f%%${pctPfUniqueReadsAligned * 100}%15.2f%%${pctDuplication * 100}%6.2f%%${readPairDuplicates / 1E6}%7.2fMb${readPairOpticalDuplicates / 1E6}%8.2fMb$badCycles%10s$pctChimeras%8.2f%%${pctTargetBases10 * 100}%11.2f%%${pctTargetBases30 * 100}%11.2f%%${pctTargetBases50 * 100}%11.2f%%$gcContent%6.2f$modeInsertSize%15s"
 
       }
       .mkString("\n")
@@ -225,6 +240,12 @@ object AlignmentQC {
               .map(read)
               .map(txt =>
                 AlignmentSummaryMetrics
+                  .Root(txt, m.project, m.sampleId))
+          def parseInsertSizeMetrics(m: SampleMetrics) =
+            m.insertSizeMetrics.file
+              .map(read)
+              .map(txt =>
+                InsertSizeMetrics
                   .Root(txt, m.project, m.sampleId))
           def parseFastpReport(m: SampleMetrics) =
             m.fastpReport.json.file
@@ -262,6 +283,7 @@ object AlignmentQC {
               dupMetrics <- parseDupMetrics(m)
               wgsMetrics <- parseWgsMetrics(m)
               variantQCMetrics <- parseVariantCallingMetrics(m)
+              insertSizeMetrics <- parseInsertSizeMetrics(m)
             } yield {
               alignmentSummariesPerLanePerRun.map { alSummaryOfLane =>
                 val hsMetricsOfLane = hsMetricsPerLanePerRun
@@ -273,16 +295,12 @@ object AlignmentQC {
                  dupMetrics,
                  fastpReport,
                  wgsMetrics,
-                 variantQCMetrics)
+                 variantQCMetrics,
+                 insertSizeMetrics)
               }
             }
-          type MetricsTuple = (AlignmentSummaryMetrics.Root,
-                               HsMetrics.Root,
-                               DuplicationMetrics.Root,
-                               FastpReportModel.Root,
-                               WgsMetrics.Root,
-                               VariantCallingMetrics.Root)
-          val parsedFiles: Future[Seq[MetricsTuple]] =
+
+          val parsedFiles =
             Future.traverse(sampleMetrics)(parse).map(_.flatten)
 
           for {
@@ -367,6 +385,7 @@ object AlignmentQC {
           --ASSUME_SORTED true \\
           --PROGRAM "null" \\
           --PROGRAM "CollectAlignmentSummaryMetrics" \\
+          --PROGRAM "CollectInsertSizeMetrics" \\
           --PROGRAM "CollectSequencingArtifactMetrics" \\
           --METRIC_ACCUMULATION_LEVEL "READ_GROUP" \\
         """
@@ -387,6 +406,7 @@ object AlignmentQC {
                 errorSummary <- outF(".error_summary_metrics")
                 preAdapterDetail <- outF(".pre_adapter_detail_metrics")
                 preAdapterSummary <- outF(".pre_adapter_summary_metrics")
+                insertSizeMetrics <- outF(".insert_size_metrics")
               } yield
                 AlignmentQCResult(
                   alignmentSummary,
@@ -394,7 +414,8 @@ object AlignmentQC {
                   biasSummary,
                   errorSummary,
                   preAdapterDetail,
-                  preAdapterSummary
+                  preAdapterSummary,
+                  insertSizeMetrics
                 )
 
             }
