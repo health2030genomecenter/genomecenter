@@ -217,7 +217,7 @@ object BWAAlignment {
   val mergeAndMarkDuplicate =
     AsyncTask[BamsWithSampleMetadata, MarkDuplicateResult](
       "__merge-markduplicate",
-      1) {
+      2) {
       case BamsWithSampleMetadata(project, sampleId, bams) =>
         implicit computationEnvironment =>
           val picardJar = extractPicardJar()
@@ -256,7 +256,7 @@ object BWAAlignment {
           $inputFlags \\
           --OUTPUT ${tmpDuplicateMarkedBam.getAbsolutePath} \\
           --METRICS_FILE ${tmpMetricsFile.getAbsolutePath} \\
-          --OPTICAL_DUPLICATE_PIXEL_DISTANCE=250 \\
+          --OPTICAL_DUPLICATE_PIXEL_DISTANCE=2500 \\
           --CREATE_INDEX false \\
           --COMPRESSION_LEVEL 1 \\
           --MAX_RECORDS_IN_RAM 0 \\
