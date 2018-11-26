@@ -505,6 +505,10 @@ object BWAAlignment {
 
     }
 
+  def extractFakeRscript(): File =
+    fileutils.TempFile
+      .getExecutableFromJar("/bin/Rscript", "Rscript")
+
   def extractPicardJar(): String =
     fileutils.TempFile
       .getExecutableFromJar("/bin/picard_2.8.14.jar", "picard_2.8.14.jar")

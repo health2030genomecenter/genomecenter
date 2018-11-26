@@ -354,10 +354,11 @@ object AlignmentQC {
             bam <- coordinateSortedBam.localFile
             result <- {
               val picardJar = BWAAlignment.extractPicardJar()
+              val fakeRscript = BWAAlignment.extractFakeRscript()
               val maxHeap = JVM.maxHeap
               val tmpOut = TempFile.createTempFile(".qc")
               val bashScript = s""" \\
-        java ${JVM.g1} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectMultipleMetrics \\
+        PATH=${fakeRscript.getParentFile}:$$PATH java ${JVM.g1} $maxHeap -Dpicard.useLegacyParser=false -jar $picardJar CollectMultipleMetrics \\
           --INPUT ${bam.getAbsolutePath} \\
           --REFERENCE_SEQUENCE=${reference.getAbsolutePath} \\
           --OUTPUT ${tmpOut.getAbsolutePath} \\
