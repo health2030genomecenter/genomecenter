@@ -67,12 +67,12 @@ class BaseQualityRecalibrationTest
 
     val vcf = new File(
       getClass
-        .getResource("/example.vcf")
+        .getResource("/example.vcf.gz")
         .getFile)
 
     val vcfIdx = new File(
       getClass
-        .getResource("/example.vcf.idx")
+        .getResource("/example.vcf.gz.tbi")
         .getFile)
 
     val (testConfig, basePath) = makeTestConfig

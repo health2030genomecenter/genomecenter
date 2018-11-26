@@ -340,7 +340,7 @@ object ProtoPipelineStages extends StrictLogging {
       ec: ExecutionContext) =
     for {
       vcf <- fetchFile("references", runConfiguration.dbSnpVcf)
-      vcfidx <- fetchFile("references", runConfiguration.dbSnpVcf + ".idx")
+      vcfidx <- fetchFile("references", runConfiguration.dbSnpVcf + ".tbi")
     } yield VCF(vcf, Some(vcfidx))
 
   def fetchVqsrTrainingFiles(runConfiguration: RunConfiguration)(
@@ -349,13 +349,13 @@ object ProtoPipelineStages extends StrictLogging {
     for {
       millsAnd1Kg <- fetchFile("references", runConfiguration.vqsrMillsAnd1Kg)
       millsAnd1KgIdx <- fetchFile("references",
-                                  runConfiguration.vqsrMillsAnd1Kg + ".idx")
+                                  runConfiguration.vqsrMillsAnd1Kg + ".tbi")
       oneKg <- fetchFile("references", runConfiguration.vqsrOneKg)
-      oneKgIdx <- fetchFile("references", runConfiguration.vqsrOneKg + ".idx")
+      oneKgIdx <- fetchFile("references", runConfiguration.vqsrOneKg + ".tbi")
       hapmap <- fetchFile("references", runConfiguration.vqsrHapmap)
-      hapmapIdx <- fetchFile("references", runConfiguration.vqsrHapmap + ".idx")
+      hapmapIdx <- fetchFile("references", runConfiguration.vqsrHapmap + ".tbi")
       omni <- fetchFile("references", runConfiguration.vqsrOmni)
-      omniIdx <- fetchFile("references", runConfiguration.vqsrOmni + ".idx")
+      omniIdx <- fetchFile("references", runConfiguration.vqsrOmni + ".tbi")
     } yield
       VQSRTrainingFiles(
         millsAnd1Kg = VCF(millsAnd1Kg, Some(millsAnd1KgIdx)),
@@ -397,7 +397,7 @@ object ProtoPipelineStages extends StrictLogging {
       runConfiguration.bqsrKnownSites
 
     val fileListWithIndices = files.map { vcfFile =>
-      (new File(vcfFile), new File(vcfFile + ".idx"))
+      (new File(vcfFile), new File(vcfFile + ".tbi"))
     }
     val vcfFilesFuture = fileListWithIndices.map {
       case (vcf, vcfIdx) =>

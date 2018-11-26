@@ -207,7 +207,7 @@ class ProtopipelineTestSuite
 
     val knownSitesVCF = new File(
       getClass
-        .getResource("/example.vcf")
+        .getResource("/example.vcf.gz")
         .getFile)
 
     val runId = RunId("whateverRunId")
