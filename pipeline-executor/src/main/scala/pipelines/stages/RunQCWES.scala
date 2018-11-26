@@ -70,16 +70,14 @@ case class SampleMetrics(alignmentSummary: SharedFile,
 case class RunQCTableInput(fileName: String, samples: Seq[SampleMetrics])
     extends WithSharedFiles(samples.flatMap(_.files): _*)
 
-case class RunQCTable(table: SharedFile, htmlTable: SharedFile)
-    extends WithSharedFiles(table, htmlTable)
+case class RunQCTable(htmlTable: SharedFile) extends WithSharedFiles(htmlTable)
 
 object AlignmentQC {
 
   def makeHtmlTable(
-      metrics: Seq[
-        (AlignmentSummaryMetrics.Root,
-         HsMetrics.Root,
-         DuplicationMetrics.Root,
+      laneMetrics: Seq[(AlignmentSummaryMetrics.Root, HsMetrics.Root)],
+      sampleMetrics: Seq[
+        (DuplicationMetrics.Root,
          FastpReportModel.Root,
          WgsMetrics.Root,
          VariantCallingMetrics.Root,
@@ -87,52 +85,28 @@ object AlignmentQC {
 
     val left = true
     val right = false
-    val lines = metrics
+    val sampleLines = sampleMetrics
       .sortBy(_._1.project.toString)
       .sortBy(_._1.sampleId.toString)
-      .sortBy(_._1.runId.toString)
-      .sortBy(_._1.lane.toInt)
       .map {
-        case (alignment,
-              targetSelection,
-              dups,
-              fastpMetrics,
-              wgsMetrics,
-              vcfMetrics,
-              insertSizeMetrics) =>
-          import alignment.pairMetrics._
-          import targetSelection.metrics._
+        case (dups, fastpMetrics, wgsMetrics, vcfMetrics, insertSizeMetrics) =>
           import dups.metrics._
-          import alignment._
+          import dups._
           import fastpMetrics.metrics._
           import wgsMetrics.metrics._
           import vcfMetrics.metrics._
           import insertSizeMetrics.metrics._
 
-          val totalReads = alignment.pairMetrics.totalReads
-
           Html.line(
             Seq(
               project -> left,
               sampleId -> left,
-              runId -> left,
-              lane.toString -> left,
-              baitSet -> left,
               f"${genomeTerritory / 1E6}%10.2fMb" -> right,
-              f"${totalReads / 1E6}%10.2fM" -> right,
-              f"$meanTargetCoverage%13.1fx" -> right,
+              // f"${totalReads / 1E6}%10.2fM" -> right,
               f"$meanCoverage%13.1fx" -> right,
-              f"${pctPfReads * 100}%6.2f%%" -> right,
-              f"${pctPfReadsAligned * 100}%13.2f%%" -> right,
-              f"${pctPfUniqueReadsAligned * 100}%15.2f%%" -> right,
               f"${pctDuplication * 100}%6.2f%%" -> right,
               f"${readPairDuplicates / 1E6}%7.2fM" -> right,
               f"${readPairOpticalDuplicates / 1E6}%8.2fM" -> right,
-              badCycles.toString -> right,
-              f"${pctChimeras * 100}%8.2f%%" -> right,
-              f"${pctTargetBases10 * 100}%11.2f%%" -> right,
-              f"${pctTargetBases30 * 100}%11.2f%%" -> right,
-              f"${pctTargetBases50 * 100}%11.2f%%" -> right,
               f"$gcContent%6.2f" -> right,
               modeInsertSize.toString -> right,
               f"${pctCoverage10x * 100}%11.2f%%" -> right,
@@ -152,24 +126,66 @@ object AlignmentQC {
       }
       .mkString("\n")
 
-    val header = Html.mkHeader(
+    val laneLines = laneMetrics
+      .sortBy(_._1.project.toString)
+      .sortBy(_._1.sampleId.toString)
+      .sortBy(_._1.runId.toString)
+      .sortBy(_._1.lane.toInt)
+      .map {
+        case (alignment, targetSelection) =>
+          import alignment.pairMetrics._
+          import targetSelection.metrics._
+          import alignment._
+
+          val totalReads = alignment.pairMetrics.totalReads
+
+          Html.line(
+            Seq(
+              project -> left,
+              sampleId -> left,
+              runId -> left,
+              lane.toString -> left,
+              baitSet -> left,
+              f"${totalReads / 1E6}%10.2fM" -> right,
+              f"$meanTargetCoverage%13.1fx" -> right,
+              f"${pctPfReads * 100}%6.2f%%" -> right,
+              f"${pctPfReadsAligned * 100}%13.2f%%" -> right,
+              f"${pctPfUniqueReadsAligned * 100}%15.2f%%" -> right,
+              badCycles.toString -> right,
+              f"${pctChimeras * 100}%8.2f%%" -> right,
+              f"${pctTargetBases10 * 100}%11.2f%%" -> right,
+              f"${pctTargetBases30 * 100}%11.2f%%" -> right,
+              f"${pctTargetBases50 * 100}%11.2f%%" -> right
+            ))
+
+      }
+      .mkString("\n")
+
+    val laneHeader = Html.mkHeader(
       List("Proj", "Sample", "Run", "Lane", "CaptureKit"),
       List(
-        "GenomeSize" -> right,
         "TotalReads" -> right,
         "MeanTargetCoverage" -> right,
-        "MeanCoverage" -> right,
         "PFReads" -> right,
         "PFReadsAligned" -> right,
         "PFUniqueReadsAligned" -> right,
-        "Dup" -> right,
-        "DupReadPairss" -> right,
-        "OptDupReadPairs" -> right,
         "BadCycles" -> right,
         "Chimera" -> right,
         "TargetBase10" -> right,
         "Targetbase30" -> right,
-        "TargetBase50" -> right,
+        "TargetBase50" -> right
+      )
+    )
+
+    val sampleHeader = Html.mkHeader(
+      List("Proj", "Sample"),
+      List(
+        "GenomeSize" -> right,
+        // "TotalReads" -> right,
+        "MeanCoverage" -> right,
+        "Dup" -> right,
+        "DupReadPairss" -> right,
+        "OptDupReadPairs" -> right,
         "GC" -> right,
         "InsertSizePeak" -> right,
         "Wgs10x" -> right,
@@ -187,46 +203,7 @@ object AlignmentQC {
       )
     )
 
-    """<!DOCTYPE html><head></head><body><table style="border-collapse: collapse;">""" + header + "\n<tbody>" + lines + "</tbody></table></body>"
-
-  }
-
-  def makeTable(
-      metrics: Seq[
-        (AlignmentSummaryMetrics.Root,
-         HsMetrics.Root,
-         DuplicationMetrics.Root,
-         FastpReportModel.Root,
-         WgsMetrics.Root,
-         VariantCallingMetrics.Root,
-         InsertSizeMetrics.Root)]): String = {
-    val header =
-      "Proj          Sample        Lane   CptrKit              TotRds   MeanTrgtCov %PfRds %PfRdsAligned %PfUqRdsAligned   %Dup   DupRds OptDupRds BadCycles %Chimera %TrgtBase10 %TrgtBase30 %TrgtBase50    GC InsertSizePeak"
-
-    val lines = metrics
-      .map {
-        case (alignment,
-              targetSelection,
-              dups,
-              fastpMetrics,
-              _,
-              _,
-              insertSizeMetrics) =>
-          import alignment.pairMetrics._
-          import targetSelection.metrics._
-          import dups.metrics._
-          import alignment._
-          import fastpMetrics.metrics._
-          import insertSizeMetrics.metrics._
-
-          val totalReads = alignment.pairMetrics.totalReads
-
-          f"$project%-14s$sampleId%-14s$lane%-7s$baitSet%-15s${totalReads / 1E6}%10.2fMb$meanTargetCoverage%13.1fx${pctPfReads * 100}%6.2f%%${pctPfReadsAligned * 100}%13.2f%%${pctPfUniqueReadsAligned * 100}%15.2f%%${pctDuplication * 100}%6.2f%%${readPairDuplicates / 1E6}%7.2fMb${readPairOpticalDuplicates / 1E6}%8.2fMb$badCycles%10s$pctChimeras%8.2f%%${pctTargetBases10 * 100}%11.2f%%${pctTargetBases30 * 100}%11.2f%%${pctTargetBases50 * 100}%11.2f%%$gcContent%6.2f$modeInsertSize%15s"
-
-      }
-      .mkString("\n")
-
-    header + "\n" + lines
+    """<!DOCTYPE html><head></head><body><table style="border-collapse: collapse;">""" + laneHeader + "\n<tbody>" + laneLines + """</tbody></table><table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table></body>"
 
   }
 
@@ -285,37 +262,39 @@ object AlignmentQC {
               variantQCMetrics <- parseVariantCallingMetrics(m)
               insertSizeMetrics <- parseInsertSizeMetrics(m)
             } yield {
-              alignmentSummariesPerLanePerRun.map { alSummaryOfLane =>
-                val hsMetricsOfLane = hsMetricsPerLanePerRun
-                  .find(hs =>
-                    hs.lane == alSummaryOfLane.lane && hs.runId == alSummaryOfLane.runId)
-                  .get
-                (alSummaryOfLane,
-                 hsMetricsOfLane,
-                 dupMetrics,
-                 fastpReport,
-                 wgsMetrics,
-                 variantQCMetrics,
-                 insertSizeMetrics)
+              val laneSpecificMetrics = alignmentSummariesPerLanePerRun.map {
+                alSummaryOfLane =>
+                  val hsMetricsOfLane = hsMetricsPerLanePerRun
+                    .find(hs =>
+                      hs.lane == alSummaryOfLane.lane && hs.runId == alSummaryOfLane.runId)
+                    .get
+                  (alSummaryOfLane, hsMetricsOfLane)
               }
+
+              val sampleSpecificMetrics = (dupMetrics,
+                                           fastpReport,
+                                           wgsMetrics,
+                                           variantQCMetrics,
+                                           insertSizeMetrics)
+
+              (laneSpecificMetrics, sampleSpecificMetrics)
+
             }
 
           val parsedFiles =
-            Future.traverse(sampleMetrics)(parse).map(_.flatten)
+            Future
+              .traverse(sampleMetrics)(parse)
+              .map(pair => (pair.flatMap(_._1), pair.map(_._2)))
 
           for {
-            metrics <- parsedFiles
-            table <- {
-              val table = makeTable(metrics)
-              SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
-                         fileName + ".wes.qc.table")
-            }
+            (laneMetrics, sampleMetrics) <- parsedFiles
+
             htmlTable <- {
-              val table = makeHtmlTable(metrics)
+              val table = makeHtmlTable(laneMetrics, sampleMetrics)
               SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
                          fileName + ".wes.qc.table.html")
             }
-          } yield RunQCTable(table, htmlTable)
+          } yield RunQCTable(htmlTable)
 
     }
 

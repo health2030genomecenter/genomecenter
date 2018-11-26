@@ -19,7 +19,7 @@ object Html {
               ${elems1
       .dropRight(1)
       .map { elem =>
-        s"""<th style="text-align: left; border-bottom: 1px solid #000;">$elem</th>"""
+        s"""<th style="text-align: left; border-bottom: 1px solid #000; padding-right: 7px;">$elem</th>"""
       }
       .mkString("\n")}
 
@@ -31,7 +31,7 @@ object Html {
       .map {
         case (elem, left) =>
           val align = if (left) "left" else "right"
-          s"""<th style="text-align: $align; border-bottom: 1px solid #000;">$elem</th>"""
+          s"""<th style="text-align: $align; border-bottom: 1px solid #000; padding-left: 7px;">$elem</th>"""
       }
       .mkString("\n")}
             </tr>

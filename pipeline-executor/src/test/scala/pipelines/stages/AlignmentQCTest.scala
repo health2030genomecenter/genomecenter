@@ -14,31 +14,6 @@ class AlignmentQCTest
     with GivenWhenThen
     with TestHelpers {
 
-  test("Render table") {
-    new Fixture {
-      val dup = DuplicationMetrics
-        .Root(duplicationMetricsText, project, sampleId)
-      val als = AlignmentSummaryMetrics
-        .Root(alignmentSummaryMetricsText, project, sampleId)
-      val hs = HsMetrics
-        .Root(hsMetricsFile, project, sampleId)
-      val wgs = WgsMetrics
-        .Root(wgsMetricsFile, project, sampleId)
-      val insertSize = InsertSizeMetrics
-        .Root(insertSizeMetricsText, project, sampleId)
-      val fastp = FastpReportModel
-        .Root(fastpText, project, sampleId, runId)
-      val vcfQc =
-        VariantCallingMetrics.Root(variantCallingMetrics, project, sampleId)
-      val joined = als.map { alSummaryOfLane =>
-        val lane = alSummaryOfLane.lane
-        val hsMetricsOfLane = hs.find(_.lane == lane).get
-        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs, vcfQc, insertSize)
-      }
-      (AlignmentQC.makeTable(joined))
-    }
-  }
-
   test("Render html table") {
     new Fixture {
       val dup = DuplicationMetrics
@@ -58,9 +33,11 @@ class AlignmentQCTest
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
-        (alSummaryOfLane, hsMetricsOfLane, dup, fastp, wgs, vcfQc, insertSize)
+        (alSummaryOfLane, hsMetricsOfLane)
       }
-      println(AlignmentQC.makeHtmlTable(joined))
+      println(
+        AlignmentQC.makeHtmlTable(joined,
+                                  List((dup, fastp, wgs, vcfQc, insertSize))))
     }
   }
 
