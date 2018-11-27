@@ -63,6 +63,9 @@ object BWAAlignment {
                       onError = Exec.ThrowIfNonZero)(
               s"$bwaExecutable index  -a bwtsw $pathToFasta")
 
+            val dictionaryPath = pathToFasta.stripSuffix("fasta") + "dict"
+            new File(dictionaryPath).delete
+
             Exec.bash(logDiscriminator = "fasta.dict",
                       onError = Exec.ThrowIfNonZero)(
               s"java ${JVM.serial} -Xmx1G -Dpicard.useLegacyParser=false -jar $picardJar CreateSequenceDictionary --REFERENCE $pathToFasta"
@@ -77,7 +80,7 @@ object BWAAlignment {
               file
             }
 
-            val dict = new File(pathToFasta.stripSuffix("fasta") + "dict")
+            val dict = new File(dictionaryPath)
             val bwt = new File(pathToFasta + ".bwt")
             val pac = new File(pathToFasta + ".pac")
             val ann = new File(pathToFasta + ".ann")
