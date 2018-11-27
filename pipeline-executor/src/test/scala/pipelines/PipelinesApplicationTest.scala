@@ -41,10 +41,11 @@ class PipelinesApplicationTest
                        "fake",
                        "fake",
                        "fake",
-                       "fake",
-                       "fake",
-                       "fake",
-                       "fake")
+                       None,
+                       None,
+                       None,
+                       None,
+                       None)
     )
 
     pipelineState.registered(run)
@@ -237,10 +238,11 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
                            "fake",
                            "fake",
                            "fake",
-                           "fake",
-                           "fake",
-                           "fake",
-                           "fake")
+                           None,
+                           None,
+                           None,
+                           None,
+                           None)
         )
       )
       .take(take.toLong)

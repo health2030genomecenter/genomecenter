@@ -132,10 +132,7 @@ object ProtoPipelineStages extends StrictLogging {
                     indexedReference,
                     dbSnpVcf,
                     demultiplexed.project + "." + demultiplexed.sampleId + ".single",
-                    millsAnd1Kg = vqsrTrainingFiles.millsAnd1Kg,
-                    oneKg = vqsrTrainingFiles.oneKg,
-                    hapmap = vqsrTrainingFiles.hapmap,
-                    omni = vqsrTrainingFiles.omni
+                    vqsrTrainingFiles = vqsrTrainingFiles
                   ))(ResourceConfig.minimal)
             }
 
@@ -346,23 +343,37 @@ object ProtoPipelineStages extends StrictLogging {
   def fetchVqsrTrainingFiles(runConfiguration: RunConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
-    for {
-      millsAnd1Kg <- fetchFile("references", runConfiguration.vqsrMillsAnd1Kg)
-      millsAnd1KgIdx <- fetchFile("references",
-                                  runConfiguration.vqsrMillsAnd1Kg + ".tbi")
-      oneKg <- fetchFile("references", runConfiguration.vqsrOneKg)
-      oneKgIdx <- fetchFile("references", runConfiguration.vqsrOneKg + ".tbi")
-      hapmap <- fetchFile("references", runConfiguration.vqsrHapmap)
-      hapmapIdx <- fetchFile("references", runConfiguration.vqsrHapmap + ".tbi")
-      omni <- fetchFile("references", runConfiguration.vqsrOmni)
-      omniIdx <- fetchFile("references", runConfiguration.vqsrOmni + ".tbi")
-    } yield
-      VQSRTrainingFiles(
-        millsAnd1Kg = VCF(millsAnd1Kg, Some(millsAnd1KgIdx)),
-        oneKg = VCF(oneKg, Some(oneKgIdx)),
-        hapmap = VCF(hapmap, Some(hapmapIdx)),
-        omni = VCF(omni, Some(omniIdx))
-      )
+    if (runConfiguration.vqsrMillsAnd1Kg.isDefined)
+      for {
+        millsAnd1Kg <- fetchFile("references",
+                                 runConfiguration.vqsrMillsAnd1Kg.get)
+        millsAnd1KgIdx <- fetchFile(
+          "references",
+          runConfiguration.vqsrMillsAnd1Kg.get + ".tbi")
+        oneKg <- fetchFile("references",
+                           runConfiguration.vqsrOneKgHighConfidenceSnps.get)
+        oneKgIdx <- fetchFile(
+          "references",
+          runConfiguration.vqsrOneKgHighConfidenceSnps.get + ".tbi")
+        hapmap <- fetchFile("references", runConfiguration.vqsrHapmap.get)
+        hapmapIdx <- fetchFile("references",
+                               runConfiguration.vqsrHapmap.get + ".tbi")
+        omni <- fetchFile("references", runConfiguration.vqsrOneKgOmni.get)
+        omniIdx <- fetchFile("references",
+                             runConfiguration.vqsrOneKgOmni.get + ".tbi")
+        dbSnp138 <- fetchFile("references", runConfiguration.vqsrDbSnp138.get)
+        dbSnp138Idx <- fetchFile("references",
+                                 runConfiguration.vqsrDbSnp138.get + ".tbi")
+      } yield
+        Some(
+          VQSRTrainingFiles(
+            millsAnd1Kg = VCF(millsAnd1Kg, Some(millsAnd1KgIdx)),
+            oneKgHighConfidenceSnps = VCF(oneKg, Some(oneKgIdx)),
+            hapmap = VCF(hapmap, Some(hapmapIdx)),
+            oneKgOmni = VCF(omni, Some(omniIdx)),
+            dbSnp138 = VCF(dbSnp138, Some(dbSnp138Idx))
+          ))
+    else Future.successful(None)
 
   def fetchFile(folderName: String, path: String)(
       implicit tsc: TaskSystemComponents) = {

@@ -159,7 +159,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                   variantEvaluationIntervals: BedFile,
                   fastpReports: Future[Seq[FastpReport]],
                   previousUncalibratedBam: Option[Bam],
-                  vqsrTrainingFiles: VQSRTrainingFiles)(
+                  vqsrTrainingFiles: Option[VQSRTrainingFiles])(
       implicit tsc: TaskSystemComponents) =
     for {
       perSampleResultsWES <- ProtoPipelineStages.singleSampleWES(

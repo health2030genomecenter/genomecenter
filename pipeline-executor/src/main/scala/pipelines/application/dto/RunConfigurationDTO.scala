@@ -19,10 +19,11 @@ case class RunConfigurationDTO(
     geneModelGtf: String,
     dbSnpVcf: String,
     variantEvaluationIntervals: String,
-    vqsrMillsAnd1Kg: String,
-    vqsrHapmap: String,
-    vqsrOmni: String,
-    vqsrOneKg: String
+    vqsrMillsAnd1Kg: Option[String],
+    vqsrHapmap: Option[String],
+    vqsrOneKgOmni: Option[String],
+    vqsrOneKgHighConfidenceSnps: Option[String],
+    vqsrDbSnp138: Option[String]
 ) {
   def toRunConfiguration = RunConfiguration(
     automatic = automatic,
@@ -38,8 +39,9 @@ case class RunConfigurationDTO(
     variantEvaluationIntervals = variantEvaluationIntervals,
     vqsrMillsAnd1Kg = vqsrMillsAnd1Kg,
     vqsrHapmap = vqsrHapmap,
-    vqsrOmni = vqsrOmni,
-    vqsrOneKg = vqsrOneKg
+    vqsrOneKgOmni = vqsrOneKgOmni,
+    vqsrOneKgHighConfidenceSnps = vqsrOneKgHighConfidenceSnps,
+    vqsrDbSnp138 = vqsrDbSnp138
   )
 }
 
@@ -88,15 +90,26 @@ object RunConfigurationDTO {
           dbSnpVcf = config.getString("dbSnpVcf"),
           variantEvaluationIntervals =
             config.getString("variantEvaluationIntervals"),
-          vqsrMillsAnd1Kg = config.getString("vqsrMillsAnd1Kg"),
-          vqsrHapmap = config.getString("vqsrHapmap"),
-          vqsrOmni = config.getString("vqsrOmni"),
-          vqsrOneKg = config.getString("vqsrOneKg")
+          vqsrMillsAnd1Kg =
+            option(config, "vqsrMillsAnd1Kg")(c => p => c.getString(p)),
+          vqsrHapmap = option(config, "vqsrHapmap")(c => p => c.getString(p)),
+          vqsrOneKgOmni =
+            option(config, "vqsrOneKgOmni")(c => p => c.getString(p)),
+          vqsrOneKgHighConfidenceSnps =
+            option(config, "vqsrOneKgHighConfidenceSnps")(c =>
+              p => c.getString(p)),
+          vqsrDbSnp138 =
+            option(config, "vqsrDbSnp138")(c => p => c.getString(p))
         )
       }
       .toEither
       .left
       .map(_.toString)
+
+  private def option[T](config: Config, path: String)(
+      extract: Config => String => T): Option[T] =
+    if (config.hasPath(path)) Some(extract(config)(path))
+    else None
 
   def apply(file: File): Either[String, RunConfigurationDTO] =
     apply(fileutils.openSource(file)(_.mkString))

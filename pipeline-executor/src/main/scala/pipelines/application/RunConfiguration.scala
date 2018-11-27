@@ -29,18 +29,32 @@ case class RunConfiguration(
     geneModelGtf: String,
     dbSnpVcf: String,
     variantEvaluationIntervals: String,
-    vqsrMillsAnd1Kg: String,
-    vqsrHapmap: String,
-    vqsrOmni: String,
-    vqsrOneKg: String
+    vqsrMillsAnd1Kg: Option[String],
+    vqsrHapmap: Option[String],
+    vqsrOneKgOmni: Option[String],
+    vqsrOneKgHighConfidenceSnps: Option[String],
+    vqsrDbSnp138: Option[String]
 )
 
 case class RunfolderReadyForProcessing(runId: RunId,
                                        runFolderPath: String,
                                        runConfiguration: RunConfiguration) {
+
+  private def filesCanRead(files: Set[String]) =
+    files.forall(s => new File(s).canRead)
+
   def isValid = {
+    import runConfiguration._
+
     new File(runFolderPath).canRead &&
-    new File(runFolderPath, "RunInfo.xml").canRead
+    new File(runFolderPath, "RunInfo.xml").canRead &&
+    filesCanRead(Set(
+      referenceFasta,
+      targetIntervals,
+      geneModelGtf,
+      dbSnpVcf,
+      variantEvaluationIntervals) ++ bqsrKnownSites ++ globalIndexSet.toSet ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet)
+
   }
 }
 

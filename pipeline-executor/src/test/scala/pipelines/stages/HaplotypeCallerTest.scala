@@ -28,10 +28,7 @@ class HaplotypeCallerTest
           indexedFasta,
           dbsnpvcf,
           "boo",
-          dbsnpvcf,
-          dbsnpvcf,
-          dbsnpvcf,
-          dbsnpvcf
+          None
         )
 
         When("genotyping them")

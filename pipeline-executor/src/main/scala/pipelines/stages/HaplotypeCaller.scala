@@ -51,10 +51,7 @@ case class GenotypeGVCFsInput(targetVcfs: Set[VCF],
                               reference: IndexedReferenceFasta,
                               dbSnpVcf: VCF,
                               name: String,
-                              millsAnd1Kg: VCF,
-                              oneKg: VCF,
-                              hapmap: VCF,
-                              omni: VCF)
+                              vqsrTrainingFiles: Option[VQSRTrainingFiles])
     extends WithSharedFiles(
       targetVcfs.toSeq
         .flatMap(_.files) ++ reference.files ++ dbSnpVcf.files: _*)
@@ -321,6 +318,51 @@ object HaplotypeCaller {
           def intoSitesOnlyFolder[T] =
             appendToFilePrefix[T](Seq("sitesOnly_intermediate", input.name))
 
+          def vqsr(gatheredSites: VCF,
+                   scatteredGenotypes: Seq[VCF],
+                   training: VQSRTrainingFiles) =
+            for {
+              vqsrIndelModel <- intoVQSRIntermediateFolder {
+                implicit computationEnvironment =>
+                  trainIndelVQSR(
+                    TrainIndelVQSRInput(gatheredSites,
+                                        millsAnd1Kg = training.millsAnd1Kg,
+                                        knownSites = training.dbSnp138))(
+                    ResourceConfig.vqsrTrainIndel)
+              }
+              vqsrSnpModel <- intoVQSRIntermediateFolder {
+                implicit computationEnvironment =>
+                  trainSnpVQSR(
+                    TrainSnpVQSRInput(gatheredSites,
+                                      hapmap = training.hapmap,
+                                      omni = training.oneKgOmni,
+                                      oneKg = training.oneKgHighConfidenceSnps,
+                                      knownSites = training.dbSnp138))(
+                    ResourceConfig.vqsrTrainSnp)
+              }
+              scatteredRecalibrated <- Future.traverse(scatteredGenotypes) {
+                vcf =>
+                  intoScattersFolder { implicit computationEnvironment =>
+                    applyVQSR(
+                      ApplyVQSRInput(vcf,
+                                     snpRecal = vqsrSnpModel.recal,
+                                     snpTranches = vqsrSnpModel.tranches,
+                                     indelRecal = vqsrIndelModel.recal,
+                                     indelTranches = vqsrIndelModel.tranches))(
+                      ResourceConfig.vqsrApply)
+                  }
+              }
+              recalibratedSitesOnly <- applyVQSR(
+                ApplyVQSRInput(gatheredSites,
+                               snpRecal = vqsrSnpModel.recal,
+                               snpTranches = vqsrSnpModel.tranches,
+                               indelRecal = vqsrIndelModel.recal,
+                               indelTranches = vqsrIndelModel.tranches))(
+                ResourceConfig.vqsrApply)
+              _ <- Future.traverse(scatteredGenotypes)(_.vcf.delete)
+              _ <- gatheredSites.vcf.delete
+            } yield (recalibratedSitesOnly, scatteredRecalibrated)
+
           for {
             dict <- input.reference.dict
             intervals = BaseQualityScoreRecalibration
@@ -346,48 +388,21 @@ object HaplotypeCaller {
                                 input.name + ".sites_only.vcf.gz"))(
                   ResourceConfig.minimal)
             }
-            vqsrIndelModel <- intoVQSRIntermediateFolder {
-              implicit computationEnvironment =>
-                trainIndelVQSR(
-                  TrainIndelVQSRInput(gatheredSites,
-                                      millsAnd1Kg = input.millsAnd1Kg,
-                                      knownSites = input.dbSnpVcf))(
-                  ResourceConfig.vqsrTrainIndel)
+
+            (recalibratedSitesOnly, recalibratedScatteredGenotypes) <- {
+              input.vqsrTrainingFiles match {
+                case None =>
+                  Future.successful((gatheredSites, scatteredGenotypes))
+                case Some(vqsrTrainingFiles) =>
+                  vqsr(gatheredSites, scatteredGenotypes, vqsrTrainingFiles)
+              }
             }
-            vqsrSnpModel <- intoVQSRIntermediateFolder {
-              implicit computationEnvironment =>
-                trainSnpVQSR(
-                  TrainSnpVQSRInput(gatheredSites,
-                                    hapmap = input.hapmap,
-                                    omni = input.omni,
-                                    oneKg = input.oneKg,
-                                    knownSites = input.dbSnpVcf))(
-                  ResourceConfig.vqsrTrainSnp)
-            }
-            scatteredRecalibrated <- Future.traverse(scatteredGenotypes) {
-              vcf =>
-                intoScattersFolder { implicit computationEnvironment =>
-                  applyVQSR(
-                    ApplyVQSRInput(vcf,
-                                   snpRecal = vqsrSnpModel.recal,
-                                   snpTranches = vqsrSnpModel.tranches,
-                                   indelRecal = vqsrIndelModel.recal,
-                                   indelTranches = vqsrIndelModel.tranches))(
-                    ResourceConfig.vqsrApply)
-                }
-            }
-            recalibredSitesOnly <- applyVQSR(
-              ApplyVQSRInput(gatheredSites,
-                             snpRecal = vqsrSnpModel.recal,
-                             snpTranches = vqsrSnpModel.tranches,
-                             indelRecal = vqsrIndelModel.recal,
-                             indelTranches = vqsrIndelModel.tranches))(
-              ResourceConfig.vqsrApply)
+
             _ <- Future.traverse(scatteredSites)(_.vcf.delete)
-            _ <- Future.traverse(scatteredGenotypes)(_.vcf.delete)
-            _ <- gatheredSites.vcf.delete
+
           } yield
-            GenotypeGVCFsResult(recalibredSitesOnly, scatteredRecalibrated)
+            GenotypeGVCFsResult(recalibratedSitesOnly,
+                                recalibratedScatteredGenotypes)
     }
 
   val genotypeGvcfsOnInterval =

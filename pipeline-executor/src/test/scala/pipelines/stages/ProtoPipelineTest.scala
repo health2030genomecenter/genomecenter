@@ -314,10 +314,11 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       geneModelGtf = gtfFile.getAbsolutePath,
       dbSnpVcf = knownSitesVCF.getAbsolutePath,
       variantEvaluationIntervals = targetIntervals,
-      vqsrMillsAnd1Kg = knownSitesVCF.getAbsolutePath,
-      vqsrHapmap = knownSitesVCF.getAbsolutePath,
-      vqsrOmni = knownSitesVCF.getAbsolutePath,
-      vqsrOneKg = knownSitesVCF.getAbsolutePath
+      vqsrMillsAnd1Kg = None,
+      vqsrHapmap = None,
+      vqsrOneKgOmni = None,
+      vqsrOneKgHighConfidenceSnps = None,
+      vqsrDbSnp138 = None
     )
 
     val (testConfig, basePath) = makeTestConfig

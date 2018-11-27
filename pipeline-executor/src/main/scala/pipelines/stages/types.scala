@@ -141,11 +141,12 @@ case class PerSamplePerLanePerReadMetrics(
 
 case class VQSRTrainingFiles(
     millsAnd1Kg: VCF,
-    oneKg: VCF,
+    oneKgHighConfidenceSnps: VCF,
     hapmap: VCF,
-    omni: VCF
+    oneKgOmni: VCF,
+    dbSnp138: VCF
 ) extends WithSharedFiles(
-      millsAnd1Kg.files ++ oneKg.files ++ hapmap.files ++ omni.files: _*)
+      millsAnd1Kg.files ++ oneKgHighConfidenceSnps.files ++ hapmap.files ++ oneKgOmni.files ++ dbSnp138.files: _*)
 //
 // Codecs from here on
 //
