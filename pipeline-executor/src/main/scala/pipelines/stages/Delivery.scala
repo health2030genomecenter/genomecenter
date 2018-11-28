@@ -132,7 +132,7 @@ object Delivery {
                     implicit computationEnvironment =>
                       SharedFile(
                         source,
-                        project + s".$runsIncluded" + ".deliverables.list")
+                        project + s".$runsIncluded." + samples.size + ".deliverables.list")
                   }
                 } yield (project, pathListFile)
             }

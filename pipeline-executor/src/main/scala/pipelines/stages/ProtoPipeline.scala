@@ -38,13 +38,15 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     inRunQCFolder(runId) { implicit tsc =>
       for {
 
-        _ <- AlignmentQC.runQCTable(RunQCTableInput(runId, sampleQCsWES))(
+        _ <- AlignmentQC.runQCTable(
+          RunQCTableInput(runId + "." + samples.size, sampleQCsWES))(
           ResourceConfig.minimal)
         _ <- RunQCRNA.runQCTable(
-          RunQCTableRNAInput(runId,
+          RunQCTableRNAInput(runId + "." + samples.size,
                              samples.flatMap(_.rna.toSeq.map(_.star)).toSet))(
           ResourceConfig.minimal)
-        _ <- ReadQC.readQC(ReadQCInput(fastqsOfThisRun.toSet, runId))(
+        _ <- ReadQC.readQC(
+          ReadQCInput(fastqsOfThisRun.toSet, runId + "." + samples.size))(
           ResourceConfig.minimal)
       } yield (runId, true)
     }
