@@ -190,10 +190,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
     Flow[Either[SampleResult, Seq[DemultiplexedSample]]]
       .scan(StateOfUnfinishedSamples.empty) {
         case (state, Right(demultiplexedSamples)) =>
-          logger.info(s"Got $demultiplexedSamples")
+          val sampleIds = demultiplexedSamples.map(ds => getSampleId(ds))
+          logger.info(s"Got $sampleIds")
           state.addNew(demultiplexedSamples)
         case (state, Left(processedSample)) =>
-          logger.info(s"Finishing $processedSample")
+          logger.info(
+            s"Finishing ${pipeline.getKeysOfSampleResult(processedSample)}")
           state.finish(processedSample)
       }
       .map(
@@ -267,8 +269,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       .scanAsync(Option.empty[SampleResult]) {
         case (pastResultsOfThisSample,
               (currentRunConfiguration, currentDemultiplexedSample)) =>
-          logger.info(
-            s"Processing $currentDemultiplexedSample. Folding into $pastResultsOfThisSample")
+          logger.info(s"Processing ${getSampleId(currentDemultiplexedSample)}.")
           for {
             sampleResult <- pipeline
               .processSample(currentRunConfiguration,
