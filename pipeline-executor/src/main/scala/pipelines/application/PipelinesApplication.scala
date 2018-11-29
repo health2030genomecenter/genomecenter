@@ -125,7 +125,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
     *|   |  +------^-----+                                      |                         |
     *|   |         |                                   +--------v------+                  |
     *|   |        ++-------+                           +    Broadcast  |                  |
-    *|   +------->+ Zip    <-Feedback------------------+--------+------+                  |
+    *|   +------->+ Zip    <-Feedback------[Filter]----+--------+------+                  |
     *|            +--------+      accounting is done            |                         |
     *|                                                          |                         |
     *+------------------------------------------------------------------------------------+
@@ -183,7 +183,11 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
               logger.error(s"$pipeline failed on ${run.runId}", error)
               Nil
           }
-        } yield samples.map(s => (run, s))
+        } yield {
+          logger.info(
+            s"Demultiplexing of ${run.runId} with ${samples.size} done.")
+          samples.map(s => (run, s))
+        }
       }
 
   def accountWorkDone =
