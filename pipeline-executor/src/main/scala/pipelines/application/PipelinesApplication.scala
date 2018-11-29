@@ -110,7 +110,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
     *                             IN
     *                             |
     *+------------------------------------------------------------------------------------+
-    *|                            |                                                       |
+    *|                            |Demuxed                                                |
     *|                        +---v--+                                                    |
     *|   +----Demuxed---------+Broadc|                                                    |
     *|   |                    +---+--+             +-----------------------------+        |
@@ -189,8 +189,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
     Flow[Either[SampleResult, Seq[DemultiplexedSample]]]
       .scan(StateOfUnfinishedSamples.empty) {
         case (state, Right(demultiplexedSamples)) =>
+          logger.info(s"Got $demultiplexedSamples")
           state.addNew(demultiplexedSamples)
         case (state, Left(processedSample)) =>
+          logger.info(s"Finishing $processedSample")
           state.finish(processedSample)
       }
       .map(
@@ -201,6 +203,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
 
   def processCompletedRunsAndProjects =
     Flow[Completeds]
+      .buffer(size = 10000, OverflowStrategy.backpressure)
       .map { case Completeds(runs, projects, _) => (runs, projects) }
       .via(unzipThenMerge(processCompletedRuns, processCompletedProjects))
 
@@ -257,12 +260,14 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
                              _] = {
 
     Flow[(RunfolderReadyForProcessing, DemultiplexedSample)]
-      .groupBy(maxSubstreams = 1000, {
+      .groupBy(maxSubstreams = 10000, {
         case (_, demultiplexedSample) => getSampleId(demultiplexedSample)
       })
       .scanAsync(Option.empty[SampleResult]) {
         case (pastResultsOfThisSample,
               (currentRunConfiguration, currentDemultiplexedSample)) =>
+          logger.info(
+            s"Processing $currentDemultiplexedSample. Folding into $pastResultsOfThisSample")
           for {
             sampleResult <- pipeline
               .processSample(currentRunConfiguration,
