@@ -191,7 +191,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       .scan(StateOfUnfinishedSamples.empty) {
         case (state, Right(demultiplexedSamples)) =>
           val sampleIds = demultiplexedSamples.map(ds => getSampleId(ds))
-          logger.info(s"Got $sampleIds")
+          logger.info(s"Got demultiplexed samples: ${sampleIds.mkString(", ")}")
           state.addNew(demultiplexedSamples)
         case (state, Left(processedSample)) =>
           logger.info(
@@ -269,7 +269,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       .scanAsync(Option.empty[SampleResult]) {
         case (pastResultsOfThisSample,
               (currentRunConfiguration, currentDemultiplexedSample)) =>
-          logger.info(s"Processing ${getSampleId(currentDemultiplexedSample)}.")
+          logger.info(
+            s"Processing sample: ${getSampleId(currentDemultiplexedSample)}.")
           for {
             sampleResult <- pipeline
               .processSample(currentRunConfiguration,
