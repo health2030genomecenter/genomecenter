@@ -27,6 +27,7 @@ case class DemultiplexingInput(
 case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
                                       tiles: Set[String],
                                       partitionIndex: Int)
+    extends WithSharedFiles(run.files: _*)
 
 case class DemultiplexedReadData(fastqs: Set[FastQWithSampleMetadata],
                                  stats: EValue[DemultiplexingStats.Root])
