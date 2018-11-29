@@ -176,6 +176,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
                         _] =
     Flow[RunfolderReadyForProcessing]
       .mapAsync(1000) { run =>
+        logger.info(s"Demultiplex run ${run.runId}")
         for {
           samples <- pipeline.demultiplex(run).recover {
             case error =>
