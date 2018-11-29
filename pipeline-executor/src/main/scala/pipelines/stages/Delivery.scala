@@ -10,8 +10,10 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 
 case class CollectDeliverablesInput(
-    samples: Set[SampleResult]
-) extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
+    samples: Set[SampleResult],
+    other: Set[(Project, SharedFile)]
+) extends WithSharedFiles(
+      samples.toSeq.flatMap(_.files) ++ other.toSeq.map(_._2): _*)
 
 case class DeliverableList(lists: Seq[(Project, SharedFile)])
     extends WithSharedFiles(lists.map(_._2): _*)
@@ -77,7 +79,7 @@ object Delivery {
     AsyncTask[CollectDeliverablesInput, DeliverableList](
       "__collectdeliverables",
       1) {
-      case CollectDeliverablesInput(samples) =>
+      case CollectDeliverablesInput(samples, otherFiles) =>
         implicit computationEnvironment =>
           def inProjectFolder[T](project: Project) =
             appendToFilePrefix[T](Seq(project))
@@ -98,10 +100,14 @@ object Delivery {
             inAll(samples.toSeq)(sample =>
               extractFastp(sample.fastpReports.toSet))
 
+          val collectedOtherFiles =
+            otherFiles.toSeq.groupBy(_._1).map(x => x._1 -> x._2.map(_._2))
+
           val collectedFiles = List(collectedRnaSeqBam,
                                     wesBamAndVcfs,
                                     collectedFastp,
-                                    collectedFastqs)
+                                    collectedFastqs,
+                                    collectedOtherFiles)
             .reduce(
               tasks.util
                 .addMaps(_, _)(_ ++ _))

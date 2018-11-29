@@ -54,13 +54,46 @@ class ProtoPipeline(implicit EC: ExecutionContext)
   }
 
   def processCompletedProject(samples: Seq[SampleResult])(
-      implicit tsc: TaskSystemComponents): Future[(Project, Boolean)] =
-    inDeliverablesFolder { implicit tsc =>
+      implicit tsc: TaskSystemComponents): Future[(Project, Boolean)] = {
+    assert(samples.map(_.project).distinct.size == 1)
+    val project = samples.head.project
+
+    val fastqsOfThisRun =
+      samples
+        .flatMap(_.demultiplexed)
+        .filter(_.project == project)
+        .map(_.withoutRunId)
+
+    val sampleQCsWES = samples.flatMap(_.extractWESQCFiles.toSeq)
+
+    def projectQC = inProjectQCFolder(project) { implicit tsc =>
       for {
-        _ <- Delivery.collectDeliverables(
-          CollectDeliverablesInput(samples.toSet))(ResourceConfig.minimal)
-      } yield (samples.head.project, true)
+
+        wes <- AlignmentQC.runQCTable(
+          RunQCTableInput(project + "." + samples.size, sampleQCsWES))(
+          ResourceConfig.minimal)
+        rna <- RunQCRNA.runQCTable(
+          RunQCTableRNAInput(project + "." + samples.size,
+                             samples.flatMap(_.rna.toSeq.map(_.star)).toSet))(
+          ResourceConfig.minimal)
+        reads <- ReadQC.readQC(
+          ReadQCInput(fastqsOfThisRun.toSet, project + "." + samples.size))(
+          ResourceConfig.minimal)
+      } yield (wes, rna, reads)
     }
+
+    for {
+      (wes, rna, reads) <- projectQC
+      _ <- inDeliverablesFolder { implicit tsc =>
+        Delivery.collectDeliverables(
+          CollectDeliverablesInput(samples.toSet,
+                                   Set(project -> wes.htmlTable,
+                                       project -> rna,
+                                       project -> reads.plots)))(
+          ResourceConfig.minimal)
+      }
+    } yield (project, true)
+  }
 
   def demultiplex(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents): Future[Seq[PerSamplePerRunFastQ]] =
@@ -210,6 +243,10 @@ class ProtoPipeline(implicit EC: ExecutionContext)
   private def inRunQCFolder[T](runId: RunId)(f: TaskSystemComponents => T)(
       implicit tsc: TaskSystemComponents) =
     tsc.withFilePrefix(Seq("runQC", runId))(f)
+
+  private def inProjectQCFolder[T](project: Project)(
+      f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
+    tsc.withFilePrefix(Seq("projectQC", project))(f)
 
   private def inDeliverablesFolder[T](f: TaskSystemComponents => T)(
       implicit tsc: TaskSystemComponents) =
