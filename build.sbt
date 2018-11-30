@@ -116,6 +116,10 @@ lazy val pipelineExecutor = project
     // This amends the launch script to put ../resources onto the classpath
     scriptClasspath := scriptClasspath.value :+ "../resources/"
   )
+  .configs(IntegrationTest)
+  .settings(
+    Defaults.itSettings
+  )
   .settings(
     // This makes the fat jar of the umiProcessor project available on the classpath
     // first at normal deployment with universal
@@ -123,12 +127,10 @@ lazy val pipelineExecutor = project
     // (resources in Compile) would put the jar into a jar which slows the buidl.
     mappings in Universal += (assembly in Compile in umiProcessor).value -> "resources/umiprocessor",
     resources in Test += (assembly in Compile in umiProcessor).value,
+    resources in IntegrationTest += (assembly in Compile in umiProcessor).value,
     mappings in Universal += (assembly in Compile in readqcCLI).value -> "resources/readqc",
-    resources in Test += (assembly in Compile in readqcCLI).value
-  )
-  .configs(IntegrationTest)
-  .settings(
-    Defaults.itSettings
+    resources in Test += (assembly in Compile in readqcCLI).value,
+    resources in IntegrationTest += (assembly in Compile in readqcCLI).value
   )
   .settings(unmanagedClasspath in IntegrationTest += {
     val testFolder = System.getenv("GC_TESTFOLDER")

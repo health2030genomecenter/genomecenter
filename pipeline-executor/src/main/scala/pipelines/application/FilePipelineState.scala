@@ -97,7 +97,7 @@ class FilePipelineState(logFile: File)
 
   def updateState(e: Event) = e match {
     case Registered(r) =>
-      past = r :: past
+      past = r :: (past.filterNot(_.runId == r.runId))
     case Deleted(runId) =>
       past =
         past.filterNot(runFolder => (runFolder.runId: RunId) == (runId: RunId))

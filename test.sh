@@ -15,6 +15,6 @@ docker cp -a . $NAME:/opt/
 
 echo "Execute sbt in container.."
 
-docker exec -it $NAME /bin/bash -c "cd /opt && GC_TESTFOLDER=/opt/testdata/ sbt -J-Dsbt.io.jdktimestamps=true 'test it:test' ; bash"
+docker exec -it $NAME /bin/bash -c "cd /opt && GC_TESTFOLDER=/opt/testdata/ sbt -J-Dsbt.io.jdktimestamps=true 'it:test' ; bash"
 
 docker rm -f -v $NAME
