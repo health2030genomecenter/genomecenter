@@ -260,54 +260,70 @@ object Demultiplexing {
            */
           val processingThreads = resourceAllocated.cpu + 2
 
+          def inPartFolder[T] =
+            appendToFilePrefix[T](Seq("part" + partitionIndex.toString))
+
           for {
             sampleSheetFile <- sampleSheet.file.file
             parsedSampleSheet <- sampleSheet.parse
 
-            fastQAndStatFiles <- SharedFile.fromFolder { outputFolder =>
-              val stdout = new File(outputFolder, "stdout").getAbsolutePath
-              val stderr = new File(outputFolder, "stderr").getAbsolutePath
-              val bashCommand = {
-                val commandLine = Seq(
-                  executable.getAbsolutePath,
-                  "--runfolder-dir",
-                  runFolderPath,
-                  "--output-dir",
-                  outputFolder.getAbsolutePath,
-                  "--sample-sheet",
-                  sampleSheetFile.getAbsolutePath,
-                  "--processing-threads",
-                  processingThreads.toString
-                ) ++ tilesArgumentList ++ extraArguments
+            fastQAndStatFiles <- inPartFolder {
+              implicit computationEnvironment =>
+                val outputFolder =
+                  fileutils.TempFile.createTempFile(".bcl2fastq")
+                outputFolder.delete
+                outputFolder.mkdirs
+                val stdout = new File(outputFolder, "stdout").getAbsolutePath
+                val stderr = new File(outputFolder, "stderr").getAbsolutePath
+                val bashCommand = {
+                  val commandLine = Seq(
+                    executable.getAbsolutePath,
+                    "--runfolder-dir",
+                    runFolderPath,
+                    "--output-dir",
+                    outputFolder.getAbsolutePath,
+                    "--sample-sheet",
+                    sampleSheetFile.getAbsolutePath,
+                    "--processing-threads",
+                    processingThreads.toString
+                  ) ++ tilesArgumentList ++ extraArguments
 
-                val escaped = commandLine.mkString("'", "' '", "'")
-                s""" $escaped 1> $stdout 2> $stderr """
-              }
+                  val escaped = commandLine.mkString("'", "' '", "'")
+                  s""" $escaped 1> $stdout 2> $stderr """
+                }
 
-              val (_, _, exitCode) =
-                Exec.bash(logDiscriminator = "bcl2fastq")(bashCommand)
-              if (exitCode != 0) {
-                val stdErrContents = fileutils.openSource(stderr)(_.mkString)
-                log.error(
-                  "bcl2fastq failed. stderr follows:\n" + stdErrContents)
-                throw new RuntimeException("bcl2fastq exited with code != 0")
-              }
+                val (_, _, exitCode) =
+                  Exec.bash(logDiscriminator = "bcl2fastq")(bashCommand)
+                if (exitCode != 0) {
+                  val stdErrContents = fileutils.openSource(stderr)(_.mkString)
+                  log.error(
+                    "bcl2fastq failed. stderr follows:\n" + stdErrContents)
+                  throw new RuntimeException("bcl2fastq exited with code != 0")
+                }
 
-              val statsFile =
-                new File(new File(outputFolder, "Stats"), "Stats.json")
+                val statsFile =
+                  new File(new File(outputFolder, "Stats"), "Stats.json")
 
-              Files.list(outputFolder, "**.fastq.gz") :+ statsFile
+                val files = Files.list(outputFolder, "**.fastq.gz") :+ statsFile :+ new File(
+                  stdout) :+ new File(stderr)
 
-            }(computationEnvironment.components
-              .withChildPrefix("part" + partitionIndex.toString))
+                Future.traverse(files) { file =>
+                  SharedFile(file,
+                             name = file.getAbsolutePath
+                               .drop(outputFolder.getAbsolutePath.size)
+                               .stripPrefix("/"),
+                             deleteFile = true)
+                }
 
-            statsFileContent <- fastQAndStatFiles.last.source
+            }
+
+            statsFileContent <- fastQAndStatFiles.dropRight(2).last.source
               .runFold(ByteString.empty)(_ ++ _)
               .map(_.utf8String)
 
           } yield {
-            val fastQFiles = fastQAndStatFiles.dropRight(1)
-            val statsFile = fastQAndStatFiles.last
+            val fastQFiles = fastQAndStatFiles.dropRight(3)
+            val statsFile = fastQAndStatFiles.dropRight(2).last
             val stats =
               io.circe.parser
                 .decode[DemultiplexingStats.Root](statsFileContent)
