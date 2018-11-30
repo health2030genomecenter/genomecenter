@@ -317,7 +317,10 @@ object Demultiplexing {
 
             }
 
-            statsFileContent <- fastQAndStatFiles.dropRight(2).last.source
+            statsFileContent <- fastQAndStatFiles
+              .dropRight(2)
+              .last
+              .source
               .runFold(ByteString.empty)(_ ++ _)
               .map(_.utf8String)
 
