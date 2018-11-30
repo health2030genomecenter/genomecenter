@@ -218,6 +218,7 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
   runFolder.mkdirs
   val runInfo = new java.io.File(runFolder, "RunInfo.xml")
   new java.io.FileOutputStream(runInfo).close
+  val fake = fileutils.TempFile.createTempFile(".temp").getAbsolutePath
 
   def commands =
     Source
@@ -229,15 +230,15 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
           runFolder.getAbsolutePath,
           RunConfiguration(false,
                            Set.empty,
-                           "fake",
-                           "fake",
+                           fake,
+                           fake,
                            Set(),
                            Selector.empty,
                            Selector.empty,
                            None,
-                           "fake",
-                           "fake",
-                           "fake",
+                           fake,
+                           fake,
+                           fake,
                            None,
                            None,
                            None,
