@@ -312,6 +312,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
               }
           } yield sampleResult
       }
+      .async
       .mergeSubstreams
       .filter(_.isDefined)
       .map(_.get)
