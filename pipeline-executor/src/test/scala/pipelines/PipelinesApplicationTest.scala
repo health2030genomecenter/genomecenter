@@ -15,6 +15,7 @@ import com.typesafe.scalalogging.StrictLogging
 
 import org.gc.pipelines.application._
 import org.gc.pipelines.model._
+import org.gc.pipelines.util.StableSet
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -31,10 +32,10 @@ class PipelinesApplicationTest
       RunId("fake"),
       "fakePath",
       RunConfiguration(false,
-                       Set.empty,
+                       StableSet.empty,
                        "fake",
                        "fake",
-                       Set(),
+                       StableSet.empty,
                        Selector.empty,
                        Selector.empty,
                        None,
@@ -229,10 +230,10 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
           RunId("fake"),
           runFolder.getAbsolutePath,
           RunConfiguration(false,
-                           Set.empty,
+                           StableSet.empty,
                            fake,
                            fake,
-                           Set(),
+                           StableSet(),
                            Selector.empty,
                            Selector.empty,
                            None,

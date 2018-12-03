@@ -3,6 +3,7 @@ package org.gc.pipelines.stages
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.{Exec, ResourceConfig, JVM, BAM, Files}
 import org.gc.pipelines.util
+import org.gc.pipelines.util.StableSet
 
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -28,7 +29,7 @@ case class PerLaneBWAAlignmentInput(
         .map(_.file): _*)
 
 case class PerSampleBWAAlignmentInput(
-    fastqs: Set[FastQPerLane],
+    fastqs: StableSet[FastQPerLane],
     project: Project,
     sampleId: SampleId,
     reference: IndexedReferenceFasta,
@@ -96,8 +97,9 @@ object BWAAlignment {
               sa <- SharedFile(sa, sa.getName)
               fai <- SharedFile(fastaIndex, fasta.name + ".fai")
             } yield
-              IndexedReferenceFasta(fasta,
-                                    Set(bwt, pac, ann, amb, sa, dict, fai))
+              IndexedReferenceFasta(
+                fasta,
+                StableSet(bwt, pac, ann, amb, sa, dict, fai))
           }
 
     }

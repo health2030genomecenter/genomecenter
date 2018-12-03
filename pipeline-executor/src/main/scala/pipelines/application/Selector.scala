@@ -5,12 +5,14 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import com.typesafe.config.Config
 import scala.collection.JavaConverters._
 import org.gc.pipelines.model._
+import org.gc.pipelines.util.StableSet
+import org.gc.pipelines.util.StableSet.syntax
 
 case class Selector(
-    lanes: Set[Lane],
-    samples: Set[SampleId],
-    runIds: Set[RunId],
-    projects: Set[Project]
+    lanes: StableSet[Lane],
+    samples: StableSet[SampleId],
+    runIds: StableSet[RunId],
+    projects: StableSet[Project]
 ) {
   def isSelected(sample: Metadata): Boolean =
     lanes.contains(sample.lane) ||
@@ -25,12 +27,13 @@ object Selector {
   implicit val decoder: Decoder[Selector] =
     deriveDecoder[Selector]
 
-  val empty = Selector(Set.empty, Set.empty, Set.empty, Set.empty)
+  val empty =
+    Selector(StableSet.empty, StableSet.empty, StableSet.empty, StableSet.empty)
 
   def apply(config: Config): Selector = {
     def getOrEmpty(path: String) =
-      if (!config.hasPath(path)) Set.empty
-      else config.getStringList(path).asScala.toSet
+      if (!config.hasPath(path)) StableSet.empty
+      else config.getStringList(path).asScala.toSet.toStable
     Selector(
       lanes = getOrEmpty("lanes").map(_.toInt).map(Lane(_)),
       projects = getOrEmpty("projects").map(Project(_)),

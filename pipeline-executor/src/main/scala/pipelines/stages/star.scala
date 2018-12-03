@@ -1,8 +1,9 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Exec, JVM}
+import org.gc.pipelines.util.{Exec, JVM, StableSet}
 import org.gc.pipelines.util
+import org.gc.pipelines.util.StableSet.syntax
 
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -14,7 +15,7 @@ import scala.concurrent.{Future, ExecutionContext}
 import java.io.File
 
 case class StarAlignmentInput(
-    fastqs: Set[FastQPerLane],
+    fastqs: StableSet[FastQPerLane],
     project: Project,
     sampleId: SampleId,
     runId: RunId,
@@ -31,7 +32,7 @@ case class StarResult(
 ) extends WithSharedFiles(bam.files :+ finalLog: _*)
 
 case class StarIndexedReferenceFasta(fasta: SharedFile,
-                                     indexFiles: Set[SharedFile])
+                                     indexFiles: StableSet[SharedFile])
     extends WithSharedFiles(fasta) {
   def genomeFolder(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
@@ -88,7 +89,7 @@ object StarAlignment {
                                 name = fasta.name + ".star.index.stdout")
                 _ <- SharedFile(tmpStdErr,
                                 name = fasta.name + ".star.index.stderr")
-              } yield StarIndexedReferenceFasta(fasta, indexFiles)
+              } yield StarIndexedReferenceFasta(fasta, indexFiles.toStable)
             }
           } yield result
 

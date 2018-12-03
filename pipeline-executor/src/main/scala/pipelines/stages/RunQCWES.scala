@@ -7,7 +7,7 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import fileutils.TempFile
 import org.gc.pipelines.util.Exec
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Html, BAM, JVM}
+import org.gc.pipelines.util.{Html, BAM, JVM, StableSet}
 import org.gc.pipelines.model.{FastpReport => FastpReportModel}
 import java.io.File
 import scala.concurrent.Future
@@ -67,8 +67,8 @@ case class SampleMetrics(alignmentSummary: SharedFile,
                             fastpReport.json,
                             insertSizeMetrics)
 
-case class RunQCTableInput(fileName: String, samples: Seq[SampleMetrics])
-    extends WithSharedFiles(samples.flatMap(_.files): _*)
+case class RunQCTableInput(fileName: String, samples: StableSet[SampleMetrics])
+    extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 case class RunQCTable(htmlTable: SharedFile) extends WithSharedFiles(htmlTable)
 
@@ -283,7 +283,7 @@ object AlignmentQC {
 
           val parsedFiles =
             Future
-              .traverse(sampleMetrics)(parse)
+              .traverse(sampleMetrics.toSeq)(parse)
               .map(pair => (pair.flatMap(_._1), pair.map(_._2)))
 
           for {

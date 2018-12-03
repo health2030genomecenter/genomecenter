@@ -4,6 +4,7 @@ import tasks._
 import org.gc.pipelines.application.RunfolderReadyForProcessing
 
 import org.gc.pipelines.model._
+import org.gc.pipelines.util.StableSet
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
@@ -43,17 +44,18 @@ case class SampleResult(
     }
 }
 
-case class SingleSamplePipelineInputRNASeq(demultiplexed: PerSampleFastQ,
-                                           reference: ReferenceFasta,
-                                           gtf: GTFFile,
-                                           readLengths: Set[(ReadType, Int)])
+case class SingleSamplePipelineInputRNASeq(
+    demultiplexed: PerSampleFastQ,
+    reference: ReferenceFasta,
+    gtf: GTFFile,
+    readLengths: StableSet[(ReadType, Int)])
     extends WithSharedFiles(
       demultiplexed.files ++ reference.files ++ gtf.files: _*)
 
 case class SingleSamplePipelineInput(
     demultiplexed: PerSampleFastQ,
     reference: ReferenceFasta,
-    knownSites: Set[VCF],
+    knownSites: StableSet[VCF],
     selectionTargetIntervals: BedFile,
     dbSnpVcf: VCF,
     variantEvaluationIntervals: BedFile,
@@ -82,7 +84,7 @@ case class SingleSamplePipelineResultRNA(
 ) extends WithSharedFiles(star.files: _*)
 
 case class PerSamplePipelineResultRNASeq(
-    samples: Set[SingleSamplePipelineResultRNA])
+    samples: StableSet[SingleSamplePipelineResultRNA])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object SingleSamplePipelineInput {

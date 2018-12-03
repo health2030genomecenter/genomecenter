@@ -8,10 +8,11 @@ import org.gc.pipelines.model._
 import scala.concurrent.Future
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import org.gc.pipelines.util.StableSet
 
 case class CollectDeliverablesInput(
-    samples: Set[SampleResult],
-    other: Set[(Project, SharedFile)]
+    samples: StableSet[SampleResult],
+    other: StableSet[(Project, SharedFile)]
 ) extends WithSharedFiles(
       samples.toSeq.flatMap(_.files) ++ other.toSeq.map(_._2): _*)
 

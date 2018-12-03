@@ -6,6 +6,7 @@ import io.circe._
 import io.circe.generic.semiauto._
 import org.gc.pipelines.model._
 import scala.concurrent.{ExecutionContext, Future}
+import org.gc.pipelines.util.StableSet
 
 case class SampleSheetFile(file: SharedFile) extends WithSharedFiles {
   def parse(implicit tsc: TaskSystemComponents, ec: ExecutionContext) = {
@@ -19,7 +20,8 @@ case class SampleSheetFile(file: SharedFile) extends WithSharedFiles {
 
 case class ReferenceFasta(file: SharedFile) extends WithSharedFiles(file)
 
-case class IndexedReferenceFasta(fasta: SharedFile, indexFiles: Set[SharedFile])
+case class IndexedReferenceFasta(fasta: SharedFile,
+                                 indexFiles: StableSet[SharedFile])
     extends WithSharedFiles(fasta +: indexFiles.toSeq: _*) {
   def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
@@ -39,7 +41,7 @@ case class FastQWithSampleMetadata(project: Project,
     extends WithSharedFiles(fastq.file)
 
 case class PerSamplePerRunFastQ(
-    lanes: Set[FastQPerLane],
+    lanes: StableSet[FastQPerLane],
     project: Project,
     sampleId: SampleId,
     runId: RunId
@@ -51,7 +53,7 @@ case class PerSamplePerRunFastQ(
 }
 
 case class PerSampleFastQ(
-    lanes: Set[FastQPerLane],
+    lanes: StableSet[FastQPerLane],
     project: Project,
     sampleId: SampleId,
 ) extends WithSharedFiles(
@@ -89,7 +91,7 @@ case class BamWithSampleMetadataPerLane(project: Project,
 
 case class BamsWithSampleMetadata(project: Project,
                                   sampleId: SampleId,
-                                  bams: Set[Bam])
+                                  bams: StableSet[Bam])
     extends ResultWithSharedFiles(bams.map(_.file).toSeq: _*)
 
 case class BamWithSampleMetadata(project: Project, sampleId: SampleId, bam: Bam)

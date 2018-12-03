@@ -8,6 +8,7 @@ import java.io.File
 
 import org.gc.pipelines.util.Exec
 import org.gc.pipelines.model._
+import org.gc.pipelines.util.StableSet
 import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   DemultiplexingConfiguration,
@@ -280,7 +281,7 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
 
     val runConfiguration = RunConfiguration(
       automatic = true,
-      demultiplexingRuns = Set(
+      demultiplexingRuns = StableSet(
         DemultiplexingConfiguration(
           demultiplexingId = DemultiplexingId("demultiplexOnce"),
           sampleSheet = sampleSheetFile.getAbsolutePath,
@@ -304,7 +305,7 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       ),
       referenceFasta = referenceFasta,
       targetIntervals = targetIntervals,
-      bqsrKnownSites = Set(knownSitesVCF.getAbsolutePath),
+      bqsrKnownSites = StableSet(knownSitesVCF.getAbsolutePath),
       wesSelector = Selector(runIds = Set(RunId(runId)),
                              samples = Set.empty,
                              lanes = Set.empty,

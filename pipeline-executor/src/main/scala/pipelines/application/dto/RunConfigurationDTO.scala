@@ -6,6 +6,7 @@ import scala.collection.JavaConverters._
 
 import org.gc.pipelines.application._
 import org.gc.pipelines.model._
+import org.gc.pipelines.util.StableSet.syntax
 
 case class RunConfigurationDTO(
     automatic: Boolean,
@@ -27,10 +28,10 @@ case class RunConfigurationDTO(
 ) {
   def toRunConfiguration = RunConfiguration(
     automatic = automatic,
-    demultiplexingRuns = demultiplexingRuns,
+    demultiplexingRuns = demultiplexingRuns.toStable,
     referenceFasta = referenceFasta,
     targetIntervals = targetIntervals,
-    bqsrKnownSites = bqsrKnownSites,
+    bqsrKnownSites = bqsrKnownSites.toStable,
     wesSelector = wesSelector,
     rnaSelector = rnaSelector,
     globalIndexSet = globalIndexSet,

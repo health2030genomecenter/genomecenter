@@ -10,6 +10,8 @@ import org.gc.pipelines.application.{
 }
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.ResourceConfig
+import org.gc.pipelines.util.StableSet
+import org.gc.pipelines.util.StableSet.syntax
 import java.io.File
 import com.typesafe.scalalogging.StrictLogging
 import scala.util.{Success, Failure}
@@ -88,7 +90,8 @@ object ProtoPipelineStages extends StrictLogging {
                 BaseQualityScoreRecalibration.trainBQSR(
                   TrainBQSRInput(coordinateSorted,
                                  indexedReference,
-                                 knownSites.toSet))(ResourceConfig.trainBqsr)
+                                 knownSites.toSet.toStable))(
+                  ResourceConfig.trainBqsr)
             }
             recalibrated <- intoFinalFolder { implicit computationEnvironment =>
               BaseQualityScoreRecalibration.applyBQSR(
@@ -128,7 +131,7 @@ object ProtoPipelineStages extends StrictLogging {
               implicit computationEnvironment =>
                 HaplotypeCaller.genotypeGvcfs(
                   GenotypeGVCFsInput(
-                    Set(haplotypeCallerReferenceCalls),
+                    StableSet(haplotypeCallerReferenceCalls),
                     indexedReference,
                     dbSnpVcf,
                     demultiplexed.project + "." + demultiplexed.sampleId + ".single",
@@ -482,7 +485,7 @@ object ProtoPipelineStages extends StrictLogging {
               }
               .flatten
           PerSamplePerRunFastQ(
-            perLaneFastQs.toSet,
+            perLaneFastQs.toSet.toStable,
             project,
             sampleId,
             runId

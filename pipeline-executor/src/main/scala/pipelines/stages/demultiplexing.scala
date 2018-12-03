@@ -2,6 +2,8 @@ package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.{Exec, Files, ResourceConfig}
+import org.gc.pipelines.util.StableSet
+import org.gc.pipelines.util.StableSet.syntax
 
 import scala.concurrent.Future
 import tasks._
@@ -25,11 +27,11 @@ case class DemultiplexingInput(
 ) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*)
 
 case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
-                                      tiles: Set[String],
+                                      tiles: StableSet[String],
                                       partitionIndex: Int)
     extends WithSharedFiles(run.files: _*)
 
-case class DemultiplexedReadData(fastqs: Set[FastQWithSampleMetadata],
+case class DemultiplexedReadData(fastqs: StableSet[FastQWithSampleMetadata],
                                  stats: EValue[DemultiplexingStats.Root])
     extends ResultWithSharedFiles(
       fastqs.toList.map(_.fastq.file) ++ stats.files: _*) {
@@ -118,8 +120,10 @@ object Demultiplexing {
 
           demultiplexedLanes <- Future.traverse(partitions.toSeq.zipWithIndex) {
             case (tiles, idx) =>
-              perLane(DemultiplexSingleLaneInput(runFolder, tiles.toSet, idx))(
-                ResourceConfig.bcl2fastq)
+              perLane(
+                DemultiplexSingleLaneInput(runFolder,
+                                           tiles.toSet.toStable,
+                                           idx))(ResourceConfig.bcl2fastq)
 
           }
 
@@ -152,8 +156,9 @@ object Demultiplexing {
             mergedStatsEValue <- EValue.apply(mergedStats, "Stats.json")
           } yield mergedStatsEValue
         } yield
-          DemultiplexedReadData(demultiplexedLanes.flatMap(_.fastqs).toSet,
-                                mergedStatsInFile)
+          DemultiplexedReadData(
+            demultiplexedLanes.flatMap(_.fastqs).toSet.toStable,
+            mergedStatsInFile)
 
     }
 
@@ -340,7 +345,8 @@ object Demultiplexing {
               fastQFiles
                 .map(extractMetadataFromFilename(_, parsedSampleSheet, stats))
                 .collect { case Some(tuple) => tuple }
-                .toSet,
+                .toSet
+                .toStable,
               EValue(statsFile)
             )
           }

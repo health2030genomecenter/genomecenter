@@ -8,9 +8,10 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.Future
 import org.gc.readqc
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{ResourceConfig, ReadQCPlot, Exec, JVM}
+import org.gc.pipelines.util.{ResourceConfig, ReadQCPlot, Exec, JVM, StableSet}
+import org.gc.pipelines.util.StableSet.syntax
 
-case class ReadQCPerUnitInput(fastqs: Set[FastQ])
+case class ReadQCPerUnitInput(fastqs: StableSet[FastQ])
     extends WithSharedFiles(fastqs.toSeq.flatMap(_.files): _*)
 
 case class ReadQCMetrics(metrics: readqc.Metrics)
@@ -19,7 +20,7 @@ case class ReadQCResult(metrics: EValue[PerSamplePerLanePerReadMetrics],
                         plots: SharedFile)
     extends WithSharedFiles(plots)
 
-case class ReadQCInput(samples: Set[PerSampleFastQ], title: String)
+case class ReadQCInput(samples: StableSet[PerSampleFastQ], title: String)
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object ReadQC {
@@ -65,7 +66,8 @@ object ReadQC {
           metrics <- Future.traverse(units) {
             case (project, sample, run, lane, read, fastqs) =>
               for {
-                metrics <- readQCPerUnit(ReadQCPerUnitInput(fastqs.toSet))(
+                metrics <- readQCPerUnit(
+                  ReadQCPerUnitInput(fastqs.toSet.toStable))(
                   ResourceConfig.readQC)
               } yield (project, sample, run, lane, read, metrics.metrics)
           }

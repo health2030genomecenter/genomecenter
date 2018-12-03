@@ -6,6 +6,7 @@ import java.io.File
 
 import org.gc.pipelines.model._
 import org.gc.pipelines.application.dto.RunConfigurationDTO
+import org.gc.pipelines.util.StableSet
 
 case class DemultiplexingConfiguration(
     sampleSheet: String,
@@ -19,10 +20,10 @@ case class DemultiplexingConfiguration(
 
 case class RunConfiguration(
     automatic: Boolean,
-    demultiplexingRuns: Set[DemultiplexingConfiguration],
+    demultiplexingRuns: StableSet[DemultiplexingConfiguration],
     referenceFasta: String,
     targetIntervals: String,
-    bqsrKnownSites: Set[String],
+    bqsrKnownSites: StableSet[String],
     wesSelector: Selector,
     rnaSelector: Selector,
     globalIndexSet: Option[String],

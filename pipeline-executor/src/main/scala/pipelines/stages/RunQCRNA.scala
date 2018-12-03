@@ -8,8 +8,9 @@ import org.gc.pipelines.model._
 import scala.concurrent.Future
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import org.gc.pipelines.util.StableSet
 
-case class RunQCTableRNAInput(fileName: String, samples: Set[StarResult])
+case class RunQCTableRNAInput(fileName: String, samples: StableSet[StarResult])
     extends WithSharedFiles(samples.toList.flatMap(_.files): _*)
 
 object RunQCRNA {

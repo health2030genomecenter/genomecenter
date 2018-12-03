@@ -6,19 +6,19 @@ import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.Future
 import fileutils.TempFile
-import org.gc.pipelines.util.{Exec, GATK, JVM, ResourceConfig, Fasta}
+import org.gc.pipelines.util.{Exec, GATK, JVM, ResourceConfig, Fasta, StableSet}
 import scala.collection.JavaConverters._
 import java.io.File
 
 case class TrainBQSRInput(bam: CoordinateSortedBam,
                           reference: IndexedReferenceFasta,
-                          knownSites: Set[VCF])
+                          knownSites: StableSet[VCF])
     extends WithSharedFiles(
       bam.files ++ reference.files ++ knownSites.toSeq.flatMap(_.files): _*)
 
 case class TrainBQSRInputScatteredPiece(bam: CoordinateSortedBam,
                                         reference: IndexedReferenceFasta,
-                                        knownSites: Set[VCF],
+                                        knownSites: StableSet[VCF],
                                         interval: String)
     extends WithSharedFiles(
       bam.files ++ reference.files ++ knownSites.toSeq.flatMap(_.files): _*)

@@ -5,6 +5,7 @@ import tasks._
 import org.gc.pipelines.application.{Pipeline, RunfolderReadyForProcessing}
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.ResourceConfig
+import org.gc.pipelines.util.StableSet.syntax
 import com.typesafe.scalalogging.StrictLogging
 
 class ProtoPipeline(implicit EC: ExecutionContext)
@@ -39,15 +40,16 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       for {
 
         _ <- AlignmentQC.runQCTable(
-          RunQCTableInput(runId + "." + samples.size, sampleQCsWES))(
-          ResourceConfig.minimal)
+          RunQCTableInput(runId + "." + samples.size,
+                          sampleQCsWES.toSet.toStable))(ResourceConfig.minimal)
         _ <- RunQCRNA.runQCTable(
-          RunQCTableRNAInput(runId + "." + samples.size,
-                             samples.flatMap(_.rna.toSeq.map(_.star)).toSet))(
+          RunQCTableRNAInput(
+            runId + "." + samples.size,
+            samples.flatMap(_.rna.toSeq.map(_.star)).toSet.toStable))(
           ResourceConfig.minimal)
         _ <- ReadQC.readQC(
-          ReadQCInput(fastqsOfThisRun.toSet, runId + "." + samples.size))(
-          ResourceConfig.minimal)
+          ReadQCInput(fastqsOfThisRun.toSet.toStable,
+                      runId + "." + samples.size))(ResourceConfig.minimal)
       } yield (runId, true)
     }
 
@@ -70,15 +72,16 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       for {
 
         wes <- AlignmentQC.runQCTable(
-          RunQCTableInput(project + "." + samples.size, sampleQCsWES))(
-          ResourceConfig.minimal)
+          RunQCTableInput(project + "." + samples.size,
+                          sampleQCsWES.toSet.toStable))(ResourceConfig.minimal)
         rna <- RunQCRNA.runQCTable(
-          RunQCTableRNAInput(project + "." + samples.size,
-                             samples.flatMap(_.rna.toSeq.map(_.star)).toSet))(
+          RunQCTableRNAInput(
+            project + "." + samples.size,
+            samples.flatMap(_.rna.toSeq.map(_.star)).toSet.toStable))(
           ResourceConfig.minimal)
         reads <- ReadQC.readQC(
-          ReadQCInput(fastqsOfThisRun.toSet, project + "." + samples.size))(
-          ResourceConfig.minimal)
+          ReadQCInput(fastqsOfThisRun.toSet.toStable,
+                      project + "." + samples.size))(ResourceConfig.minimal)
       } yield (wes, rna, reads)
     }
 
@@ -86,10 +89,10 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       (wes, rna, reads) <- projectQC
       _ <- inDeliverablesFolder { implicit tsc =>
         Delivery.collectDeliverables(
-          CollectDeliverablesInput(samples.toSet,
+          CollectDeliverablesInput(samples.toSet.toStable,
                                    Set(project -> wes.htmlTable,
                                        project -> rna,
-                                       project -> reads.plots)))(
+                                       project -> reads.plots).toStable))(
           ResourceConfig.minimal)
       }
     } yield (project, true)
@@ -153,7 +156,6 @@ class ProtoPipeline(implicit EC: ExecutionContext)
               selectionTargetIntervals,
               dbSnpVcf,
               variantEvaluationIntervals,
-              fastpReport.map(Seq(_)),
               pastSampleResult.flatMap(_.wes.map(_.uncalibrated)),
               vqsrTrainingFiles
             ))
@@ -194,7 +196,6 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                   selectionTargetIntervals: BedFile,
                   dbSnpVcf: VCF,
                   variantEvaluationIntervals: BedFile,
-                  fastpReports: Future[Seq[FastpReport]],
                   previousUncalibratedBam: Option[Bam],
                   vqsrTrainingFiles: Option[VQSRTrainingFiles])(
       implicit tsc: TaskSystemComponents) =
@@ -203,15 +204,13 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         SingleSamplePipelineInput(
           samplesForWESAnalysis.withoutRunId,
           reference,
-          knownSites.toSet,
+          knownSites.toSet.toStable,
           selectionTargetIntervals,
           dbSnpVcf,
           variantEvaluationIntervals,
           previousUncalibratedBam,
           vqsrTrainingFiles
         ))(ResourceConfig.minimal)
-
-      fastpReports <- fastpReports
 
     } yield Some(perSampleResultsWES)
 
@@ -227,7 +226,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           samplesForRNASeqAnalysis.withoutRunId,
           reference,
           gtf,
-          readLengths.toSeq.toSet
+          readLengths.toSeq.toSet.toStable
         ))(ResourceConfig.minimal)
 
     } yield Some(perSampleResultsRNA)

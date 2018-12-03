@@ -6,7 +6,7 @@ import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.Future
 import fileutils.TempFile
-import org.gc.pipelines.util.{Exec, GATK, JVM, ResourceConfig, Files}
+import org.gc.pipelines.util.{Exec, GATK, JVM, ResourceConfig, Files, StableSet}
 import java.io.File
 
 case class HaplotypeCallerInput(
@@ -38,7 +38,7 @@ case class CollectVariantCallingMetricsInput(
 ) extends WithSharedFiles(
       reference.files ++ targetVcf.files ++ dbSnpVcf.files ++ evaluationIntervals.files: _*)
 
-case class GenotypeGVCFsOnIntervalInput(targetVcfs: Set[VCF],
+case class GenotypeGVCFsOnIntervalInput(targetVcfs: StableSet[VCF],
                                         reference: IndexedReferenceFasta,
                                         dbSnpVcf: VCF,
                                         interval: String,
@@ -47,7 +47,7 @@ case class GenotypeGVCFsOnIntervalInput(targetVcfs: Set[VCF],
       targetVcfs.toSeq
         .flatMap(_.files) ++ reference.files ++ dbSnpVcf.files: _*)
 
-case class GenotypeGVCFsInput(targetVcfs: Set[VCF],
+case class GenotypeGVCFsInput(targetVcfs: StableSet[VCF],
                               reference: IndexedReferenceFasta,
                               dbSnpVcf: VCF,
                               name: String,
@@ -659,7 +659,6 @@ object HaplotypeCaller {
         implicit computationEnvironment =>
           for {
             refDict <- reference.dict
-            reference <- reference.localFile
             localTargetVcf <- targetVcf.localFile
             dbSnpVcf <- dbSnpVcf.localFile
             evaluationIntervals <- evaluationIntervals.file
