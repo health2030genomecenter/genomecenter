@@ -82,13 +82,14 @@ object ReadQCPlot {
         xlab = "Max mean coverage",
         yNumTicks = 0,
         ynames = xnames,
-        yCustomGrid = true,
+        yCustomGrid = false,
         yHeight = math.max(60d, data.size.toDouble) fts,
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
         yAxisMargin = 0.001,
         ygrid = false,
-        xgrid = false
+        xgrid = false,
+        xAxisMargin = 0d,
       )
     }
 
@@ -114,13 +115,14 @@ object ReadQCPlot {
         xlab = "ReadNumber",
         yNumTicks = 0,
         ynames = xnames,
-        yCustomGrid = true,
+        yCustomGrid = false,
         yHeight = math.max(60d, data.size.toDouble) fts,
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
         yAxisMargin = 0.001,
         ygrid = false,
-        xgrid = false
+        xgrid = false,
+        xAxisMargin = 0d,
       )
     }
 
@@ -147,13 +149,14 @@ object ReadQCPlot {
         xlab = "Distinct 13 mers in prefix",
         yNumTicks = 0,
         ynames = xnames,
-        yCustomGrid = true,
+        yCustomGrid = false,
         yHeight = math.max(60d, data.size.toDouble) fts,
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
         yAxisMargin = 0.001,
         ygrid = false,
-        xgrid = false
+        xgrid = false,
+        xAxisMargin = 0d,
       )
     }
 
@@ -179,14 +182,15 @@ object ReadQCPlot {
         xlab = "GC%",
         yNumTicks = 0,
         ynames = xnames,
-        yCustomGrid = true,
+        yCustomGrid = false,
         yHeight = math.max(60d, data.size.toDouble) fts,
         xlim = Some((0d, 1d)),
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
         yAxisMargin = 0.001,
         ygrid = false,
-        xgrid = false
+        xgrid = false,
+        xAxisMargin = 0d,
       )
     }
 
