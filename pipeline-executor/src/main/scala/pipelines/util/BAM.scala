@@ -14,6 +14,20 @@ object BAM {
     sortOrder
   }
 
+  def getMaxReadLength(file: java.io.File, take: Int) = {
+    import htsjdk.samtools.SamReaderFactory
+    val reader = SamReaderFactory.makeDefault.open(file)
+
+    val max =
+      reader.iterator.asScala
+        .take(take)
+        .map(_.getReadLength)
+        .max
+
+    reader.close
+    max
+  }
+
   def getMeanReadLength(file: java.io.File, take: Int) = {
     import htsjdk.samtools.SamReaderFactory
     val reader = SamReaderFactory.makeDefault.open(file)
