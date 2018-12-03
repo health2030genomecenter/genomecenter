@@ -246,7 +246,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       .mapAsync(1000) { samples =>
         val (project, _, _) = getKeysOfSampleResult(samples.head)
         logger.info(
-          s"Project finished with ${samples.size} samples: $project} ")
+          s"Project finished with ${samples.size} samples: $project ")
         pipeline.processCompletedProject(samples).recover {
           case error =>
             logger.error(
