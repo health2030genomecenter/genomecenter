@@ -241,12 +241,15 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
   def processCompletedProjects =
     Flow[CompletedProjects]
       .via(deduplicate)
+      // a buffer of one with drophead overflow strategy ensures
+      // that the stream is always pulled and the latest element is processed
+      // if there is a newer element, then we want to drop the previous
+      // because we care for the latest
       .buffer(1, OverflowStrategy.dropHead)
       .mapConcat(_.groups.toList)
       .mapAsync(1000) { samples =>
         val (project, _, _) = getKeysOfSampleResult(samples.head)
-        logger.info(
-          s"Project finished with ${samples.size} samples: $project ")
+        logger.info(s"Project finished with ${samples.size} samples: $project ")
         pipeline.processCompletedProject(samples).recover {
           case error =>
             logger.error(
