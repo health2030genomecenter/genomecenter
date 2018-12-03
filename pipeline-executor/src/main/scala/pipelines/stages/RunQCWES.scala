@@ -413,7 +413,7 @@ object AlignmentQC {
             bam <- coordinateSortedBam.localFile
             result <- {
 
-              val readLength = BAM.getMeanReadLength(bam, 10000).toInt
+              val readLength = BAM.getMeanReadLength(bam, 5000000).toInt + 1
               val picardJar = BWAAlignment.extractPicardJar()
               val maxHeap = JVM.maxHeap
               val tmpOut = TempFile.createTempFile(".qc")

@@ -17,11 +17,18 @@ object BAM {
   def getMeanReadLength(file: java.io.File, take: Int) = {
     import htsjdk.samtools.SamReaderFactory
     val reader = SamReaderFactory.makeDefault.open(file)
-    val readLengths =
-      reader.iterator.asScala.take(take).map(_.getReadLength).toList
+
+    val (sum, count) =
+      reader.iterator.asScala
+        .take(take)
+        .map(_.getReadLength)
+        .foldLeft((0d, 0L)) {
+          case ((sum, count), nextReadLength) =>
+            (sum + nextReadLength.toDouble, count + 1)
+        }
 
     reader.close
-    readLengths.sum.toDouble / readLengths.size
+    sum / count
   }
 
   def validate(file: java.io.File, reference: File) = {
