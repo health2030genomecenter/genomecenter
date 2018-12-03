@@ -6,6 +6,7 @@ import org.gc.pipelines.model.RunId
 import akka.stream.Materializer
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import java.io.File
@@ -45,7 +46,9 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
             }
 
             if (invalidPath) {
-              complete(akka.http.scaladsl.model.StatusCodes.BadRequest)
+              complete(
+                HttpResponse(StatusCodes.BadRequest,
+                             entity = HttpEntity("can't read")))
             } else {
               runFolders.foreach {
                 case dto @ RunfolderDTO(runFolderPath, configurationFile) =>
