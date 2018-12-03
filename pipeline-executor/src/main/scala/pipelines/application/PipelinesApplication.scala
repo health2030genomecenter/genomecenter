@@ -220,10 +220,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       .buffer(1, OverflowStrategy.dropHead)
       .mapConcat(_.groups.toList)
       .mapAsync(1000) { samples =>
-        logger.info("Run finished with samples: " + samples.toString)
+        val (_, _, runId) = getKeysOfSampleResult(samples.head)
+        logger.info(s"Run finished with ${samples.size} samples: $runId")
         pipeline.processCompletedRun(samples).recover {
           case error =>
-            val (_, _, runId) = getKeysOfSampleResult(samples.head)
             logger.error(
               s"$pipeline failed on ${runId} while processing completed run",
               error)
@@ -244,10 +244,11 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       .buffer(1, OverflowStrategy.dropHead)
       .mapConcat(_.groups.toList)
       .mapAsync(1000) { samples =>
-        logger.info("Project finished with samples: " + samples.toString)
+        val (project, _, _) = getKeysOfSampleResult(samples.head)
+        logger.info(
+          s"Project finished with ${samples.size} samples: $project} ")
         pipeline.processCompletedProject(samples).recover {
           case error =>
-            val (project, _, _) = getKeysOfSampleResult(samples.head)
             logger.error(
               s"$pipeline failed on $project while processing completed project",
               error)

@@ -135,11 +135,14 @@ class ProtoPipeline(implicit EC: ExecutionContext)
             demultiplexedSample)
 
           _ = {
-            logger.info(
-              s"WES samples from run ${r.runId} : ${samplesForWESAnalysis.map(_.sampleId)}")
-            logger.info(
-              s"RNASEQ samples from run ${r.runId} : ${samplesForRNASeqAnalysis
-                .map(_.sampleId)}")
+            samplesForWESAnalysis.foreach { sample =>
+              logger.info(
+                s"WES samples from run ${r.runId} : ${sample.sampleId}")
+            }
+            samplesForRNASeqAnalysis.foreach { sample =>
+              logger.info(
+                s"RNASEQ samples from run ${r.runId} : ${sample.sampleId}")
+            }
           }
 
           perSampleResultsWES = samplesForWESAnalysis.fold(emptyWesResult)(
