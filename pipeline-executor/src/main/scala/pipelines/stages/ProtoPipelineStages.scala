@@ -464,13 +464,13 @@ object ProtoPipelineStages extends StrictLogging {
 
                 val lane = {
                   val distinctLanesInGroup = fqsInLane.map(_.lane)
-                  assert(distinctLanesInGroup.size == 1) // due to groupBy
+                  require(distinctLanesInGroup.size == 1) // due to groupBy
                   distinctLanesInGroup.head
                 }
 
                 val partition = {
                   val distinctPartitionsInGroup = fqsInLane.map(_.partition)
-                  assert(distinctPartitionsInGroup.size == 1) // due to groupBy
+                  require(distinctPartitionsInGroup.size == 1) // due to groupBy
                   distinctPartitionsInGroup.head
                 }
 

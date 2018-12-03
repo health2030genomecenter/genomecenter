@@ -191,10 +191,10 @@ object Demultiplexing {
                   val sampleSheetEntries =
                     sampleSheet.getSampleSheetEntriesByBcl2FastqSampleNumber(
                       sampleNumberInSampleSheet1Based.toInt)
-                  assert(sampleSheetEntries.map(_.sampleId).distinct.size == 1)
-                  assert(
+                  require(sampleSheetEntries.map(_.sampleId).distinct.size == 1)
+                  require(
                     sampleSheetEntries.map(_.sampleName).distinct.size == 1)
-                  assert(sampleSheetEntries.map(_.project).distinct.size == 1)
+                  require(sampleSheetEntries.map(_.project).distinct.size == 1)
 
                   val sampleSheetSampleId = sampleSheetEntries.head.sampleId
                   val sampleSheetSampleName = sampleSheetEntries.head.sampleName

@@ -60,8 +60,8 @@ case class PerSampleFastQ(
         .toSeq: _*) {
 
   def ++(that: PerSampleFastQ) = {
-    assert(this.project == that.project)
-    assert(this.sampleId == that.sampleId)
+    require(this.project == that.project)
+    require(this.sampleId == that.sampleId)
     PerSampleFastQ(lanes ++ that.lanes, project, sampleId)
   }
   def runIdTag =

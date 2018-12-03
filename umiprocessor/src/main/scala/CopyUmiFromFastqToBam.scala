@@ -38,7 +38,7 @@ object CopyUmiFromFastqToBam {
 
         def processNextSamRecord() = {
           val readRecord = samIterator.next
-          assert(
+          require(
             umiReadName.contains(readRecord.getReadName),
             s"Umi read name != sam read name. The two files must have the same ordering. $umiReadName vs ${readRecord.getReadName} $umiFqRecord vs $readRecord $counter"
           )

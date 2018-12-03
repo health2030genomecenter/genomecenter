@@ -48,7 +48,7 @@ object DemultiplexingStats {
 
   case class UnknownBarCodesPerLane(Lane: Int, Barcodes: Map[String, Long]) {
     def ++(that: UnknownBarCodesPerLane) = {
-      assert(Lane == that.Lane)
+      require(Lane == that.Lane)
       UnknownBarCodesPerLane(
         Lane,
         tasks.util.addMaps(Barcodes, that.Barcodes)(_ + _)
@@ -67,7 +67,7 @@ object DemultiplexingStats {
                                      DemuxResults: Seq[DemuxResultPerSample],
                                      Undetermined: UndeterminedResults) {
     def ++(that: ConversionResultPerLane) = {
-      assert(LaneNumber == that.LaneNumber)
+      require(LaneNumber == that.LaneNumber)
       ConversionResultPerLane(
         LaneNumber = LaneNumber,
         TotalClustersRaw = TotalClustersRaw + that.TotalClustersRaw,
@@ -91,7 +91,7 @@ object DemultiplexingStats {
       ReadMetrics: Seq[ReadMetric]
   ) {
     def ++(that: DemuxResultPerSample) = {
-      assert(SampleId == that.SampleId)
+      require(SampleId == that.SampleId)
       DemuxResultPerSample(
         SampleId,
         SampleName,
@@ -134,7 +134,7 @@ object DemultiplexingStats {
       TrimmedBases: Long,
   ) {
     def ++(that: ReadMetric) = {
-      assert(ReadNumber == that.ReadNumber)
+      require(ReadNumber == that.ReadNumber)
       ReadMetric(
         ReadNumber,
         Yield + that.Yield,
@@ -150,7 +150,7 @@ object DemultiplexingStats {
       MismatchCounts: Map[String, Long]
   ) {
     def ++(that: IndexMetric) = {
-      assert(IndexSequence == that.IndexSequence)
+      require(IndexSequence == that.IndexSequence)
       IndexMetric(
         IndexSequence,
         tasks.util.addMaps(MismatchCounts, that.MismatchCounts)(_ + _))

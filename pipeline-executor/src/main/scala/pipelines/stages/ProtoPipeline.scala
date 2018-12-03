@@ -24,7 +24,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
   def processCompletedRun(samples: Seq[SampleResult])(
       implicit tsc: TaskSystemComponents): Future[(RunId, Boolean)] = {
-    assert(samples.map(_.lastRunId).distinct.size == 1)
+    require(samples.map(_.lastRunId).distinct.size == 1)
     val runId = samples.head.lastRunId
 
     val fastqsOfThisRun =
