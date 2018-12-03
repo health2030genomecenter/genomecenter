@@ -7,7 +7,8 @@ import org.gc.readqc.{Metrics, Distribution, CycleNumberMetrics}
 class ReadQCPlotTestSuite extends FunSuite {
   test("make readqc plot") {
     new Fixture {
-      println(ReadQCPlot.make(data, "titletitletitletitle"))
+      println(
+        ReadQCPlot.make((1 to 100).flatMap(_ => data), "titletitletitletitle"))
     }
   }
   trait Fixture {

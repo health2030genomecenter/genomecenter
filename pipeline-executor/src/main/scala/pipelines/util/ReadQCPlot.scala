@@ -12,34 +12,39 @@ object ReadQCPlot {
       metrics: Seq[(Project, SampleId, RunId, Lane, ReadType, readqc.Metrics)],
       title: String): File = {
     val baseQPerSamplePerLanePerRead = {
-      val data = metrics.zipWithIndex
-        .map {
-          case ((_, _, _, _, readType, metrics), idx) =>
-            val color = if (readType == 1) 0d else 1d
-            (
-              idx.toDouble + .6, //x
-              metrics.baseQ.mean, // middle
-              metrics.baseQ.mean - metrics.baseQ.sd, // q1
-              metrics.baseQ.mean + metrics.baseQ.sd, // q3
-              metrics.baseQ.min, // min
-              metrics.baseQ.max, // max
-              idx.toDouble + 1.4, // x2col
-              0d, // fill index
-              color // width
-            )
-        }
+      val plots = metrics.grouped(200).toList.map { metrics =>
+        val data = metrics.zipWithIndex
+          .map {
+            case ((_, _, _, _, readType, metrics), idx) =>
+              val color = if (readType == 1) 0d else 1d
+              (
+                idx.toDouble + .6, //x
+                metrics.baseQ.mean, // middle
+                metrics.baseQ.mean - metrics.baseQ.sd, // q1
+                metrics.baseQ.mean + metrics.baseQ.sd, // q3
+                metrics.baseQ.min, // min
+                metrics.baseQ.max, // max
+                idx.toDouble + 1.4, // x2col
+                0d, // fill index
+                color // width
+              )
+          }
 
-      boxplotImpl(
-        data,
-        xnames = metrics.map {
-          case (_, sample, _, lane, read, _) => sample + "." + lane + "." + read
-        },
-        boxColor = ManualColor(Map(0d -> Color.red, 1d -> Color.blue)),
-        ylab = "BaseQ",
-        xLabelRotation = math.Pi * -0.4,
-        xWidth = 90 fts,
-        fontSize = 0.5 fts
-      )
+        boxplotImpl(
+          data,
+          xnames = metrics.map {
+            case (_, sample, _, lane, read, _) =>
+              sample + "." + lane + "." + read
+          },
+          boxColor = ManualColor(Map(0d -> Color.red, 1d -> Color.blue)),
+          ylab = "BaseQ",
+          xLabelRotation = math.Pi * -0.4,
+          xWidth = 120 fts,
+          fontSize = 0.5 fts
+        )
+      }
+
+      sequence(plots.toList, VerticalStack())
     }
 
     val maxMeanCoveragePlot = {
@@ -78,11 +83,12 @@ object ReadQCPlot {
         yNumTicks = 0,
         ynames = xnames,
         yCustomGrid = true,
-        yHeight = 60 fts,
+        yHeight = math.max(60d, data.size.toDouble) fts,
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
-        yAxisMargin = 0.01,
-        ygrid = false
+        yAxisMargin = 0.001,
+        ygrid = false,
+        xgrid = false
       )
     }
 
@@ -109,11 +115,12 @@ object ReadQCPlot {
         yNumTicks = 0,
         ynames = xnames,
         yCustomGrid = true,
-        yHeight = 60 fts,
+        yHeight = math.max(60d, data.size.toDouble) fts,
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
-        yAxisMargin = 0.01,
-        ygrid = false
+        yAxisMargin = 0.001,
+        ygrid = false,
+        xgrid = false
       )
     }
 
@@ -141,11 +148,12 @@ object ReadQCPlot {
         yNumTicks = 0,
         ynames = xnames,
         yCustomGrid = true,
-        yHeight = 60 fts,
+        yHeight = math.max(60d, data.size.toDouble) fts,
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
-        yAxisMargin = 0.01,
-        ygrid = false
+        yAxisMargin = 0.001,
+        ygrid = false,
+        xgrid = false
       )
     }
 
@@ -172,12 +180,13 @@ object ReadQCPlot {
         yNumTicks = 0,
         ynames = xnames,
         yCustomGrid = true,
-        yHeight = 60 fts,
+        yHeight = math.max(60d, data.size.toDouble) fts,
         xlim = Some((0d, 1d)),
         yLabFontSize = 0.5 fts,
         xLabDistance = 0.3 fts,
-        yAxisMargin = 0.01,
-        ygrid = false
+        yAxisMargin = 0.001,
+        ygrid = false,
+        xgrid = false
       )
     }
 
@@ -261,8 +270,8 @@ object ReadQCPlot {
         cycleBaseQsPlots,
         cyclesN,
         baseQPerSamplePerLanePerRead,
-        group(readNumberPerSamplePerLanePerRead,
-              maxMeanCoveragePlot,
+        group(maxMeanCoveragePlot,
+              readNumberPerSamplePerLanePerRead,
               uniquemersPerSamplePerLanePerRead,
               gcPerSamplePerLanePerRead,
               HorizontalStack(Right, 0)),
