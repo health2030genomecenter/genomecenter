@@ -84,12 +84,12 @@ lazy val pipelineExecutor = project
       "io.github.pityka" %% "fileutils" % "1.2.2",
       "io.github.pityka" %% "nspl-core" % "0.0.20-SNAPSHOT",
       "io.github.pityka" %% "nspl-awt" % "0.0.20-SNAPSHOT",
-      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      "org.scalatest" %% "scalatest" % "3.0.0" % "it,test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.16",
-      "com.typesafe.akka" %% "akka-testkit" % "2.5.16" % "test",
-      "com.typesafe.akka" %% "akka-http-testkit" % "10.1.5" % "test",
+      "com.typesafe.akka" %% "akka-testkit" % "2.5.16" % "it,test",
+      "com.typesafe.akka" %% "akka-http-testkit" % "10.1.5" % "it,test",
       "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.20",
       "de.heikoseeberger" %% "akka-http-circe" % "1.22.0",
       "com.github.samtools" % "htsjdk" % "2.16.1",
@@ -124,6 +124,10 @@ lazy val pipelineExecutor = project
     resources in Test += (assembly in Compile in umiProcessor).value,
     mappings in Universal += (assembly in Compile in readqcCLI).value -> "resources/readqc",
     resources in Test += (assembly in Compile in readqcCLI).value
+  )
+  .configs(IntegrationTest)
+  .settings(
+    Defaults.itSettings
   )
 
 lazy val root = (project in file("."))

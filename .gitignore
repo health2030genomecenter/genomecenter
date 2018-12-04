@@ -1,6 +1,8 @@
 target/
 .vscode
 .bloop/
+.metals/
 metals.log
 metals.h2.db
 metals.lock.db
+.DS_Store
