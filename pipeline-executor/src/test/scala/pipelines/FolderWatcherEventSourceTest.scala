@@ -68,9 +68,10 @@ class FolderWatcherEventSourceTest
     openFileWriter(watchedFile)(_ => ())
     Then("the source should emit and the sample sheet should be read")
     probe.expectMsg(
-      RunfolderReadyForProcessing(RunId(runId),
-                                  runFolder.getAbsolutePath,
-                                  runConfiguration.right.get))
+      application.Append(
+        RunfolderReadyForProcessing(RunId(runId),
+                                    runFolder.getAbsolutePath,
+                                    runConfiguration.right.get)))
     When("the watched file is deleted")
     watchedFile.delete
     Then("the source should not emit")

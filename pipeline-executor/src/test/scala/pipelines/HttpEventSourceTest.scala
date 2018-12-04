@@ -64,6 +64,7 @@ class HttpEventSourceTest
     source.to(Sink.actorRef(probe.ref, "completed")).run()
     When("a run folder is created")
     runFolder.mkdir
+    openFileWriter(new File(runFolder, "RunInfo.xml"))(_ => ())
     And("a sample sheet is created")
     openFileWriter(new File(runFolder, runConfigurationFileName)) { writer =>
       writer.write(runConfigurationFileContent)
@@ -87,9 +88,10 @@ class HttpEventSourceTest
       status shouldEqual StatusCodes.OK
       Then("the source should emit")
       probe.expectMsg(
-        RunfolderReadyForProcessing(RunId(runId),
-                                    runFolder.getAbsolutePath,
-                                    runConfiguration.right.get))
+        application.Append(
+          RunfolderReadyForProcessing(RunId(runId),
+                                      runFolder.getAbsolutePath,
+                                      runConfiguration.right.get)))
       When("the watched file is deleted")
       watchedFile.delete
       Then("the source should not emit")
