@@ -6,6 +6,7 @@ import tasks._
 import java.io.File
 
 import org.gc.pipelines.model._
+import org.gc.pipelines.util.StableSet
 
 class FastpTestSuite
     extends FunSuite
@@ -19,7 +20,7 @@ class FastpTestSuite
       val result = withTaskSystem(testConfig) { implicit ts =>
         val input =
           PerSamplePerRunFastQ(
-            Set(
+            StableSet(
               FastQPerLane(
                 lane = lane,
                 read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),

@@ -6,6 +6,7 @@ import tasks._
 import java.io.File
 
 import org.gc.pipelines.model._
+import org.gc.pipelines.util.StableSet
 
 class MarkDuplicatesTestSuite
     extends FunSuite
@@ -19,7 +20,7 @@ class MarkDuplicatesTestSuite
       val result = withTaskSystem(testConfig) { implicit ts =>
         val input =
           BamsWithSampleMetadata(
-            bams = Set(Bam(await(SharedFile(bam, "some.bam")))),
+            bams = StableSet(Bam(await(SharedFile(bam, "some.bam")))),
             project = project,
             sampleId = sampleId
           )

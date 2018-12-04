@@ -6,6 +6,7 @@ import tasks._
 import java.io.File
 
 import org.gc.pipelines.model._
+import org.gc.pipelines.util.StableSet
 
 class StarAlignmentTestSuite
     extends FunSuite
@@ -42,7 +43,7 @@ class StarAlignmentTestSuite
 
         val input =
           StarAlignmentInput(
-            fastqs = Set(
+            fastqs = StableSet(
               FastQPerLane(
                 runId,
                 Lane(1),

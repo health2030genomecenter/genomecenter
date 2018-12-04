@@ -22,7 +22,7 @@ object TestSlave extends App {
 object SlurmTest extends TestHelpers {
 
   val testTask = AsyncTask[Input, Int]("slurmtest", 1) {
-    input => implicit computationEnvironment =>
+    _ => implicit computationEnvironment =>
       log.info("Hello from task")
       Future(1)
   }

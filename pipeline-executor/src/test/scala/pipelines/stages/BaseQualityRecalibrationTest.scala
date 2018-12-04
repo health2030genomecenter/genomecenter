@@ -4,7 +4,7 @@ import org.scalatest._
 
 import tasks._
 import java.io.File
-import org.gc.pipelines.util.BAM
+import org.gc.pipelines.util.{BAM, StableSet}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class BaseQualityRecalibrationTest
@@ -24,9 +24,9 @@ class BaseQualityRecalibrationTest
             bam = CoordinateSortedBam(await(SharedFile(bam, "some.bam")),
                                       await(SharedFile(bai, "some.bam.bai"))),
             reference = indexedFasta,
-            knownSites = Set(
-              VCF(await(SharedFile(vcf, "some.vcf")),
-                  Some(await(SharedFile(vcfIdx, "some.vcf.idx")))))
+            knownSites = StableSet(
+              VCF(await(SharedFile(vcf, "some.vcf.gz")),
+                  Some(await(SharedFile(vcfIdx, "some.vcf.gz.tbi")))))
           )
 
         When("executing the base quality recalibration steps")

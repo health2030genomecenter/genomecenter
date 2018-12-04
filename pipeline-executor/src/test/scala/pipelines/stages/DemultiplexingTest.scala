@@ -11,6 +11,7 @@ import fileutils.TempFile
 import java.io.File
 
 import org.gc.pipelines.util.Exec
+import org.gc.pipelines.util.StableSet.syntax
 import org.gc.pipelines.model._
 
 class DemultiplexingTestSuite
@@ -169,7 +170,7 @@ trait TestHelpers {
         SharedFile(new File(fasta.getAbsolutePath + ".sa"),
                    "referenceFasta.fasta.sa"))
     )
-    IndexedReferenceFasta(liftedFasta, indexFiles.toSet)
+    IndexedReferenceFasta(liftedFasta, indexFiles.toSet.toStable)
 
   }
 
@@ -186,9 +187,9 @@ trait TestHelpers {
       new File(genomeFolder, "SA"),
       new File(genomeFolder, "SAindex")
     )
-    StarIndexedReferenceFasta(
-      liftedFasta,
-      indexFiles.toSet.map((f: File) => await(SharedFile(f, f.getName))))
+    StarIndexedReferenceFasta(liftedFasta,
+                              indexFiles.toSet.toStable.map((f: File) =>
+                                await(SharedFile(f, f.getName))))
 
   }
 

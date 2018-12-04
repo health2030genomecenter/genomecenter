@@ -5,6 +5,7 @@ import org.scalatest._
 import tasks._
 import java.io.File
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.gc.pipelines.util.StableSet
 
 class HaplotypeCallerTest
     extends FunSuite
@@ -22,7 +23,7 @@ class HaplotypeCallerTest
                            Some(await(SharedFile(vcfIdx, "dbsnp.vcf.gz.tbi"))))
 
         val input = GenotypeGVCFsInput(
-          Set(
+          StableSet(
             VCF(await(SharedFile(gvcf, "some.vcf.gz")),
                 Some(await(SharedFile(gvcfIndex, "some.vcf.gz.tbi"))))),
           indexedFasta,

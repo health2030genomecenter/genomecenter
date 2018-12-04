@@ -15,6 +15,7 @@ import org.gc.pipelines.application.{
   RunConfiguration,
   Selector
 }
+import org.gc.pipelines.util.StableSet
 
 import scala.concurrent.Await
 
@@ -306,10 +307,10 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       referenceFasta = referenceFasta,
       targetIntervals = targetIntervals,
       bqsrKnownSites = StableSet(knownSitesVCF.getAbsolutePath),
-      wesSelector = Selector(runIds = Set(RunId(runId)),
-                             samples = Set.empty,
-                             lanes = Set.empty,
-                             projects = Set.empty),
+      wesSelector = Selector(runIds = StableSet(RunId(runId)),
+                             samples = StableSet.empty,
+                             lanes = StableSet.empty,
+                             projects = StableSet.empty),
       rnaSelector = Selector.empty,
       globalIndexSet = Some(globalIndexSetFilePath),
       geneModelGtf = gtfFile.getAbsolutePath,
