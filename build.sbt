@@ -1,5 +1,5 @@
 lazy val commonSettings = Seq(
-  scalaVersion := "2.12.6",
+  scalaVersion := "2.12.7",
   parallelExecution in Test := false,
   scalacOptions ++= scalacOptionList,
   scalacOptions in (Compile, console) := scalacOptions.value filterNot (_ == "-Ywarn-unused:imports")
