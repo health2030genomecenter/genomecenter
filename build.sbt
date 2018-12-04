@@ -23,7 +23,7 @@ lazy val tasksSlurm = project
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
-      "com.typesafe.akka" %% "akka-slf4j" % "2.5.16" % "test"
+      "com.typesafe.akka" %% "akka-slf4j" % "2.5.18" % "test"
     )
   )
 
@@ -87,8 +87,8 @@ lazy val pipelineExecutor = project
       "org.scalatest" %% "scalatest" % "3.0.0" % "it,test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
-      "com.typesafe.akka" %% "akka-slf4j" % "2.5.16",
-      "com.typesafe.akka" %% "akka-testkit" % "2.5.16" % "it,test",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.5.18",
+      "com.typesafe.akka" %% "akka-testkit" % "2.5.18" % "it,test",
       "com.typesafe.akka" %% "akka-http-testkit" % "10.1.5" % "it,test",
       "com.lightbend.akka" %% "akka-stream-alpakka-file" % "0.20",
       "de.heikoseeberger" %% "akka-http-circe" % "1.22.0",
