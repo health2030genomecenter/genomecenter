@@ -1,2 +1,6 @@
 target/
 .vscode
+.bloop/
+metals.log
+metals.h2.db
+metals.lock.db
