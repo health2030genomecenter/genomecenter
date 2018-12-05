@@ -216,6 +216,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
 
   def processCompletedRuns =
     Flow[CompletedRun]
+      .filter(_.samples.nonEmpty)
       .via(deduplicate)
       .buffer(1, OverflowStrategy.dropHead)
       .mapAsync(1000) {
@@ -240,6 +241,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
 
   def processCompletedProjects =
     Flow[CompletedProject]
+      .filter(_.samples.nonEmpty)
       .via(deduplicate)
       // a buffer of one with drophead overflow strategy ensures
       // that the stream is always pulled and the latest element is processed
