@@ -101,8 +101,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
     .to(Sink.ignore)
     .run
 
-  case class Completeds(runs: CompletedRuns,
-                        projects: CompletedProjects,
+  case class Completeds(runs: CompletedRun,
+                        projects: CompletedProject,
                         addedUnfinished: Boolean)
 
   /*
@@ -204,8 +204,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       }
       .map(
         state =>
-          Completeds(state.completedRuns,
-                     state.completedProjects,
+          Completeds(state.completedRun,
+                     state.completedProject,
                      state.addedUnfinished))
 
   def processCompletedRunsAndProjects =
@@ -215,20 +215,20 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       .via(unzipThenMerge(processCompletedRuns, processCompletedProjects))
 
   def processCompletedRuns =
-    Flow[CompletedRuns]
+    Flow[CompletedRun]
       .via(deduplicate)
       .buffer(1, OverflowStrategy.dropHead)
-      .mapConcat(_.groups.toList)
-      .mapAsync(1000) { samples =>
-        val (_, _, runId) = getKeysOfSampleResult(samples.head)
-        logger.info(s"Run finished with ${samples.size} samples: $runId")
-        pipeline.processCompletedRun(samples).recover {
-          case error =>
-            logger.error(
-              s"$pipeline failed on ${runId} while processing completed run",
-              error)
-            (runId, false)
-        }
+      .mapAsync(1000) {
+        case CompletedRun(samples) =>
+          val (_, _, runId) = getKeysOfSampleResult(samples.head)
+          logger.info(s"Run finished with ${samples.size} samples: $runId")
+          pipeline.processCompletedRun(samples).recover {
+            case error =>
+              logger.error(
+                s"$pipeline failed on ${runId} while processing completed run",
+                error)
+              (runId, false)
+          }
       }
       .map {
         case (runId, success) =>
@@ -239,24 +239,25 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       }
 
   def processCompletedProjects =
-    Flow[CompletedProjects]
+    Flow[CompletedProject]
       .via(deduplicate)
       // a buffer of one with drophead overflow strategy ensures
       // that the stream is always pulled and the latest element is processed
       // if there is a newer element, then we want to drop the previous
       // because we care for the latest
       .buffer(1, OverflowStrategy.dropHead)
-      .mapConcat(_.groups.toList)
-      .mapAsync(1000) { samples =>
-        val (project, _, _) = getKeysOfSampleResult(samples.head)
-        logger.info(s"Project finished with ${samples.size} samples: $project ")
-        pipeline.processCompletedProject(samples).recover {
-          case error =>
-            logger.error(
-              s"$pipeline failed on $project while processing completed project",
-              error)
-            (project, false)
-        }
+      .mapAsync(1000) {
+        case CompletedProject(samples) =>
+          val (project, _, _) = getKeysOfSampleResult(samples.head)
+          logger.info(
+            s"Project finished with ${samples.size} samples: $project ")
+          pipeline.processCompletedProject(samples).recover {
+            case error =>
+              logger.error(
+                s"$pipeline failed on $project while processing completed project",
+                error)
+              (project, false)
+          }
       }
       .map {
         case (project, success) =>
@@ -338,8 +339,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
         mat
     }
 
-  case class CompletedProjects(groups: Seq[Seq[SampleResult]])
-  case class CompletedRuns(groups: Seq[Seq[SampleResult]])
+  case class CompletedProject(samples: Seq[SampleResult])
+  case class CompletedRun(samples: Seq[SampleResult])
 
   object StateOfUnfinishedSamples {
     def empty = StateOfUnfinishedSamples(Set(), Seq(), false)
@@ -350,45 +351,40 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       finished: Seq[SampleResult],
       addedUnfinished: Boolean) {
 
-    def addNew(samples: Seq[DemultiplexedSample]): StateOfUnfinishedSamples =
-      copy(unfinished = unfinished ++ samples.map(sample =>
-             getKeysOfDemultiplexedSample(sample)),
-           addedUnfinished = true)
+    def addNew(samples: Seq[DemultiplexedSample]): StateOfUnfinishedSamples = {
+      val keys = samples.map(getKeysOfDemultiplexedSample)
+      copy(unfinished = unfinished ++ keys, addedUnfinished = true)
+    }
 
-    def finish(processedSample: SampleResult): StateOfUnfinishedSamples =
+    def finish(processedSample: SampleResult): StateOfUnfinishedSamples = {
+      val keysOfFinishedSample = getKeysOfSampleResult(processedSample)
       copy(
-        unfinished =
-          unfinished.filterNot(_ == getKeysOfSampleResult(processedSample)),
+        unfinished = unfinished.filterNot(_ == keysOfFinishedSample),
         finished = finished :+ processedSample,
         addedUnfinished = false
       )
-
-    private def completed[T](extractKey: ((Project, SampleId, RunId)) => T) = {
-      val keysOfUnfinishedRuns = unfinished.map(extractKey)
-      finished
-        .groupBy { sampleResult =>
-          extractKey(getKeysOfSampleResult(sampleResult))
-        }
-        .toSeq
-        .filterNot {
-          case (key, _) =>
-            keysOfUnfinishedRuns.contains(key)
-        }
-        .filter {
-          case (key, _) =>
-            val keyOfLastFinished =
-              extractKey(getKeysOfSampleResult(finished.last))
-
-            key == keyOfLastFinished
-        }
-        .map { case (_, group) => group }
     }
 
-    def completedRuns: CompletedRuns =
-      CompletedRuns(completed(_._3))
+    private def completed[T](extractKey: ((Project, SampleId, RunId)) => T) =
+      finished.lastOption match {
+        case None => Nil
+        case Some(lastFinished) =>
+          val keysOfUnfinishedSamples: Set[T] = unfinished.map(extractKey)
+          val keyOfLastFinishedSample: T = extractKey(
+            getKeysOfSampleResult(lastFinished))
+          val existRemaining =
+            keysOfUnfinishedSamples.contains(keyOfLastFinishedSample)
+          if (!existRemaining)
+            finished.filter { sampleResult =>
+              extractKey(getKeysOfSampleResult(sampleResult)) == keyOfLastFinishedSample
+            } else Nil
+      }
 
-    def completedProjects: CompletedProjects =
-      CompletedProjects(completed(_._1))
+    def completedRun: CompletedRun =
+      CompletedRun(completed(_._3))
+
+    def completedProject: CompletedProject =
+      CompletedProject(completed(_._1))
   }
 
 }
