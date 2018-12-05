@@ -9,8 +9,6 @@ import org.gc.pipelines.model.RunId
 
 class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json]) {
 
-  val writer = new java.io.FileWriter(file, true) // append = true
-
   val currentVersion = migrations.size
 
   case class Entry[K](
@@ -26,10 +24,16 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json]) {
 
   def append(e: T) = synchronized {
     import io.circe.syntax._
+
     val data = Entry(currentVersion, e).asJson.noSpaces
+    // The expected frequency of appends are low, thus instead of keeping a
+    // file descriptor open for a very long time
+    // we open it for write each time.
+    val writer = new java.io.FileWriter(file, true) // append = true
     writer.write(data)
     writer.write("\n")
     writer.flush
+    writer.close
   }
 
   private def readToJson =
