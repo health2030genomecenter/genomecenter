@@ -144,12 +144,13 @@ object BWAAlignment {
           }
 
           for {
-            alignedLanes <- Future.sequence(fastqs.map(alignLane))
+            alignedLanes <- Future.sequence(fastqs.toSeq.map(alignLane))
             merged <- mergeAndMarkDuplicate(
               BamsWithSampleMetadata(
                 project,
                 sampleId,
-                alignedLanes.map(_.bam) ++ bamOfPreviousRuns.toSet))(
+                StableSet(
+                  alignedLanes.map(_.bam) ++ bamOfPreviousRuns.toSet: _*)))(
               ResourceConfig.picardMergeAndMarkDuplicates)
             _ <- Future.traverse(alignedLanes.map(_.bam))(_.file.delete)
 
@@ -242,7 +243,7 @@ object BWAAlignment {
             s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
           for {
-            localBams <- Future.sequence(bams.map(_.file.file))
+            localBams <- Future.sequence(bams.toSeq.map(_.file.file))
             result <- {
 
               localBams.foreach { localBam =>

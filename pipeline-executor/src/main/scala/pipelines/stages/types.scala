@@ -25,7 +25,7 @@ case class IndexedReferenceFasta(fasta: SharedFile,
     extends WithSharedFiles(fasta +: indexFiles.toSeq: _*) {
   def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
-      _ <- Future.traverse(indexFiles)(_.file)
+      _ <- Future.traverse(indexFiles.toSeq)(_.file)
       fasta <- fasta.file
     } yield fasta
   def dict(implicit tsc: TaskSystemComponents) =

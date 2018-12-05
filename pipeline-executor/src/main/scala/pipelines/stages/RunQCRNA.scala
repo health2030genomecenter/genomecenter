@@ -11,7 +11,7 @@ import akka.util.ByteString
 import org.gc.pipelines.util.StableSet
 
 case class RunQCTableRNAInput(fileName: String, samples: StableSet[StarResult])
-    extends WithSharedFiles(samples.toList.flatMap(_.files): _*)
+    extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object RunQCRNA {
 

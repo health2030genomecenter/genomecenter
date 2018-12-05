@@ -34,7 +34,7 @@ case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
 case class DemultiplexedReadData(fastqs: StableSet[FastQWithSampleMetadata],
                                  stats: EValue[DemultiplexingStats.Root])
     extends ResultWithSharedFiles(
-      fastqs.toList.map(_.fastq.file) ++ stats.files: _*) {
+      fastqs.toSeq.map(_.fastq.file) ++ stats.files: _*) {
   def withoutUndetermined =
     DemultiplexedReadData(
       fastqs.filterNot(_.sampleId == SampleId("Undetermined")),
@@ -46,7 +46,7 @@ object Demultiplexing {
   def sampleToProjectMap(metadata: Seq[DemultiplexedReadData]) =
     (for {
       lanes <- metadata
-      sample <- lanes.fastqs
+      sample <- lanes.fastqs.toSeq
     } yield (sample.sampleId -> sample.project)).toMap
 
   def parseGlobalIndexSet(source: Source[ByteString, _])(
@@ -157,7 +157,7 @@ object Demultiplexing {
           } yield mergedStatsEValue
         } yield
           DemultiplexedReadData(
-            demultiplexedLanes.flatMap(_.fastqs).toSet.toStable,
+            demultiplexedLanes.flatMap(_.fastqs.toSeq).toSet.toStable,
             mergedStatsInFile)
 
     }

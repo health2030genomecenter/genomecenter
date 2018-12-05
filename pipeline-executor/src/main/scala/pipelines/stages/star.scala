@@ -36,7 +36,7 @@ case class StarIndexedReferenceFasta(fasta: SharedFile,
     extends WithSharedFiles(fasta) {
   def genomeFolder(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
-      indexFiles <- Future.traverse(indexFiles)(_.file)
+      indexFiles <- Future.traverse(indexFiles.toSeq)(_.file)
     } yield indexFiles.head.getParent
 }
 

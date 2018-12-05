@@ -110,7 +110,7 @@ object BaseQualityScoreRecalibration {
           for {
             localBam <- bam.bam.file
             reference <- reference.localFile
-            knownSites <- Future.traverse(knownSites)(_.localFile)
+            knownSites <- Future.traverse(knownSites.toSeq)(_.localFile)
             result <- {
 
               val output = TempFile.createTempFile(".bsqr.report")

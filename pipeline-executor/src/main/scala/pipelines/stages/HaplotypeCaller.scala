@@ -416,7 +416,7 @@ object HaplotypeCaller {
                                         name) =>
         implicit computationEnvironment =>
           for {
-            localVcfs <- Future.traverse(vcfs)(_.localFile)
+            localVcfs <- Future.traverse(vcfs.toSeq)(_.localFile)
             reference <- reference.localFile
             dbsnp <- dbsnp.localFile
             vcf <- {

@@ -54,7 +54,7 @@ case class RunfolderReadyForProcessing(runId: RunId,
       targetIntervals,
       geneModelGtf,
       dbSnpVcf,
-      variantEvaluationIntervals) ++ bqsrKnownSites ++ globalIndexSet.toSet ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet)
+      variantEvaluationIntervals) ++ bqsrKnownSites.toSeq ++ globalIndexSet.toSet ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet)
 
   }
 }

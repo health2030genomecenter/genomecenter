@@ -2,46 +2,48 @@ package org.gc.pipelines.util
 import scala.collection.immutable.HashSet
 import io.circe.Decoder
 
-/** A set with stable iteration order
+/** A set with stable serialization
   *
+  * Circe delegetes the ordering of a serialized Set to the `iterator` method.
   * HashSet has stable iteration order, but not in its contract
   * The factory method scala.collection.Set.apply returns sets not stable for sizes 2,3,4
   *
-  * This class is guaranteed to have a stable iteration order up to hashCode collisions.
-  * The only important piece here is the `def iterator` the rest is Scala collection boilerplate.
+  * I did not find a way to override circe's default serializer for collections.
+  * This class is an opaque wrapper around HashSet with a custom io.circe.Encoder.
+  * The custom encoder reorders the serialized elements lexicographically.
   */
-case class StableSet[A](underlying: scala.collection.immutable.HashSet[A])
-    extends scala.collection.GenTraversableOnce[A]
-    with Set[A]
-    with scala.collection.SetLike[A, StableSet[A]] {
-  def iterator = underlying.toSeq.sortBy(_.hashCode).iterator
+case class StableSet[A](underlying: scala.collection.immutable.HashSet[A]) {
+  def toSeq = underlying.toSeq
   def contains(a: A) = underlying.contains(a)
-  def +(elem: A) = StableSet(underlying + elem)
-  def -(elem: A) = StableSet(underlying - elem)
-  override def empty = StableSet()
+  def map[B](f: A => B) = StableSet(underlying.map(f))
+  def find(f: A => Boolean) = underlying.find(f)
+  def filterNot(f: A => Boolean) = StableSet(underlying.filterNot(f))
+  def flatMap[B](f: A => scala.collection.GenTraversableOnce[B]) =
+    underlying.flatMap(f)
+  def ++(that: StableSet[A]) = StableSet(underlying ++ that.underlying)
+  def ++(that: Seq[A]) = StableSet(underlying ++ that)
+  def size = underlying.size
 }
 
 object StableSet {
 
-  implicit def canBuildFrom[A] =
-    new scala.collection.generic.CanBuildFrom[StableSet[_], A, StableSet[A]] {
-      def apply() =
-        newBuilder
-      def apply(from: StableSet[_]) = newBuilder
-    }
+  import io.circe.Encoder
+  import io.circe.Json
 
+  implicit def encoder[A: Encoder]: Encoder[StableSet[A]] = {
+    implicit val ordering: Ordering[Json] = Ordering.by(_.noSpaces)
+    Encoder
+      .encodeSeq[A]
+      .contramap[StableSet[A]](_.underlying.toSeq)
+      .mapJson(json => Json.arr(json.asArray.get.sorted: _*))
+  }
+
+  implicit def decoder[A: Decoder]: Decoder[StableSet[A]] =
+    Decoder.decodeSeq[A].map(seq => StableSet(seq: _*))
   def empty[A] = StableSet[A]()
   def apply[A](a: A*): StableSet[A] = StableSet(HashSet(a: _*))
 
   implicit class syntax[A](set: Set[A]) {
     def toStable = StableSet(set.toSeq: _*)
   }
-
-  implicit def decoder[A: Decoder]: Decoder[StableSet[A]] =
-    Decoder.decodeSeq[A].map(seq => StableSet(seq: _*))
-
-  private def newBuilder[A] =
-    scala.collection.mutable
-      .ArrayBuffer[A]()
-      .mapResult(buf => StableSet(buf: _*))
 }

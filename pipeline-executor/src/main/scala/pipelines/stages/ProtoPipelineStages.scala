@@ -90,8 +90,7 @@ object ProtoPipelineStages extends StrictLogging {
                 BaseQualityScoreRecalibration.trainBQSR(
                   TrainBQSRInput(coordinateSorted,
                                  indexedReference,
-                                 knownSites.toSet.toStable))(
-                  ResourceConfig.trainBqsr)
+                                 knownSites))(ResourceConfig.trainBqsr)
             }
             recalibrated <- intoFinalFolder { implicit computationEnvironment =>
               BaseQualityScoreRecalibration.applyBQSR(
@@ -200,10 +199,10 @@ object ProtoPipelineStages extends StrictLogging {
                           fastqs = demultiplexed.lanes,
                           project = demultiplexed.project,
                           sampleId = demultiplexed.sampleId,
-                          runId = demultiplexed.lanes.head.runId,
+                          runId = demultiplexed.lanes.toSeq.head.runId,
                           reference = indexedFasta,
                           gtf = gtf.file,
-                          readLength = readLengths.map(_._2).max
+                          readLength = readLengths.map(_._2).toSeq.max
                         ))(ResourceConfig.starAlignment)
                     } yield SingleSamplePipelineResultRNA(starResult)
                 }
@@ -218,7 +217,7 @@ object ProtoPipelineStages extends StrictLogging {
       val lanes = sample.lanes.map { fqLane =>
         Metadata(fqLane.runId, fqLane.lane, sample.sampleId, sample.project)
       }
-      lanes.exists(selector.isSelected)
+      lanes.toSeq.exists(selector.isSelected)
 
     }
 
@@ -421,7 +420,7 @@ object ProtoPipelineStages extends StrictLogging {
           vcfIdx <- SharedFile(vcfIdx, vcfIdx.getName)
         } yield VCF(vcf, Some(vcfIdx))
     }
-    Future.sequence(vcfFilesFuture).andThen {
+    Future.sequence(vcfFilesFuture.toSeq).andThen {
       case Success(_) =>
         logger.debug(s"Fetched known sites vcfs")
       case Failure(e) =>
@@ -443,7 +442,7 @@ object ProtoPipelineStages extends StrictLogging {
                     readAssignment: (Int, Int),
                     umi: Option[Int],
                     runId: RunId): Seq[PerSamplePerRunFastQ] =
-    demultiplexed.fastqs
+    demultiplexed.fastqs.toSeq
       .groupBy { fq =>
         (fq.project, fq.sampleId)
       }
@@ -451,10 +450,10 @@ object ProtoPipelineStages extends StrictLogging {
       .map {
         case ((project, sampleId), perSampleFastQs) =>
           val perLaneFastQs =
-            perSampleFastQs
+            perSampleFastQs.toSeq
               .groupBy(s => (s.lane, s.partition))
               .toSeq
-              .map(_._2)
+              .map(_._2.toSet)
               .map { (fqsInLane: Set[FastQWithSampleMetadata]) =>
                 val maybeRead1 =
                   selectReadType(fqsInLane.toSeq, ReadType(readAssignment._1))
