@@ -276,7 +276,20 @@ object ProtoPipelineStages extends StrictLogging {
 
           }
       }
-      .map(_.flatten)
+      .map { demultiplexingRuns =>
+        val flattened = demultiplexingRuns.flatten
+        flattened
+          .groupBy(sample => (sample.project, sample.sampleId))
+          .toSeq
+          .flatMap {
+            case (_, group) =>
+              if (group.size > 1) {
+                logger.warn(
+                  s"The same sample have been demultiplexed several times. Dropping all from further analyses. $group")
+                Nil
+              } else List(group.head)
+          }
+      }
 
   private def inDemultiplexingFolder[T](runId: RunId,
                                         demultiplexingId: DemultiplexingId)(
