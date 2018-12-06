@@ -15,8 +15,11 @@ case class DemultiplexingConfiguration(
     readAssignment: (Int, Int),
     /* Number assigned by bcl2fastq, if any */
     umi: Option[Int],
-    extraBcl2FastqArguments: Seq[String]
-)
+    extraBcl2FastqArguments: Seq[String],
+    tenX: Option[Boolean]
+) {
+  def isTenX = tenX.exists(identity)
+}
 
 case class RunConfiguration(
     automatic: Boolean,

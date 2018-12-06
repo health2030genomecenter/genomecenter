@@ -23,7 +23,8 @@ case class DemultiplexingInput(
     runFolderPath: String,
     sampleSheet: SampleSheetFile,
     extraBcl2FastqCliArguments: Seq[String],
-    globalIndexSet: Option[SharedFile]
+    globalIndexSet: Option[SharedFile],
+    partitionByLane: Option[Boolean]
 ) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*)
 
 case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
@@ -85,6 +86,8 @@ object Demultiplexing {
         implicit val actorMaterializer =
           computationEnvironment.components.actorMaterializer
 
+        val partitionByLane = runFolder.partitionByLane.exists(identity)
+
         def tilesOfLanes(lanes: Seq[Lane]): Seq[String] = {
           val runInfo = new File(runFolder.runFolderPath + "/RunInfo.xml")
           val allTiles = Demultiplexing.parseTiles(runInfo)
@@ -110,7 +113,7 @@ object Demultiplexing {
 
             log.info(s"Found tiles of lanes $lanes: " + tiles.mkString(", "))
 
-            if (tiles.isEmpty)
+            if (tiles.isEmpty || partitionByLane)
               // process full lane by lane
               lanes.map(l => List(l.toString)).toSeq
             else
@@ -170,7 +173,7 @@ object Demultiplexing {
       "__demultiplex-per-lane",
       5) {
       case DemultiplexSingleLaneInput(
-          DemultiplexingInput(runFolderPath, sampleSheet, extraArguments, _),
+          DemultiplexingInput(runFolderPath, sampleSheet, extraArguments, _, _),
           tilesToProcess,
           partitionIndex
           ) =>

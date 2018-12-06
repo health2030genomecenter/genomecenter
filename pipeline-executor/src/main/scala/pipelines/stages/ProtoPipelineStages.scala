@@ -251,12 +251,15 @@ object ProtoPipelineStages extends StrictLogging {
     Future
       .traverse(r.runConfiguration.demultiplexingRuns.toSeq) {
         demultiplexingConfig =>
+          val stopAfterDemultiplexing = demultiplexingConfig.isTenX
+
           inDemultiplexingFolder(r.runId, demultiplexingConfig.demultiplexingId) {
             implicit tsc =>
               for {
                 globalIndexSet <- ProtoPipelineStages.fetchGlobalIndexSet(
                   r.runConfiguration)
                 sampleSheet <- ProtoPipelineStages.fetchSampleSheet(
+                  demultiplexingConfig.isTenX,
                   demultiplexingConfig.sampleSheet)
 
                 demultiplexed <- Demultiplexing.allLanes(
@@ -264,13 +267,16 @@ object ProtoPipelineStages extends StrictLogging {
                     r.runFolderPath,
                     sampleSheet,
                     demultiplexingConfig.extraBcl2FastqArguments,
-                    globalIndexSet))(ResourceConfig.minimal)
+                    globalIndexSet,
+                    demultiplexingConfig.tenX))(ResourceConfig.minimal)
 
-                perSampleFastQs = ProtoPipelineStages
-                  .groupBySample(demultiplexed.withoutUndetermined,
-                                 demultiplexingConfig.readAssignment,
-                                 demultiplexingConfig.umi,
-                                 r.runId)
+                perSampleFastQs = if (stopAfterDemultiplexing) Set()
+                else
+                  ProtoPipelineStages
+                    .groupBySample(demultiplexed.withoutUndetermined,
+                                   demultiplexingConfig.readAssignment,
+                                   demultiplexingConfig.umi,
+                                   r.runId)
 
               } yield perSampleFastQs
 
@@ -313,19 +319,40 @@ object ProtoPipelineStages extends StrictLogging {
     }
   }
 
-  def fetchSampleSheet(path: String)(implicit tsc: TaskSystemComponents,
-                                     ec: ExecutionContext) = {
+  def resolve10XIfNeeded(is10X: Boolean, sampleSheet: SampleSheetFile)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) =
+    if (!is10X) Future.successful(sampleSheet)
+    else
+      for {
+        parsed <- sampleSheet.parse
+        resolved = TenX.resolve(parsed)
+        saved <- SharedFile(
+          akka.stream.scaladsl.Source
+            .single(akka.util.ByteString(resolved.sampleSheetContent)),
+          sampleSheet.file.name + ".resolved")
+      } yield SampleSheetFile(saved)
+
+  def fetchSampleSheet(is10X: Boolean, path: String)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) = {
     tsc.withFilePrefix(Seq("sampleSheets")) { implicit tsc =>
       val file = new File(path)
       val fileName = file.getName
       logger.debug(s"Fetching sample sheet $file")
-      SharedFile(file, fileName).map(SampleSheetFile(_)).andThen {
-        case Success(_) =>
-          logger.debug(s"Fetched reference")
-        case Failure(e) =>
-          logger.error(s"Failed to fetch reference $file", e)
+      for {
+        sampleSheet <- SharedFile(file, fileName)
+          .map(SampleSheetFile(_))
+          .andThen {
+            case Success(_) =>
+              logger.debug(s"Fetched reference")
+            case Failure(e) =>
+              logger.error(s"Failed to fetch reference $file", e)
 
-      }
+          }
+        resolvedFor10X <- resolve10XIfNeeded(is10X, sampleSheet)
+      } yield resolvedFor10X
+
     }
   }
 

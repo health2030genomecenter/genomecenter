@@ -58,7 +58,8 @@ class DemultiplexingTestSuite
                                              "s_1_1101",
                                              "--use-bases-mask",
                                              "y75n,i6n*,n10,y75n"),
-            globalIndexSet = None
+            globalIndexSet = None,
+            partitionByLane = None
           ))(ResourceRequest(1, 500))
         import scala.concurrent.duration._
         scala.concurrent.Await.result(future, atMost = 400000 seconds)
@@ -81,16 +82,65 @@ class DemultiplexingTestSuite
       And(
         "captured fastq files should be present for the demultiplexed samples and for the undetermined reads")
       result.get.fastqs.size shouldBe 4
-      result.get.fastqs.toList.map(_.sampleId).toSet shouldBe Set(
-        "Undetermined",
-        "GIB")
-      result.get.fastqs.toList.map(_.readType).toSet shouldBe Set(2, 1)
-      result.get.fastqs.toList.map(_.lane).toSet shouldBe Set(1)
+      result.get.fastqs.toSeq.map(_.sampleId).toSet shouldBe Set("Undetermined",
+                                                                 "GIB")
+      result.get.fastqs.toSeq.map(_.readType).toSet shouldBe Set(2, 1)
+      result.get.fastqs.toSeq.map(_.lane).toSet shouldBe Set(1)
+
+    }
+  }
+
+  test("Demultiplexing stage should demultiplex a 10X run") {
+    new Fixture {
+
+      Given("a runfolder")
+      When("executing the Demultiplexing.allLanes task")
+      val result = withTaskSystem(testConfig) { implicit ts =>
+        implicit val ec = scala.concurrent.ExecutionContext.global
+        val originalSamplesheet =
+          SampleSheetFile(await(SharedFile(tenXsampleSheetFile, "sampleSheet")))
+        val resolvedSamplesheet = await(
+          ProtoPipelineStages.resolve10XIfNeeded(true, originalSamplesheet))
+        val future = Demultiplexing.allLanes(
+          DemultiplexingInput(
+            runFolderPath = tenXRunFolderPath,
+            sampleSheet = resolvedSamplesheet,
+            extraBcl2FastqCliArguments = Seq(
+              "--use-bases-mask",
+              "y26,i8,y98",
+              "--minimum-trimmed-read-length=8",
+              "--mask-short-adapter-reads=8",
+              "--ignore-missing-positions",
+              "--ignore-missing-controls",
+              "--ignore-missing-filter",
+              "--ignore-missing-bcls"
+            ),
+            globalIndexSet = None,
+            partitionByLane = Some(true)
+          ))(ResourceRequest(1, 500))
+        import scala.concurrent.duration._
+        scala.concurrent.Await.result(future, atMost = 400000 seconds)
+
+      }
+
+      And(
+        "captured fastq files should be present for the demultiplexed samples")
+      result.get.fastqs.size shouldBe 10
 
     }
   }
 
   trait Fixture {
+    def extract10XRunFolderTestData = {
+      val tmpFolder = TempFile.createTempFolder(".runfolder_test")
+      val testDataTarFile =
+        getClass
+          .getResource("/cellranger-tiny-bcl-1.2.0.tar.gz")
+          .getFile
+      Exec.bash("test.demultiplex")(
+        s"cd ${tmpFolder.getAbsolutePath} && tar xf $testDataTarFile ")
+      new File(tmpFolder, "cellranger-tiny-bcl-1.2.0").getAbsolutePath
+    }
     def extractRunFolderTestData = {
       val tmpFolder = TempFile.createTempFolder(".runfolder_test")
       val testDataTarFile =
@@ -131,7 +181,14 @@ GIB,GIB,,,F01,AD007,CAGATC,MolBC,NNNNNNNNNN,,,001
     )
     val sampleSheetFile =
       fileutils.openFileWriter(_.write(sampleSheet.sampleSheetContent))._1
+
+    val tenXsampleSheetFile = new File(
+      getClass
+        .getResource("/cellranger-tiny-bcl-samplesheet-1.2.0.csv")
+        .getFile)
     val runFolderPath = extractRunFolderTestData
+
+    val tenXRunFolderPath = extract10XRunFolderTestData
 
     val (testConfig, basePath) = makeTestConfig
   }

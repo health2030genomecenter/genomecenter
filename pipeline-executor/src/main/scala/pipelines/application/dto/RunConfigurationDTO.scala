@@ -68,7 +68,10 @@ object RunConfigurationDTO {
           umi =
             config.getIntList("umiReadNumber").asScala.headOption.map(_.toInt),
           extraBcl2FastqArguments =
-            config.getStringList("extraBcl2FastqArguments").asScala
+            config.getStringList("extraBcl2FastqArguments").asScala,
+          tenX =
+            if (config.hasPath("tenX")) Some(config.getBoolean("tenX"))
+            else None
         )
 
         RunConfigurationDTO(

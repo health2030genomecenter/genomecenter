@@ -129,6 +129,11 @@ lazy val pipelineExecutor = project
   .settings(
     Defaults.itSettings
   )
+  .settings(unmanagedClasspath in IntegrationTest += {
+    val testFolder = System.getenv("GC_TESTFOLDER")
+    if (testFolder == null) baseDirectory.value
+    else new File(testFolder).getCanonicalFile
+  })
 
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
