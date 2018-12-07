@@ -134,6 +134,7 @@ lazy val pipelineExecutor = project
     if (testFolder == null) baseDirectory.value
     else new File(testFolder).getCanonicalFile
   })
+  .settings(inConfig(IntegrationTest)(scalafmtSettings))
 
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
