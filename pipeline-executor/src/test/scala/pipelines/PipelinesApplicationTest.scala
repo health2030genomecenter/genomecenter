@@ -25,7 +25,12 @@ class PipelinesApplicationTest
     with Matchers {
 
   test("file based state logging should work") {
-    val file = fileutils.TempFile.createTempFile("log")
+    import better.files.File._
+    val file = fileutils.TempFile.createTempFile("state")
+    val source = new java.io.File(
+      this.getClass.getResource("/migration_test_data").getFile).toPath
+    better.files.Dsl.cp(source, file.toPath)
+    
     val pipelineState = new FilePipelineState(file)
 
     val run = RunfolderReadyForProcessing(
@@ -33,29 +38,21 @@ class PipelinesApplicationTest
       "fakePath",
       RunConfiguration(false,
                        StableSet.empty,
-                       "fake",
-                       "fake",
+                       None,
                        StableSet.empty,
-                       Selector.empty,
-                       Selector.empty,
-                       None,
-                       "fake",
-                       "fake",
-                       "fake",
-                       None,
-                       None,
-                       None,
-                       None,
-                       None)
+                       StableSet.empty)
     )
 
     pipelineState.registered(run)
 
-    Await.result((new FilePipelineState(file)).pastRuns, 5 seconds) shouldBe List(
-      run)
+    val result = Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
+    result.size shouldBe 2
+    result.take(1) shouldBe List(run)
 
     pipelineState.invalidated(run.runId)
-    Await.result((new FilePipelineState(file)).pastRuns, 5 seconds) shouldBe Nil
+    Await
+      .result((new FilePipelineState(file)).pastRuns, 5 seconds)
+      .size shouldBe 1
   }
 
   test(
@@ -231,20 +228,9 @@ class FakeSequencingCompleteEventSource(take: Int, uniform: Boolean)
           runFolder.getAbsolutePath,
           RunConfiguration(false,
                            StableSet.empty,
-                           fake,
-                           fake,
-                           StableSet(),
-                           Selector.empty,
-                           Selector.empty,
                            None,
-                           fake,
-                           fake,
-                           fake,
-                           None,
-                           None,
-                           None,
-                           None,
-                           None)
+                           StableSet.empty,
+                           StableSet.empty)
         )
       )
       .take(take.toLong)

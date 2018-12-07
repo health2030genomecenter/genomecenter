@@ -13,7 +13,8 @@ import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   DemultiplexingConfiguration,
   RunConfiguration,
-  Selector
+  Selector,
+  WESConfiguration
 }
 import org.gc.pipelines.util.StableSet
 
@@ -306,23 +307,26 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
           tenX = None
         )
       ),
-      referenceFasta = referenceFasta,
-      targetIntervals = targetIntervals,
-      bqsrKnownSites = StableSet(knownSitesVCF.getAbsolutePath),
-      wesSelector = Selector(runIds = StableSet(RunId(runId)),
-                             samples = StableSet.empty,
-                             lanes = StableSet.empty,
-                             projects = StableSet.empty),
-      rnaSelector = Selector.empty,
       globalIndexSet = Some(globalIndexSetFilePath),
-      geneModelGtf = gtfFile.getAbsolutePath,
-      dbSnpVcf = knownSitesVCF.getAbsolutePath,
-      variantEvaluationIntervals = targetIntervals,
-      vqsrMillsAnd1Kg = None,
-      vqsrHapmap = None,
-      vqsrOneKgOmni = None,
-      vqsrOneKgHighConfidenceSnps = None,
-      vqsrDbSnp138 = None
+      wesProcessing = StableSet(
+        Selector(runIds = StableSet(RunId(runId)),
+                 samples = StableSet.empty,
+                 lanes = StableSet.empty,
+                 projects = StableSet.empty) ->
+          WESConfiguration(
+            referenceFasta = referenceFasta,
+            targetIntervals = targetIntervals,
+            bqsrKnownSites = StableSet(knownSitesVCF.getAbsolutePath),
+            dbSnpVcf = knownSitesVCF.getAbsolutePath,
+            variantEvaluationIntervals = targetIntervals,
+            vqsrMillsAnd1Kg = None,
+            vqsrHapmap = None,
+            vqsrOneKgOmni = None,
+            vqsrOneKgHighConfidenceSnps = None,
+            vqsrDbSnp138 = None
+          )
+      ),
+      rnaProcessing = StableSet.empty
     )
 
     val (testConfig, basePath) = makeTestConfig

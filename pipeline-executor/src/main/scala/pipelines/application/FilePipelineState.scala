@@ -71,7 +71,8 @@ class FilePipelineState(logFile: File)
       deriveDecoder[Event]
   }
 
-  val storage = new Storage[Event](logFile, Nil)
+  val storage =
+    new Storage[Event](logFile, PipelineStateMigrations.migrations)
 
   private def recover() = storage.read.foreach(updateState)
 

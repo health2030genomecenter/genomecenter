@@ -11,38 +11,16 @@ import org.gc.pipelines.util.StableSet.syntax
 case class RunConfigurationDTO(
     automatic: Boolean,
     demultiplexingRuns: Set[DemultiplexingConfiguration],
-    referenceFasta: String,
-    targetIntervals: String,
-    bqsrKnownSites: Set[String],
-    wesSelector: Selector,
-    rnaSelector: Selector,
     globalIndexSet: Option[String],
-    geneModelGtf: String,
-    dbSnpVcf: String,
-    variantEvaluationIntervals: String,
-    vqsrMillsAnd1Kg: Option[String],
-    vqsrHapmap: Option[String],
-    vqsrOneKgOmni: Option[String],
-    vqsrOneKgHighConfidenceSnps: Option[String],
-    vqsrDbSnp138: Option[String]
+    wesProcessing: List[(Selector, WESConfiguration)],
+    rnaProcessing: List[(Selector, RNASeqConfiguration)]
 ) {
   def toRunConfiguration = RunConfiguration(
     automatic = automatic,
     demultiplexingRuns = demultiplexingRuns.toStable,
-    referenceFasta = referenceFasta,
-    targetIntervals = targetIntervals,
-    bqsrKnownSites = bqsrKnownSites.toStable,
-    wesSelector = wesSelector,
-    rnaSelector = rnaSelector,
     globalIndexSet = globalIndexSet,
-    geneModelGtf = geneModelGtf,
-    dbSnpVcf = dbSnpVcf,
-    variantEvaluationIntervals = variantEvaluationIntervals,
-    vqsrMillsAnd1Kg = vqsrMillsAnd1Kg,
-    vqsrHapmap = vqsrHapmap,
-    vqsrOneKgOmni = vqsrOneKgOmni,
-    vqsrOneKgHighConfidenceSnps = vqsrOneKgHighConfidenceSnps,
-    vqsrDbSnp138 = vqsrDbSnp138
+    wesProcessing = wesProcessing.toSet.toStable,
+    rnaProcessing = rnaProcessing.toSet.toStable
   )
 }
 
@@ -53,10 +31,6 @@ object RunConfigurationDTO {
       .Try {
 
         val config = ConfigFactory.parseString(content)
-
-        def getSelector(path: String) =
-          if (config.hasPath(path)) Selector(config.getConfig(path))
-          else Selector.empty
 
         def getDemultiplexings(config: Config) = DemultiplexingConfiguration(
           sampleSheet = config.getString("sampleSheet"),
@@ -74,23 +48,15 @@ object RunConfigurationDTO {
             else None
         )
 
-        RunConfigurationDTO(
-          demultiplexingRuns = config
-            .getConfigList("demultiplexing")
-            .asScala
-            .map(getDemultiplexings)
-            .toSet,
-          automatic = config.getBoolean("automatic"),
+        def parseRNASeqConfiguration(config: Config) = RNASeqConfiguration(
+          referenceFasta = config.getString("referenceFasta"),
+          geneModelGtf = config.getString("geneModelGtf")
+        )
+        def parseWESConfiguration(config: Config) = WESConfiguration(
           referenceFasta = config.getString("referenceFasta"),
           targetIntervals = config.getString("targetIntervals"),
-          bqsrKnownSites = config.getStringList("bqsr.knownSites").asScala.toSet,
-          wesSelector = getSelector("wes"),
-          rnaSelector = getSelector("rna"),
-          geneModelGtf = config.getString("geneModelGtf"),
-          globalIndexSet =
-            if (config.hasPath("globalIndexSet"))
-              Some(config.getString("globalIndexSet"))
-            else None,
+          bqsrKnownSites =
+            config.getStringList("bqsr.knownSites").asScala.toSet.toStable,
           dbSnpVcf = config.getString("dbSnpVcf"),
           variantEvaluationIntervals =
             config.getString("variantEvaluationIntervals"),
@@ -105,6 +71,30 @@ object RunConfigurationDTO {
           vqsrDbSnp138 =
             option(config, "vqsrDbSnp138")(c => p => c.getString(p))
         )
+
+        RunConfigurationDTO(
+          demultiplexingRuns = config
+            .getConfigList("demultiplexing")
+            .asScala
+            .map(getDemultiplexings)
+            .toSet,
+          automatic = config.getBoolean("automatic"),
+          globalIndexSet =
+            if (config.hasPath("globalIndexSet"))
+              Some(config.getString("globalIndexSet"))
+            else None,
+          wesProcessing =
+            if (config.hasPath("wes"))
+              config.getConfigList("wes").asScala.toList.map { config =>
+                (Selector(config), parseWESConfiguration(config))
+              } else Nil,
+          rnaProcessing =
+            if (config.hasPath("rna"))
+              config.getConfigList("rna").asScala.toList.map { config =>
+                (Selector(config), parseRNASeqConfiguration(config))
+              } else Nil
+        )
+
       }
       .toEither
       .left

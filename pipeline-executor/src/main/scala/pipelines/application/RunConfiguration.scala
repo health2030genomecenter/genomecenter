@@ -21,16 +21,10 @@ case class DemultiplexingConfiguration(
   def isTenX = tenX.exists(identity)
 }
 
-case class RunConfiguration(
-    automatic: Boolean,
-    demultiplexingRuns: StableSet[DemultiplexingConfiguration],
+case class WESConfiguration(
     referenceFasta: String,
     targetIntervals: String,
     bqsrKnownSites: StableSet[String],
-    wesSelector: Selector,
-    rnaSelector: Selector,
-    globalIndexSet: Option[String],
-    geneModelGtf: String,
     dbSnpVcf: String,
     variantEvaluationIntervals: String,
     vqsrMillsAnd1Kg: Option[String],
@@ -38,8 +32,25 @@ case class RunConfiguration(
     vqsrOneKgOmni: Option[String],
     vqsrOneKgHighConfidenceSnps: Option[String],
     vqsrDbSnp138: Option[String]
-)
+) {
+  def files =
+    Set(referenceFasta, targetIntervals, dbSnpVcf, variantEvaluationIntervals) ++ bqsrKnownSites.toSeq ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet
+}
 
+case class RNASeqConfiguration(
+    referenceFasta: String,
+    geneModelGtf: String
+) {
+  def files = Set(referenceFasta, geneModelGtf)
+}
+
+case class RunConfiguration(
+    automatic: Boolean,
+    demultiplexingRuns: StableSet[DemultiplexingConfiguration],
+    globalIndexSet: Option[String],
+    wesProcessing: StableSet[(Selector, WESConfiguration)],
+    rnaProcessing: StableSet[(Selector, RNASeqConfiguration)]
+)
 case class RunfolderReadyForProcessing(runId: RunId,
                                        runFolderPath: String,
                                        runConfiguration: RunConfiguration) {
@@ -47,19 +58,13 @@ case class RunfolderReadyForProcessing(runId: RunId,
   private def filesCanRead(files: Set[String]) =
     files.forall(s => new File(s).canRead)
 
-  def isValid = {
-    import runConfiguration._
-
+  def isValid =
     new File(runFolderPath).canRead &&
-    new File(runFolderPath, "RunInfo.xml").canRead &&
-    filesCanRead(Set(
-      referenceFasta,
-      targetIntervals,
-      geneModelGtf,
-      dbSnpVcf,
-      variantEvaluationIntervals) ++ bqsrKnownSites.toSeq ++ globalIndexSet.toSet ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet)
+      new File(runFolderPath, "RunInfo.xml").canRead &&
+      filesCanRead(
+        (runConfiguration.wesProcessing.toSeq.flatMap(_._2.files.toSeq) ++
+          runConfiguration.rnaProcessing.toSeq.flatMap(_._2.files.toSeq)).toSet)
 
-  }
 }
 
 object RunfolderReadyForProcessing {
@@ -93,6 +98,18 @@ object RunfolderReadyForProcessing {
   }
 }
 
+object RNASeqConfiguration {
+  implicit val encoder: Encoder[RNASeqConfiguration] =
+    deriveEncoder[RNASeqConfiguration]
+  implicit val decoder: Decoder[RNASeqConfiguration] =
+    deriveDecoder[RNASeqConfiguration]
+}
+object WESConfiguration {
+  implicit val encoder: Encoder[WESConfiguration] =
+    deriveEncoder[WESConfiguration]
+  implicit val decoder: Decoder[WESConfiguration] =
+    deriveDecoder[WESConfiguration]
+}
 object DemultiplexingConfiguration {
   implicit val encoder: Encoder[DemultiplexingConfiguration] =
     deriveEncoder[DemultiplexingConfiguration]

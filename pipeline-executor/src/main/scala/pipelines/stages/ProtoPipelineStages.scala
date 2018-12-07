@@ -6,6 +6,8 @@ import tasks.circesupport._
 import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   RunConfiguration,
+  WESConfiguration,
+  RNASeqConfiguration,
   Selector
 }
 import org.gc.pipelines.model._
@@ -212,14 +214,17 @@ object ProtoPipelineStages extends StrictLogging {
 
     }
 
-  def select(selector: Selector, sample: PerSamplePerRunFastQ) =
-    Option(sample).filter { sample =>
-      val lanes = sample.lanes.map { fqLane =>
-        Metadata(fqLane.runId, fqLane.lane, sample.sampleId, sample.project)
+  def selectConfiguration[A](selectors: List[(Selector, A)],
+                             sample: PerSamplePerRunFastQ): Option[A] =
+    selectors
+      .find {
+        case (selector, _) =>
+          val lanes = sample.lanes.map { fqLane =>
+            Metadata(fqLane.runId, fqLane.lane, sample.sampleId, sample.project)
+          }
+          lanes.toSeq.exists(selector.isSelected)
       }
-      lanes.toSeq.exists(selector.isSelected)
-
-    }
+      .map(_._2)
 
   def parseReadLengthFromRunInfo(
       run: RunfolderReadyForProcessing): Either[String, Map[ReadType, Int]] = {
@@ -302,11 +307,10 @@ object ProtoPipelineStages extends StrictLogging {
       f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
     tsc.withFilePrefix(Seq("demultiplexing", runId, demultiplexingId))(f)
 
-  def fetchReference(runConfiguration: RunConfiguration)(
-      implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) = {
+  def fetchReference(filePath: String)(implicit tsc: TaskSystemComponents,
+                                       ec: ExecutionContext) = {
     tsc.withFilePrefix(Seq("references")) { implicit tsc =>
-      val file = new File(runConfiguration.referenceFasta)
+      val file = new File(filePath)
       val fileName = file.getName
       logger.debug(s"Fetching reference $file")
       SharedFile(file, fileName).map(ReferenceFasta(_)).andThen {
@@ -363,18 +367,18 @@ object ProtoPipelineStages extends StrictLogging {
       case None       => Future.successful(None)
       case Some(path) => fetchFile("references", path).map(Some(_))
     }
-  def fetchGenemodel(runConfiguration: RunConfiguration)(
+  def fetchGenemodel(runConfiguration: RNASeqConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
     fetchFile("references", runConfiguration.geneModelGtf).map(GTFFile(_))
 
-  def fetchVariantEvaluationIntervals(runConfiguration: RunConfiguration)(
+  def fetchVariantEvaluationIntervals(runConfiguration: WESConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
     fetchFile("references", runConfiguration.variantEvaluationIntervals)
       .map(BedFile(_))
 
-  def fetchDbSnpVcf(runConfiguration: RunConfiguration)(
+  def fetchDbSnpVcf(runConfiguration: WESConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
     for {
@@ -382,7 +386,7 @@ object ProtoPipelineStages extends StrictLogging {
       vcfidx <- fetchFile("references", runConfiguration.dbSnpVcf + ".tbi")
     } yield VCF(vcf, Some(vcfidx))
 
-  def fetchVqsrTrainingFiles(runConfiguration: RunConfiguration)(
+  def fetchVqsrTrainingFiles(runConfiguration: WESConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
     if (runConfiguration.vqsrMillsAnd1Kg.isDefined)
@@ -427,7 +431,7 @@ object ProtoPipelineStages extends StrictLogging {
     }
   }
 
-  def fetchTargetIntervals(runConfiguration: RunConfiguration)(
+  def fetchTargetIntervals(runConfiguration: WESConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) = {
     tsc.withFilePrefix(Seq("references")) { implicit tsc =>
@@ -443,7 +447,7 @@ object ProtoPipelineStages extends StrictLogging {
       }
     }
   }
-  def fetchKnownSitesFiles(runConfiguration: RunConfiguration)(
+  def fetchKnownSitesFiles(runConfiguration: WESConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) = {
     val files =

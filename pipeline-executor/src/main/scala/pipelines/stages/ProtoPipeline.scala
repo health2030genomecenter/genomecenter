@@ -2,7 +2,12 @@ package org.gc.pipelines.stages
 
 import scala.concurrent.{ExecutionContext, Future}
 import tasks._
-import org.gc.pipelines.application.{Pipeline, RunfolderReadyForProcessing}
+import org.gc.pipelines.application.{
+  Pipeline,
+  RunfolderReadyForProcessing,
+  WESConfiguration,
+  RNASeqConfiguration
+}
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.ResourceConfig
 import org.gc.pipelines.util.StableSet.syntax
@@ -114,54 +119,28 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       case Right(readLengths) =>
         logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
 
+        val fastpReport = startFastpReports(demultiplexedSample)
+
+        val selectedWESConfiguration = ProtoPipelineStages.selectConfiguration(
+          r.runConfiguration.wesProcessing.toSeq.toList,
+          demultiplexedSample)
+
+        val selectedRNASeqConfiguration =
+          ProtoPipelineStages.selectConfiguration(
+            r.runConfiguration.rnaProcessing.toSeq.toList,
+            demultiplexedSample)
+
+        val perSampleResultsWES = selectedWESConfiguration.fold(emptyWesResult)(
+          wes(
+            demultiplexedSample,
+            _,
+            pastSampleResult.flatMap(_.wes.map(_.uncalibrated)),
+          ))
+
+        val perSampleResultsRNA = selectedRNASeqConfiguration.fold(
+          emptyRNASeqResult)(rna(demultiplexedSample, _, readLengths))
+
         for {
-          reference <- ProtoPipelineStages.fetchReference(r.runConfiguration)
-          knownSites <- ProtoPipelineStages.fetchKnownSitesFiles(
-            r.runConfiguration)
-          gtf <- ProtoPipelineStages.fetchGenemodel(r.runConfiguration)
-          selectionTargetIntervals <- ProtoPipelineStages.fetchTargetIntervals(
-            r.runConfiguration)
-          dbSnpVcf <- ProtoPipelineStages.fetchDbSnpVcf(r.runConfiguration)
-          variantEvaluationIntervals <- ProtoPipelineStages
-            .fetchVariantEvaluationIntervals(r.runConfiguration)
-          vqsrTrainingFiles <- ProtoPipelineStages.fetchVqsrTrainingFiles(
-            r.runConfiguration)
-
-          fastpReport = startFastpReports(demultiplexedSample)
-
-          samplesForWESAnalysis = ProtoPipelineStages.select(
-            r.runConfiguration.wesSelector,
-            demultiplexedSample)
-
-          samplesForRNASeqAnalysis = ProtoPipelineStages.select(
-            r.runConfiguration.rnaSelector,
-            demultiplexedSample)
-
-          _ = {
-            samplesForWESAnalysis.foreach { sample =>
-              logger.info(
-                s"WES samples from run ${r.runId} : ${sample.sampleId}")
-            }
-            samplesForRNASeqAnalysis.foreach { sample =>
-              logger.info(
-                s"RNASEQ samples from run ${r.runId} : ${sample.sampleId}")
-            }
-          }
-
-          perSampleResultsWES = samplesForWESAnalysis.fold(emptyWesResult)(
-            wes(
-              _,
-              reference,
-              knownSites.toSeq,
-              selectionTargetIntervals,
-              dbSnpVcf,
-              variantEvaluationIntervals,
-              pastSampleResult.flatMap(_.wes.map(_.uncalibrated)),
-              vqsrTrainingFiles
-            ))
-
-          perSampleResultsRNA = samplesForRNASeqAnalysis.fold(
-            emptyRNASeqResult)(rna(_, reference, gtf, readLengths))
 
           perSampleResultsWES <- perSampleResultsWES
           perSampleResultsRNA <- perSampleResultsRNA
@@ -191,15 +170,18 @@ class ProtoPipeline(implicit EC: ExecutionContext)
   }
 
   private def wes(samplesForWESAnalysis: PerSamplePerRunFastQ,
-                  reference: ReferenceFasta,
-                  knownSites: Seq[VCF],
-                  selectionTargetIntervals: BedFile,
-                  dbSnpVcf: VCF,
-                  variantEvaluationIntervals: BedFile,
-                  previousUncalibratedBam: Option[Bam],
-                  vqsrTrainingFiles: Option[VQSRTrainingFiles])(
+                  conf: WESConfiguration,
+                  previousUncalibratedBam: Option[Bam])(
       implicit tsc: TaskSystemComponents) =
     for {
+      reference <- ProtoPipelineStages.fetchReference(conf.referenceFasta)
+      knownSites <- ProtoPipelineStages.fetchKnownSitesFiles(conf)
+
+      selectionTargetIntervals <- ProtoPipelineStages.fetchTargetIntervals(conf)
+      dbSnpVcf <- ProtoPipelineStages.fetchDbSnpVcf(conf)
+      variantEvaluationIntervals <- ProtoPipelineStages
+        .fetchVariantEvaluationIntervals(conf)
+      vqsrTrainingFiles <- ProtoPipelineStages.fetchVqsrTrainingFiles(conf)
       perSampleResultsWES <- ProtoPipelineStages.singleSampleWES(
         SingleSamplePipelineInput(
           samplesForWESAnalysis.withoutRunId,
@@ -216,11 +198,11 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
   private def rna(
       samplesForRNASeqAnalysis: PerSamplePerRunFastQ,
-      reference: ReferenceFasta,
-      gtf: GTFFile,
+      conf: RNASeqConfiguration,
       readLengths: Map[ReadType, Int])(implicit tsc: TaskSystemComponents) =
     for {
-
+      gtf <- ProtoPipelineStages.fetchGenemodel(conf)
+      reference <- ProtoPipelineStages.fetchReference(conf.referenceFasta)
       perSampleResultsRNA <- ProtoPipelineStages.singleSampleRNA(
         SingleSamplePipelineInputRNASeq(
           samplesForRNASeqAnalysis.withoutRunId,
