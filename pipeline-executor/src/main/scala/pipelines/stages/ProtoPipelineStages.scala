@@ -206,7 +206,15 @@ object ProtoPipelineStages extends StrictLogging {
                           gtf = gtf.file,
                           readLength = readLengths.map(_._2).toSeq.max
                         ))(ResourceConfig.starAlignment)
-                    } yield SingleSamplePipelineResultRNA(starResult)
+                      coordinateSorted <- BWAAlignment.sortByCoordinateAndIndex(
+                        starResult.bam.bam)(ResourceConfig.sortBam)
+                      counts <- QTLToolsQuantification.quantify(
+                        QTLToolsQuantificationInput(
+                          coordinateSorted,
+                          gtf,
+                          Nil
+                        ))(ResourceConfig.qtlToolsQuantification)
+                    } yield SingleSamplePipelineResultRNA(starResult, counts)
                 }
 
               } yield processedSample

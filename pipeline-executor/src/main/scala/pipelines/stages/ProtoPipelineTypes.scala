@@ -80,8 +80,9 @@ case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.files ++ gvcf.files: _*)
 
 case class SingleSamplePipelineResultRNA(
-    star: StarResult
-) extends WithSharedFiles(star.files: _*)
+    star: StarResult,
+    quantification: QTLToolsQuantificationResult
+) extends WithSharedFiles(star.files ++ quantification.files: _*)
 
 case class PerSamplePipelineResultRNASeq(
     samples: StableSet[SingleSamplePipelineResultRNA])

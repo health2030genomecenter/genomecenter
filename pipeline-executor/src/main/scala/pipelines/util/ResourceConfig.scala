@@ -20,6 +20,9 @@ object ResourceConfig {
 
   def bcl2fastq(implicit tsc: TaskSystemComponents) = parse("bcl2fastq")
 
+  def qtlToolsQuantification(implicit tsc: TaskSystemComponents) =
+    parse("qtlToolsQuantification")
+
   def fastp(implicit tsc: TaskSystemComponents) = parse("fastp")
 
   def bwa(implicit tsc: TaskSystemComponents) = parse("bwa")

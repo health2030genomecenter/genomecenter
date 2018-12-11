@@ -24,7 +24,7 @@ case class QTLToolsQuantificationResult(
 
 object QTLToolsQuantification {
 
-  val alignSample =
+  val quantify =
     AsyncTask[QTLToolsQuantificationInput, QTLToolsQuantificationResult](
       "__qtltools-quant",
       1) {
