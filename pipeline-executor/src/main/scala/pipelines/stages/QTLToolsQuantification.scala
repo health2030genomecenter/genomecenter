@@ -46,7 +46,7 @@ object QTLToolsQuantification {
             result <- {
 
               val bashScript = s"""\\
-     $qtltoolsExecutable quant \\
+     $qtltoolsExecutable quan \\
         --gtf ${localGtf.getAbsolutePath}\\
         --bam ${localBam.getAbsolutePath}\\
         --out $output \\

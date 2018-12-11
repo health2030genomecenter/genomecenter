@@ -30,7 +30,7 @@ class PipelinesApplicationTest
     val source = new java.io.File(
       this.getClass.getResource("/migration_test_data").getFile).toPath
     better.files.Dsl.cp(source, file.toPath)
-    
+
     val pipelineState = new FilePipelineState(file)
 
     val run = RunfolderReadyForProcessing(
