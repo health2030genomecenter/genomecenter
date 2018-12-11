@@ -22,6 +22,7 @@ case class DemultiplexingConfiguration(
 }
 
 case class WESConfiguration(
+    analysisId: AnalysisId,
     referenceFasta: String,
     targetIntervals: String,
     bqsrKnownSites: StableSet[String],
@@ -38,6 +39,7 @@ case class WESConfiguration(
 }
 
 case class RNASeqConfiguration(
+    analysisId: AnalysisId,
     referenceFasta: String,
     geneModelGtf: String
 ) {

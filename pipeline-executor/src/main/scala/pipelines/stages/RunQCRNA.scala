@@ -10,12 +10,13 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import org.gc.pipelines.util.StableSet
 
-case class RunQCTableRNAInput(fileName: String, samples: StableSet[StarResult])
-    extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
+case class RunQCTableRNAInput(fileName: String,
+                              samples: StableSet[(AnalysisId, StarResult)])
+    extends WithSharedFiles(samples.toSeq.flatMap(_._2.files): _*)
 
 object RunQCRNA {
 
-  def makeHtmlTable(metrics: Seq[StarMetrics.Root]): String = {
+  def makeHtmlTable(metrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
     def mkHeader(elems1: Seq[String], elems: Seq[(String, Boolean)]) =
       s"""
           <thead>
@@ -58,10 +59,10 @@ object RunQCRNA {
     val left = true
     val right = false
     val lines = metrics
-      .sortBy(_.project.toString)
-      .sortBy(_.sampleId.toString)
+      .sortBy(_._2.project.toString)
+      .sortBy(_._2.sampleId.toString)
       .map {
-        case starMetrics =>
+        case (analysisId, starMetrics) =>
           import starMetrics._
           import starMetrics.metrics._
 
@@ -70,6 +71,7 @@ object RunQCRNA {
               project -> left,
               sampleId -> left,
               runId -> left,
+              analysisId -> left,
               f"${numberOfReads / 1E6}%10.2fM" -> right,
               f"$meanReadLength%13.2f" -> right,
               f"${uniquelyMappedReads / 1E6}%10.2fM" -> right,
@@ -82,7 +84,7 @@ object RunQCRNA {
       .mkString("\n")
 
     val header = mkHeader(
-      List("Proj", "Sample", "Run"),
+      List("Proj", "Sample", "Run", "AnalysisId"),
       List(
         "TotalReads" -> right,
         "MeanReadLength" -> right,
@@ -106,14 +108,16 @@ object RunQCRNA {
 
           for {
             parsedMetrics <- Future.traverse(samples.toSeq) {
-              case StarResult(log,
-                              run,
-                              BamWithSampleMetadata(project, sample, _)) =>
+              case (analysisId,
+                    StarResult(log,
+                               run,
+                               BamWithSampleMetadata(project, sample, _))) =>
                 log.source
                   .runFold(ByteString.empty)(_ ++ _)
                   .map(_.utf8String)
                   .map { content =>
-                    StarMetrics.Root(content, project, sample, run)
+                    (analysisId,
+                     StarMetrics.Root(content, project, sample, run))
                   }
             }
             html = makeHtmlTable(parsedMetrics)

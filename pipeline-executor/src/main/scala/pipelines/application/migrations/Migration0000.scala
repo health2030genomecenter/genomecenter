@@ -9,6 +9,7 @@ import org.gc.pipelines.application.{
   RNASeqConfiguration
 }
 import org.gc.pipelines.application
+import org.gc.pipelines.model.AnalysisId
 import io.circe.syntax._
 
 object Migration0000 extends Function1[Json, Json] {
@@ -33,6 +34,7 @@ object Migration0000 extends Function1[Json, Json] {
       wesProcessing = StableSet(
         (parsed.wesSelector,
          WESConfiguration(
+           analysisId = AnalysisId("default"),
            referenceFasta = parsed.referenceFasta,
            targetIntervals = parsed.targetIntervals,
            bqsrKnownSites = parsed.bqsrKnownSites,
@@ -47,10 +49,9 @@ object Migration0000 extends Function1[Json, Json] {
       ),
       rnaProcessing = StableSet(
         (parsed.rnaSelector,
-         RNASeqConfiguration(
-           parsed.referenceFasta,
-           parsed.geneModelGtf
-         ))
+         RNASeqConfiguration(analysisId = AnalysisId("default"),
+                             parsed.referenceFasta,
+                             parsed.geneModelGtf))
       )
     )
     migrated.asJson

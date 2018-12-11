@@ -33,11 +33,12 @@ class AlignmentQCTest
       val joined = als.map { alSummaryOfLane =>
         val lane = alSummaryOfLane.lane
         val hsMetricsOfLane = hs.find(_.lane == lane).get
-        (alSummaryOfLane, hsMetricsOfLane)
+        (alSummaryOfLane, hsMetricsOfLane, AnalysisId("boo"))
       }
       println(
-        AlignmentQC.makeHtmlTable(joined,
-                                  List((dup, fastp, wgs, vcfQc, insertSize))))
+        AlignmentQC.makeHtmlTable(
+          joined,
+          List((dup, fastp, wgs, vcfQc, insertSize, AnalysisId("boo")))))
     }
   }
 

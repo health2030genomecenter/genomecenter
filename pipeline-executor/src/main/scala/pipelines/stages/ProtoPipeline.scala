@@ -39,7 +39,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         .filter(_.runId == runId)
         .map(_.withoutRunId)
 
-    val sampleQCsWES = samples.flatMap(_.extractWESQCFiles.toSeq)
+    val sampleQCsWES =
+      samples.flatMap(_.extractWESQCFiles)
 
     inRunQCFolder(runId) { implicit tsc =>
       for {
@@ -48,10 +49,13 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           RunQCTableInput(runId + "." + samples.size,
                           sampleQCsWES.toSet.toStable))(ResourceConfig.minimal)
         _ <- RunQCRNA.runQCTable(
-          RunQCTableRNAInput(
-            runId + "." + samples.size,
-            samples.flatMap(_.rna.toSeq.map(_.star)).toSet.toStable))(
-          ResourceConfig.minimal)
+          RunQCTableRNAInput(runId + "." + samples.size,
+                             samples
+                               .flatMap(sampleResult =>
+                                 sampleResult.rna.toSeq.map(rnaResult =>
+                                   (rnaResult.analysisId, rnaResult.star)))
+                               .toSet
+                               .toStable))(ResourceConfig.minimal)
         _ <- ReadQC.readQC(
           ReadQCInput(fastqsOfThisRun.toSet.toStable,
                       runId + "." + samples.size))(ResourceConfig.minimal)
@@ -71,7 +75,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         .filter(_.project == project)
         .map(_.withoutRunId)
 
-    val sampleQCsWES = samples.flatMap(_.extractWESQCFiles.toSeq)
+    val sampleQCsWES =
+      samples.flatMap(_.extractWESQCFiles)
 
     def projectQC = inProjectQCFolder(project) { implicit tsc =>
       for {
@@ -80,10 +85,12 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           RunQCTableInput(project + "." + samples.size,
                           sampleQCsWES.toSet.toStable))(ResourceConfig.minimal)
         rna <- RunQCRNA.runQCTable(
-          RunQCTableRNAInput(
-            project + "." + samples.size,
-            samples.flatMap(_.rna.toSeq.map(_.star)).toSet.toStable))(
-          ResourceConfig.minimal)
+          RunQCTableRNAInput(project + "." + samples.size,
+                             samples
+                               .flatMap(_.rna.toSeq.map(rnaResult =>
+                                 (rnaResult.analysisId, rnaResult.star)))
+                               .toSet
+                               .toStable))(ResourceConfig.minimal)
         reads <- ReadQC.readQC(
           ReadQCInput(fastqsOfThisRun.toSet.toStable,
                       project + "." + samples.size))(ResourceConfig.minimal)
@@ -121,24 +128,32 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
         val fastpReport = startFastpReports(demultiplexedSample)
 
-        val selectedWESConfiguration = ProtoPipelineStages.selectConfiguration(
-          r.runConfiguration.wesProcessing.toSeq.toList,
-          demultiplexedSample)
+        val selectedWESConfigurations =
+          ProtoPipelineStages
+            .selectConfiguration(r.runConfiguration.wesProcessing.toSeq.toList,
+                                 demultiplexedSample)
+            .toList
 
-        val selectedRNASeqConfiguration =
-          ProtoPipelineStages.selectConfiguration(
-            r.runConfiguration.rnaProcessing.toSeq.toList,
-            demultiplexedSample)
+        val selectedRNASeqConfigurations =
+          ProtoPipelineStages
+            .selectConfiguration(r.runConfiguration.rnaProcessing.toSeq.toList,
+                                 demultiplexedSample)
+            .toList
 
-        val perSampleResultsWES = selectedWESConfiguration.fold(emptyWesResult)(
-          wes(
-            demultiplexedSample,
-            _,
-            pastSampleResult.flatMap(_.wes.map(_.uncalibrated)),
+        val perSampleResultsWES = Future.traverse(selectedWESConfigurations)(
+          conf =>
+            wes(
+              demultiplexedSample,
+              conf,
+              pastSampleResult
+                .flatMap(
+                  _.wes
+                    .find(_.analysisId == conf.analysisId)
+                    .map(_.uncalibrated)),
           ))
 
-        val perSampleResultsRNA = selectedRNASeqConfiguration.fold(
-          emptyRNASeqResult)(rna(demultiplexedSample, _, readLengths))
+        val perSampleResultsRNA = Future.traverse(selectedRNASeqConfigurations)(
+          rna(demultiplexedSample, _, readLengths))
 
         for {
 
@@ -184,6 +199,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       vqsrTrainingFiles <- ProtoPipelineStages.fetchVqsrTrainingFiles(conf)
       perSampleResultsWES <- ProtoPipelineStages.singleSampleWES(
         SingleSamplePipelineInput(
+          conf.analysisId,
           samplesForWESAnalysis.withoutRunId,
           reference,
           knownSites.toSet.toStable,
@@ -194,7 +210,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           vqsrTrainingFiles
         ))(ResourceConfig.minimal)
 
-    } yield Some(perSampleResultsWES)
+    } yield perSampleResultsWES
 
   private def rna(
       samplesForRNASeqAnalysis: PerSamplePerRunFastQ,
@@ -205,13 +221,14 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       reference <- ProtoPipelineStages.fetchReference(conf.referenceFasta)
       perSampleResultsRNA <- ProtoPipelineStages.singleSampleRNA(
         SingleSamplePipelineInputRNASeq(
+          conf.analysisId,
           samplesForRNASeqAnalysis.withoutRunId,
           reference,
           gtf,
           readLengths.toSeq.toSet.toStable
         ))(ResourceConfig.minimal)
 
-    } yield Some(perSampleResultsRNA)
+    } yield perSampleResultsRNA
 
   private def startFastpReports(perSampleFastQs: PerSamplePerRunFastQ)(
       implicit tsc: TaskSystemComponents): Future[FastpReport] =
@@ -235,11 +252,5 @@ class ProtoPipeline(implicit EC: ExecutionContext)
   private def inDeliverablesFolder[T](f: TaskSystemComponents => T)(
       implicit tsc: TaskSystemComponents) =
     tsc.withFilePrefix(Seq("deliverables"))(f)
-
-  private val emptyWesResult =
-    Future.successful(Option.empty[SingleSamplePipelineResult])
-
-  private val emptyRNASeqResult =
-    Future.successful(Option.empty[SingleSamplePipelineResultRNA])
 
 }

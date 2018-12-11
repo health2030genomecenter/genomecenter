@@ -9,8 +9,8 @@ import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
 case class SampleResult(
-    wes: Option[SingleSamplePipelineResult],
-    rna: Option[SingleSamplePipelineResultRNA],
+    wes: Seq[SingleSamplePipelineResult],
+    rna: Seq[SingleSamplePipelineResultRNA],
     demultiplexed: Seq[PerSamplePerRunFastQ],
     fastpReports: Seq[FastpReport],
     runFolders: Seq[RunfolderReadyForProcessing],
@@ -24,13 +24,14 @@ case class SampleResult(
     ) {
   def lastRunId = runFolders.last.runId
 
-  def extractWESQCFiles: Option[SampleMetrics] =
+  def extractWESQCFiles: Seq[SampleMetrics] =
     wes.map { sample =>
       val fastpReportsOfSample = fastpReports.find { fp =>
         fp.sampleId == sample.sampleId &&
         fp.project == sample.project
       }.get
       SampleMetrics(
+        sample.analysisId,
         sample.alignmentQC.alignmentSummary,
         sample.targetSelectionQC.hsMetrics,
         sample.duplicationQC.markDuplicateMetrics,
@@ -45,6 +46,7 @@ case class SampleResult(
 }
 
 case class SingleSamplePipelineInputRNASeq(
+    analysisId: AnalysisId,
     demultiplexed: PerSampleFastQ,
     reference: ReferenceFasta,
     gtf: GTFFile,
@@ -53,6 +55,7 @@ case class SingleSamplePipelineInputRNASeq(
       demultiplexed.files ++ reference.files ++ gtf.files: _*)
 
 case class SingleSamplePipelineInput(
+    analysisId: AnalysisId,
     demultiplexed: PerSampleFastQ,
     reference: ReferenceFasta,
     knownSites: StableSet[VCF],
@@ -75,11 +78,13 @@ case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
                                       duplicationQC: DuplicationQCResult,
                                       targetSelectionQC: SelectionQCResult,
                                       wgsQC: CollectWholeGenomeMetricsResult,
-                                      gvcfQC: VariantCallingMetricsResult)
+                                      gvcfQC: VariantCallingMetricsResult,
+                                      analysisId: AnalysisId)
     extends WithSharedFiles(
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.files ++ gvcf.files: _*)
 
 case class SingleSamplePipelineResultRNA(
+    analysisId: AnalysisId,
     star: StarResult,
     quantification: QTLToolsQuantificationResult
 ) extends WithSharedFiles(star.files ++ quantification.files: _*)

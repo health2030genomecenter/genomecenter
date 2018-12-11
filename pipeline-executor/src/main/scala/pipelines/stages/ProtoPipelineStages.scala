@@ -24,7 +24,8 @@ object ProtoPipelineStages extends StrictLogging {
     AsyncTask[SingleSamplePipelineInput, SingleSamplePipelineResult](
       "__persample-single",
       1) {
-      case SingleSamplePipelineInput(demultiplexed,
+      case SingleSamplePipelineInput(analysisId,
+                                     demultiplexed,
                                      referenceFasta,
                                      knownSites,
                                      selectionTargetIntervals,
@@ -45,6 +46,7 @@ object ProtoPipelineStages extends StrictLogging {
                   demultiplexed.project,
                   demultiplexed.sampleId,
                   runIdTag,
+                  analysisId,
                   "intermediate"))
 
           def intoFinalFolder[T] =
@@ -52,7 +54,8 @@ object ProtoPipelineStages extends StrictLogging {
               Seq("projects",
                   demultiplexed.project,
                   demultiplexed.sampleId,
-                  runIdTag))
+                  runIdTag,
+                  analysisId))
 
           def intoQCFolder[T] =
             appendToFilePrefix[T](
@@ -60,6 +63,7 @@ object ProtoPipelineStages extends StrictLogging {
                   demultiplexed.project,
                   demultiplexed.sampleId,
                   runIdTag,
+                  analysisId,
                   "QC"))
 
           for {
@@ -168,7 +172,8 @@ object ProtoPipelineStages extends StrictLogging {
               duplicationQC = duplicationQC,
               targetSelectionQC = targetSelectionQC,
               wgsQC = wgsQC,
-              gvcfQC = gvcfQC
+              gvcfQC = gvcfQC,
+              analysisId = analysisId
             )
 
     }
@@ -177,7 +182,8 @@ object ProtoPipelineStages extends StrictLogging {
     AsyncTask[SingleSamplePipelineInputRNASeq, SingleSamplePipelineResultRNA](
       "__rna-persample-allsamples",
       1) {
-      case SingleSamplePipelineInputRNASeq(demultiplexed,
+      case SingleSamplePipelineInputRNASeq(analysisId,
+                                           demultiplexed,
                                            referenceFasta,
                                            gtf,
                                            readLengths) =>
@@ -185,15 +191,18 @@ object ProtoPipelineStages extends StrictLogging {
           releaseResources
           computationEnvironment.withFilePrefix(Seq("projects")) {
             implicit computationEnvironment =>
-              def inProjectFolder[T](sample: PerSampleFastQ) =
+              def inProjectFolder[T] =
                 appendToFilePrefix[T](
-                  Seq(sample.project, sample.sampleId, sample.runIdTag))
+                  Seq(demultiplexed.project,
+                      demultiplexed.sampleId,
+                      demultiplexed.runIdTag,
+                      analysisId))
 
               for {
                 indexedFasta <- StarAlignment.indexReference(referenceFasta)(
                   ResourceConfig.createStarIndex)
 
-                processedSample <- inProjectFolder(demultiplexed) {
+                processedSample <- inProjectFolder {
                   implicit computationEnvironment =>
                     for {
                       starResult <- StarAlignment.alignSample(
@@ -214,7 +223,10 @@ object ProtoPipelineStages extends StrictLogging {
                           gtf,
                           Nil
                         ))(ResourceConfig.qtlToolsQuantification)
-                    } yield SingleSamplePipelineResultRNA(starResult, counts)
+                    } yield
+                      SingleSamplePipelineResultRNA(analysisId,
+                                                    starResult,
+                                                    counts)
                 }
 
               } yield processedSample

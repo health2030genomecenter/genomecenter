@@ -50,7 +50,8 @@ case class AlignmentQCResult(
                             preAdapterSummary,
                             insertSizeMetrics)
 
-case class SampleMetrics(alignmentSummary: SharedFile,
+case class SampleMetrics(analysisId: AnalysisId,
+                         alignmentSummary: SharedFile,
                          hsMetrics: SharedFile,
                          duplicationMetrics: SharedFile,
                          fastpReport: FastpReport,
@@ -75,13 +76,15 @@ case class RunQCTable(htmlTable: SharedFile) extends WithSharedFiles(htmlTable)
 object AlignmentQC {
 
   def makeHtmlTable(
-      laneMetrics: Seq[(AlignmentSummaryMetrics.Root, HsMetrics.Root)],
+      laneMetrics: Seq[
+        (AlignmentSummaryMetrics.Root, HsMetrics.Root, AnalysisId)],
       sampleMetrics: Seq[
         (DuplicationMetrics.Root,
          FastpReportModel.Root,
          WgsMetrics.Root,
          VariantCallingMetrics.Root,
-         InsertSizeMetrics.Root)]): String = {
+         InsertSizeMetrics.Root,
+         AnalysisId)]): String = {
 
     val left = true
     val right = false
@@ -89,7 +92,12 @@ object AlignmentQC {
       .sortBy(_._1.project.toString)
       .sortBy(_._1.sampleId.toString)
       .map {
-        case (dups, fastpMetrics, wgsMetrics, vcfMetrics, insertSizeMetrics) =>
+        case (dups,
+              fastpMetrics,
+              wgsMetrics,
+              vcfMetrics,
+              insertSizeMetrics,
+              analysisId) =>
           import dups.metrics._
           import dups._
           import fastpMetrics.metrics._
@@ -101,6 +109,7 @@ object AlignmentQC {
             Seq(
               project -> left,
               sampleId -> left,
+              analysisId -> left,
               f"${genomeTerritory / 1E6}%10.2fMb" -> right,
               // f"${totalReads / 1E6}%10.2fM" -> right,
               f"$meanCoverage%13.1fx" -> right,
@@ -132,7 +141,7 @@ object AlignmentQC {
       .sortBy(_._1.runId.toString)
       .sortBy(_._1.lane.toInt)
       .map {
-        case (alignment, targetSelection) =>
+        case (alignment, targetSelection, analysisId) =>
           import alignment.pairMetrics._
           import targetSelection.metrics._
           import alignment._
@@ -143,6 +152,7 @@ object AlignmentQC {
             Seq(
               project -> left,
               sampleId -> left,
+              analysisId -> left,
               runId -> left,
               lane.toString -> left,
               baitSet -> left,
@@ -162,7 +172,7 @@ object AlignmentQC {
       .mkString("\n")
 
     val laneHeader = Html.mkHeader(
-      List("Proj", "Sample", "Run", "Lane", "CaptureKit"),
+      List("Proj", "Sample", "Analysis", "Run", "Lane", "CaptureKit"),
       List(
         "TotalReads" -> right,
         "MeanTargetCoverage" -> right,
@@ -178,7 +188,7 @@ object AlignmentQC {
     )
 
     val sampleHeader = Html.mkHeader(
-      List("Proj", "Sample"),
+      List("Proj", "Sample", "Analysis"),
       List(
         "GenomeSize" -> right,
         // "TotalReads" -> right,
@@ -268,14 +278,15 @@ object AlignmentQC {
                     .find(hs =>
                       hs.lane == alSummaryOfLane.lane && hs.runId == alSummaryOfLane.runId)
                     .get
-                  (alSummaryOfLane, hsMetricsOfLane)
+                  (alSummaryOfLane, hsMetricsOfLane, m.analysisId)
               }
 
               val sampleSpecificMetrics = (dupMetrics,
                                            fastpReport,
                                            wgsMetrics,
                                            variantQCMetrics,
-                                           insertSizeMetrics)
+                                           insertSizeMetrics,
+                                           m.analysisId)
 
               (laneSpecificMetrics, sampleSpecificMetrics)
 

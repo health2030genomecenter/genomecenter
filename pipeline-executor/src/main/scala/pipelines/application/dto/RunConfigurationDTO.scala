@@ -49,10 +49,12 @@ object RunConfigurationDTO {
         )
 
         def parseRNASeqConfiguration(config: Config) = RNASeqConfiguration(
+          analysisId = AnalysisId(config.getString("analysisId")),
           referenceFasta = config.getString("referenceFasta"),
           geneModelGtf = config.getString("geneModelGtf")
         )
         def parseWESConfiguration(config: Config) = WESConfiguration(
+          analysisId = AnalysisId(config.getString("analysisId")),
           referenceFasta = config.getString("referenceFasta"),
           targetIntervals = config.getString("targetIntervals"),
           bqsrKnownSites =

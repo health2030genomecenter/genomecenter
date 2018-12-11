@@ -314,6 +314,7 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
                  lanes = StableSet.empty,
                  projects = StableSet.empty) ->
           WESConfiguration(
+            analysisId = AnalysisId("default"),
             referenceFasta = referenceFasta,
             targetIntervals = targetIntervals,
             bqsrKnownSites = StableSet(knownSitesVCF.getAbsolutePath),
