@@ -45,7 +45,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
   }
 
   private val previousUnfinishedRuns =
-    Source.fromFuture(pipelineState.pastRuns)
+    Source.fromFuture(pipelineState.pastRuns).map { runs =>
+      runs.foreach { run =>
+        logger.info(s"Recovered past runs ${run.runId}")
+      }
+      runs
+    }
 
   private val futureRuns =
     eventSource.commands

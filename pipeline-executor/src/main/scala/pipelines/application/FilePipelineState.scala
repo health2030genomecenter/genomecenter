@@ -7,7 +7,8 @@ import io.circe.{Encoder, Decoder, Json}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import org.gc.pipelines.model.RunId
 
-class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json]) {
+class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
+    extends StrictLogging {
 
   val currentVersion = migrations.size
 
@@ -44,8 +45,11 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json]) {
   private def migrateFromVersion(version: Int, json: Json): T =
     if (version == currentVersion)
       implicitly[Decoder[T]].decodeJson(json).right.get
-    else
-      migrateFromVersion(version + 1, migrations(version)(json))
+    else {
+      val migrated = migrations(version)(json)
+      logger.debug(s"Migrated ${json.noSpaces} to ${migrated.noSpaces}")
+      migrateFromVersion(version + 1, migrated)
+    }
 
   def read = {
     readToJson.map { json =>
@@ -74,7 +78,13 @@ class FilePipelineState(logFile: File)
   val storage =
     new Storage[Event](logFile, PipelineStateMigrations.migrations)
 
-  private def recover() = storage.read.foreach(updateState)
+  private def recover() =
+    storage.read
+      .map { e =>
+        logger.debug(s"Recovered migrated event as $e")
+        e
+      }
+      .foreach(updateState)
 
   val writer = new java.io.FileWriter(logFile, true) // append = true
 
@@ -87,7 +97,8 @@ class FilePipelineState(logFile: File)
     case Registered(r) =>
       past = r :: past
     case Deleted(runId) =>
-      past = past.filterNot(_.runId == runId)
+      past =
+        past.filterNot(runFolder => (runFolder.runId: RunId) == (runId: RunId))
   }
 
   def registered(r: RunfolderReadyForProcessing) = synchronized {
