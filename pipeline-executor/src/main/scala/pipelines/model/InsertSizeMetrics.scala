@@ -13,7 +13,7 @@ object InsertSizeMetrics {
   )
 
   case class Metrics(
-      medianInsertSize: Int,
+      medianInsertSize: Double,
       madInsertSize: Double,
       modeInsertSize: Int,
       meanInsertSize: Double,
@@ -67,7 +67,7 @@ object InsertSizeMetrics {
       dataLines.map { line =>
         val g = get(_: String, line)
         val metrics = Metrics(
-          medianInsertSize = g(H.MEDIAN_INSERT_SIZE).toInt,
+          medianInsertSize = g(H.MEDIAN_INSERT_SIZE).toDouble,
           madInsertSize = g(H.MEDIAN_ABSOLUTE_DEVIATION).toDouble,
           modeInsertSize = g(H.MODE_INSERT_SIZE).toInt,
           meanInsertSize = g(H.MEAN_INSERT_SIZE).toDouble,
