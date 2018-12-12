@@ -14,14 +14,18 @@ import io.circe.syntax._
 
 object Migration0000 extends Function1[Json, Json] {
 
-  def apply(in: Json) =
-    in.hcursor
+  def apply(in: Json) = {
+    val registered = in.hcursor
       .downField("Registered")
-      .downField("run")
-      .downField("runConfiguration")
-      .withFocus(migrate)
-      .top
-      .get
+    if (registered.succeeded) {
+      registered
+        .downField("run")
+        .downField("runConfiguration")
+        .withFocus(migrate)
+        .top
+        .get
+    } else in
+  }
 
   private def migrate(in: Json): Json = {
     val parsed =
