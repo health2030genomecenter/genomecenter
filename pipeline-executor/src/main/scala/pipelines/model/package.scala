@@ -52,7 +52,6 @@ package object model {
   def AnalysisId(s: String): AnalysisId = tag[AnalysisIdTag][String](s)
   implicit val (analysisIdEncoder, analysisIdDecoder) =
     stringCodec[AnalysisIdTag]
-  val DefaultAnalysis = AnalysisId("default")
 
   trait DemultiplexingIdTag
   type DemultiplexingId = String @@ DemultiplexingIdTag
