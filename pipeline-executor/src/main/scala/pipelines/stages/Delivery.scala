@@ -59,6 +59,7 @@ object Delivery {
         case (project, pairs) =>
           (project, pairs.map(_._2))
       }
+
   def extractFastp(fastpReports: Set[FastpReport]) =
     fastpReports.toSeq
       .map { fastpReport =>
@@ -97,6 +98,10 @@ object Delivery {
             inAll(samples.toSeq)(sample =>
               extractBamListFromRnaSeqResults(sample.rna.map(_.star).toSet))
 
+          val collectedRnaSeqQuantification: Map[Project, Seq[SharedFile]] =
+            inAll(samples.toSeq)(sample =>
+              Map(sample.project -> sample.rna.flatMap(_.quantification.files)))
+
           val collectedFastp: Map[Project, Seq[SharedFile]] =
             inAll(samples.toSeq)(sample =>
               extractFastp(sample.fastpReports.toSet))
@@ -108,7 +113,8 @@ object Delivery {
                                     wesBamAndVcfs,
                                     collectedFastp,
                                     collectedFastqs,
-                                    collectedOtherFiles)
+                                    collectedOtherFiles,
+                                    collectedRnaSeqQuantification)
             .reduce(
               tasks.util
                 .addMaps(_, _)(_ ++ _))
