@@ -38,7 +38,7 @@ object Migration0000 extends Function1[Json, Json] {
       wesProcessing = StableSet(
         (parsed.wesSelector,
          WESConfiguration(
-           analysisId = AnalysisId("default"),
+           analysisId = AnalysisId(""),
            referenceFasta = parsed.referenceFasta,
            targetIntervals = parsed.targetIntervals,
            bqsrKnownSites = parsed.bqsrKnownSites,
@@ -53,7 +53,7 @@ object Migration0000 extends Function1[Json, Json] {
       ),
       rnaProcessing = StableSet(
         (parsed.rnaSelector,
-         RNASeqConfiguration(analysisId = AnalysisId("default"),
+         RNASeqConfiguration(analysisId = AnalysisId(""),
                              parsed.referenceFasta,
                              parsed.geneModelGtf))
       )

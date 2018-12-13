@@ -47,7 +47,7 @@ object ProtoPipelineStages extends StrictLogging {
                   demultiplexed.sampleId,
                   runIdTag,
                   analysisId,
-                  "intermediate"))
+                  "intermediate").filter(_.nonEmpty))
 
           def intoFinalFolder[T] =
             appendToFilePrefix[T](
@@ -55,7 +55,7 @@ object ProtoPipelineStages extends StrictLogging {
                   demultiplexed.project,
                   demultiplexed.sampleId,
                   runIdTag,
-                  analysisId))
+                  analysisId).filter(_.nonEmpty))
 
           def intoQCFolder[T] =
             appendToFilePrefix[T](
@@ -64,7 +64,7 @@ object ProtoPipelineStages extends StrictLogging {
                   demultiplexed.sampleId,
                   runIdTag,
                   analysisId,
-                  "QC"))
+                  "QC").filter(_.nonEmpty))
 
           for {
 
@@ -196,7 +196,7 @@ object ProtoPipelineStages extends StrictLogging {
                   Seq(demultiplexed.project,
                       demultiplexed.sampleId,
                       demultiplexed.runIdTag,
-                      analysisId))
+                      analysisId).filter(_.nonEmpty))
 
               for {
                 indexedFasta <- StarAlignment.indexReference(referenceFasta)(
