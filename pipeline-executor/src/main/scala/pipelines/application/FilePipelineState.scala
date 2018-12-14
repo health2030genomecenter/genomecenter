@@ -3,7 +3,7 @@ package org.gc.pipelines.application
 import scala.concurrent.Future
 import com.typesafe.scalalogging.StrictLogging
 import java.io.File
-import io.circe.{Encoder, Decoder, Json}
+import io.circe.{Encoder, Decoder, Json, Printer}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import org.gc.pipelines.model.RunId
 
@@ -23,10 +23,12 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
       deriveDecoder[Entry[K]]
   }
 
+  private val printer = Printer.noSpaces.copy(dropNullValues = true)
+
   def append(e: T) = synchronized {
     import io.circe.syntax._
 
-    val data = Entry(currentVersion, e).asJson.noSpaces
+    val data = printer.pretty(Entry(currentVersion, e).asJson)
     // The expected frequency of appends are low, thus instead of keeping a
     // file descriptor open for a very long time
     // we open it for write each time.
