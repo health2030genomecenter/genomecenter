@@ -50,7 +50,7 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
                 HttpResponse(StatusCodes.BadRequest,
                              entity = HttpEntity("can't read")))
             } else {
-              runFolders.foreach {
+              val parsed = runFolders.map {
                 case dto @ RunfolderDTO(runFolderPath, configurationFile) =>
                   logger.info(s"Got $runFolderPath")
                   val runFolder = new java.io.File(runFolderPath)
@@ -68,8 +68,16 @@ class HttpServer(implicit AS: ActorSystem, MAT: Materializer)
                       sourceActor ! Append(runFolderReadyEvent)
                   }
 
+                  maybeRunFolderReadyEvent
               }
-              complete(akka.http.scaladsl.model.StatusCodes.OK)
+
+              if (parsed.forall(_.isRight))
+                complete(akka.http.scaladsl.model.StatusCodes.OK)
+              else
+                complete(
+                  HttpResponse(
+                    StatusCodes.BadRequest,
+                    entity = HttpEntity(parsed.map(_.toString).mkString("\n"))))
             }
           }
 
