@@ -59,7 +59,8 @@ class DemultiplexingTestSuite
                                              "--use-bases-mask",
                                              "y75n,i6n*,n10,y75n"),
             globalIndexSet = None,
-            partitionByLane = None
+            partitionByLane = None,
+            noPartition = None
           ))(ResourceRequest(1, 500))
         import scala.concurrent.duration._
         scala.concurrent.Await.result(future, atMost = 400000 seconds)
@@ -116,7 +117,8 @@ class DemultiplexingTestSuite
               "--ignore-missing-bcls"
             ),
             globalIndexSet = None,
-            partitionByLane = Some(true)
+            partitionByLane = None,
+            noPartition = Some(true)
           ))(ResourceRequest(1, 500))
         import scala.concurrent.duration._
         scala.concurrent.Await.result(future, atMost = 400000 seconds)

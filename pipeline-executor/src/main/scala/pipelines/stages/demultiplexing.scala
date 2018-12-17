@@ -24,7 +24,8 @@ case class DemultiplexingInput(
     sampleSheet: SampleSheetFile,
     extraBcl2FastqCliArguments: Seq[String],
     globalIndexSet: Option[SharedFile],
-    partitionByLane: Option[Boolean]
+    partitionByLane: Option[Boolean],
+    noPartition: Option[Boolean]
 ) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*)
 
 case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
@@ -87,6 +88,7 @@ object Demultiplexing {
           computationEnvironment.components.actorMaterializer
 
         val partitionByLane = runFolder.partitionByLane.exists(identity)
+        val noPartition = runFolder.noPartition.exists(identity)
 
         def tilesOfLanes(lanes: Seq[Lane]): Seq[String] = {
           val runInfo = new File(runFolder.runFolderPath + "/RunInfo.xml")
@@ -112,13 +114,15 @@ object Demultiplexing {
             val tiles = tilesOfLanes(lanes)
 
             log.info(s"Found tiles of lanes $lanes: " + tiles.mkString(", "))
-
-            if (tiles.isEmpty || partitionByLane)
-              // process full lane by lane
-              lanes.map(l => List(l.toString)).toSeq
-            else
-              // process by groups of tiles
-              tiles.grouped(30).toSeq
+            if (noPartition) List(lanes.map(_.toString))
+            else {
+              if (tiles.isEmpty || partitionByLane)
+                // process full lane by lane
+                lanes.map(l => List(l.toString)).toSeq
+              else
+                // process by groups of tiles
+                tiles.grouped(30).toSeq
+            }
           }
 
           demultiplexedLanes <- Future.traverse(partitions.toSeq.zipWithIndex) {
@@ -173,7 +177,12 @@ object Demultiplexing {
       "__demultiplex-per-lane",
       5) {
       case DemultiplexSingleLaneInput(
-          DemultiplexingInput(runFolderPath, sampleSheet, extraArguments, _, _),
+          DemultiplexingInput(runFolderPath,
+                              sampleSheet,
+                              extraArguments,
+                              _,
+                              _,
+                              _),
           tilesToProcess,
           partitionIndex
           ) =>

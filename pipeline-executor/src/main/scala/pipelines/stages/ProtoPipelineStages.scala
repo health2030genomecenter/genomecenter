@@ -293,7 +293,9 @@ object ProtoPipelineStages extends StrictLogging {
                     sampleSheet,
                     demultiplexingConfig.extraBcl2FastqArguments,
                     globalIndexSet,
-                    demultiplexingConfig.tenX))(ResourceConfig.minimal)
+                    partitionByLane = None,
+                    noPartition = demultiplexingConfig.tenX))(
+                  ResourceConfig.minimal)
 
                 perSampleFastQs = if (stopAfterDemultiplexing) Set()
                 else
