@@ -276,8 +276,6 @@ object ProtoPipelineStages extends StrictLogging {
     Future
       .traverse(r.runConfiguration.demultiplexingRuns.toSeq) {
         demultiplexingConfig =>
-          val stopAfterDemultiplexing = demultiplexingConfig.isTenX
-
           inDemultiplexingFolder(r.runId, demultiplexingConfig.demultiplexingId) {
             implicit tsc =>
               for {
@@ -297,13 +295,11 @@ object ProtoPipelineStages extends StrictLogging {
                     noPartition = demultiplexingConfig.tenX))(
                   ResourceConfig.minimal)
 
-                perSampleFastQs = if (stopAfterDemultiplexing) Set()
-                else
-                  ProtoPipelineStages
-                    .groupBySample(demultiplexed.withoutUndetermined,
-                                   demultiplexingConfig.readAssignment,
-                                   demultiplexingConfig.umi,
-                                   r.runId)
+                perSampleFastQs = ProtoPipelineStages
+                  .groupBySample(demultiplexed.withoutUndetermined,
+                                 demultiplexingConfig.readAssignment,
+                                 demultiplexingConfig.umi,
+                                 r.runId)
 
               } yield perSampleFastQs
 
