@@ -81,6 +81,7 @@ lazy val pipelineExecutor = project
       "io.github.pityka" %% "tasks-core" % "0.0.23-SNAPSHOT",
       "io.github.pityka" %% "tasks-collection" % "0.0.23-SNAPSHOT",
       "io.github.pityka" %% "tasks-ui-backend" % "0.0.23-SNAPSHOT",
+      "io.github.pityka" %% "tasks-tracker" % "0.0.23-SNAPSHOT",
       "io.github.pityka" %% "fileutils" % "1.2.2",
       "io.github.pityka" %% "nspl-core" % "0.0.20-SNAPSHOT",
       "io.github.pityka" %% "nspl-awt" % "0.0.20-SNAPSHOT",

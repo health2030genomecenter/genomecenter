@@ -2,8 +2,13 @@ package org.gc.pipelines.util
 
 import com.typesafe.config.ConfigFactory
 import tasks._
+import org.gc.pipelines.model.Project
 
 object ResourceConfig {
+
+  def projectLabel(project: Project) =
+    tasks.shared.Labels(Map("project" -> project))
+
   val config = ConfigFactory.load.getConfig("gc.resourceRequests")
 
   private def parse(path: String)(implicit tsc: TaskSystemComponents) = {

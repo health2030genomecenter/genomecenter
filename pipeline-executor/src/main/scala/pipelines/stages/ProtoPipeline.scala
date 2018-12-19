@@ -208,7 +208,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           variantEvaluationIntervals,
           previousUncalibratedBam,
           vqsrTrainingFiles
-        ))(ResourceConfig.minimal)
+        ))(ResourceConfig.minimal,
+           labels = ResourceConfig.projectLabel(samplesForWESAnalysis.project))
 
     } yield perSampleResultsWES
 
@@ -226,7 +227,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           reference,
           gtf,
           readLengths.toSeq.toSet.toStable
-        ))(ResourceConfig.minimal)
+        ))(ResourceConfig.minimal,
+           labels =
+             ResourceConfig.projectLabel(samplesForRNASeqAnalysis.project))
 
     } yield perSampleResultsRNA
 
