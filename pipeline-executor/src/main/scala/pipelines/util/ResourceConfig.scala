@@ -6,8 +6,8 @@ import org.gc.pipelines.model.Project
 
 object ResourceConfig {
 
-  def projectLabel(project: Project) =
-    tasks.shared.Labels(Map("project" -> project))
+  def projectLabel(projects: Project*) =
+    tasks.shared.Labels(projects.toList.map(p => "project" -> p))
 
   val config = ConfigFactory.load.getConfig("gc.resourceRequests")
 

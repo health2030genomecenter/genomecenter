@@ -284,6 +284,7 @@ object ProtoPipelineStages extends StrictLogging {
                 sampleSheet <- ProtoPipelineStages.fetchSampleSheet(
                   demultiplexingConfig.isTenX,
                   demultiplexingConfig.sampleSheet)
+                parsedSampleSheet <- sampleSheet.parse
 
                 demultiplexed <- Demultiplexing.allLanes(
                   DemultiplexingInput(
@@ -293,7 +294,9 @@ object ProtoPipelineStages extends StrictLogging {
                     globalIndexSet,
                     partitionByLane = None,
                     noPartition = demultiplexingConfig.tenX))(
-                  ResourceConfig.minimal)
+                  ResourceConfig.minimal,
+                  labels =
+                    ResourceConfig.projectLabel(parsedSampleSheet.projects: _*))
 
                 perSampleFastQs = ProtoPipelineStages
                   .groupBySample(demultiplexed.withoutUndetermined,
