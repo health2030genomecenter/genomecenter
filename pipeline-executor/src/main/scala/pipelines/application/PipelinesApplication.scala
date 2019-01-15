@@ -105,39 +105,39 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
                         projects: CompletedProject,
                         addedUnfinished: Boolean)
 
-  /**
-    *
-    *                             IN [RunfolderReadForProcessing]
-    *                             |
-    *+----------------------------v-------------------------------------------------------+
-    *|                            |                                                       |
-    *|                            |                                                       |
-    *|                            .------>--+                                             |
-    *|                                      |                                             |
-    *|                                      |                                             |
-    *|                                      |                                             |
-    *|                                      v                                             |
-    *|                        +------+      |                                             |
-    *|   +----Demuxed---------<Broadc<----- | ---[Demux]-Raw-<--+                         |
-    *|   |                    +---v--+      |      +------------^----------------+        |
-    *|   |                        |  .______.      |                             |        |
-    *|   |  +------------+        |  |             |     accountWorkDone         |        |
-    *|   |  |            |    +---v--v+ Demuxed    |                             |        |
-    *|   |  |            |    | merge >------------> Accumulates state of runs   |        |
-    *|   |  |  Sample    |    +---^---+ Result     |   and samples               |        |
-    *|   |  |  Processor |        |                +--v---------v----------------+        |
-    *|   |  |            |        |                   |         |                         |
-    *|   |  |            >-Result-+                   |         |                         |
-    *|   |  +------^-----+                            |         |                         |
-    *|   |         |                                  |         |completeds               |
-    *|   |        +^-------+                          |         |                         |
-    *|   +------->+ zip    <--Feedback----------------.         |                         |
-    *|            +--------+  accounting of demultiplexed       |                         |
-    *|                        sample is done                    |                         |
-    *+------------------------------------------------------------------------------------+
-    *                                                           |
-    *                                                           OUT [Completeds]
-    */
+  /*
+   *
+   *                             IN [RunfolderReadForProcessing]
+   *                             |
+   *+----------------------------v-------------------------------------------------------+
+   *|                            |                                                       |
+   *|                            |                                                       |
+   *|                            .------>--+                                             |
+   *|                                      |                                             |
+   *|                                      |                                             |
+   *|                                      |                                             |
+   *|                                      v                                             |
+   *|                        +------+      |                                             |
+   *|   +----Demuxed---------<Broadc<----- | ---[Demux]-Raw-<--+                         |
+   *|   |                    +---v--+      |      +------------^----------------+        |
+   *|   |                        |  .______.      |                             |        |
+   *|   |  +------------+        |  |             |     accountWorkDone         |        |
+   *|   |  |            |    +---v--v+ Demuxed    |                             |        |
+   *|   |  |            |    | merge >------------> Accumulates state of runs   |        |
+   *|   |  |  Sample    |    +---^---+ Result     |   and samples               |        |
+   *|   |  |  Processor |        |                +--v---------v----------------+        |
+   *|   |  |            |        |                   |         |                         |
+   *|   |  |            >-Result-+                   |         |                         |
+   *|   |  +------^-----+                            |         |                         |
+   *|   |         |                                  |         |completeds               |
+   *|   |        +^-------+                          |         |                         |
+   *|   +------->+ zip    <--Feedback----------------.         |                         |
+   *|            +--------+  accounting of demultiplexed       |                         |
+   *|                        sample is done                    |                         |
+   *+------------------------------------------------------------------------------------+
+   *                                                           |
+   *                                                           OUT [Completeds]
+   */
   def accountAndProcess: Flow[RunfolderReadyForProcessing, Completeds, _] =
     Flow.fromGraph(GraphDSL
       .create(accountWorkDone, demultiplex, sampleProcessing)((_, _, _)) {
