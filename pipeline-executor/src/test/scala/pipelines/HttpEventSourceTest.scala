@@ -48,7 +48,7 @@ class HttpEventSourceTest
     val fileNameToWatch = "something"
     val runConfigurationFileName = "config-runid"
     val runConfigurationFileContent =
-      "automatic=true\ndemultiplexing=[]"
+      "demultiplexing=[]"
 
     val runConfiguration =
       RunConfigurationDTO(runConfigurationFileContent).map(_.toRunConfiguration)

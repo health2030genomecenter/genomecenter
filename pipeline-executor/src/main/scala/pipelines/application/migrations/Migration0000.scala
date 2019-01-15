@@ -32,7 +32,6 @@ object Migration0000 extends Function1[Json, Json] {
       BeforeMigration.RunConfiguration.decoder.decodeJson(in).right.get
 
     val migrated: application.RunConfiguration = application.RunConfiguration(
-      automatic = parsed.automatic,
       demultiplexingRuns = parsed.demultiplexingRuns,
       globalIndexSet = parsed.globalIndexSet,
       wesProcessing = StableSet(
@@ -64,7 +63,6 @@ object Migration0000 extends Function1[Json, Json] {
   object BeforeMigration {
 
     case class RunConfiguration(
-        automatic: Boolean,
         demultiplexingRuns: StableSet[DemultiplexingConfiguration],
         referenceFasta: String,
         targetIntervals: String,

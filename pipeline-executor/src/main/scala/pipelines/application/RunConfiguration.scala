@@ -47,7 +47,6 @@ case class RNASeqConfiguration(
 }
 
 case class RunConfiguration(
-    automatic: Boolean,
     demultiplexingRuns: StableSet[DemultiplexingConfiguration],
     globalIndexSet: Option[String],
     wesProcessing: StableSet[(Selector, WESConfiguration)],

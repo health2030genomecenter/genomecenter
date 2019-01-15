@@ -282,7 +282,6 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
         .getFile)
 
     val runConfiguration = RunConfiguration(
-      automatic = true,
       demultiplexingRuns = StableSet(
         DemultiplexingConfiguration(
           demultiplexingId = DemultiplexingId("demultiplexOnce"),

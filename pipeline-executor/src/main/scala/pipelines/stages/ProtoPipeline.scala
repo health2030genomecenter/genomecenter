@@ -17,9 +17,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     extends Pipeline[PerSamplePerRunFastQ, SampleResult]
     with StrictLogging {
 
-  def canProcess(r: RunfolderReadyForProcessing) = {
-    r.runConfiguration.automatic
-  }
+  def canProcess(r: RunfolderReadyForProcessing) = true
 
   def getKeysOfDemultiplexedSample(
       d: PerSamplePerRunFastQ): (Project, SampleId, RunId) =

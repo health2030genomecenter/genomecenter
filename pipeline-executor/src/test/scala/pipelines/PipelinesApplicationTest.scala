@@ -36,11 +36,7 @@ class PipelinesApplicationTest
     val run = RunfolderReadyForProcessing(
       RunId("fake"),
       "fakePath",
-      RunConfiguration(false,
-                       StableSet.empty,
-                       None,
-                       StableSet.empty,
-                       StableSet.empty)
+      RunConfiguration(StableSet.empty, None, StableSet.empty, StableSet.empty)
     )
 
     pipelineState.registered(run)
@@ -389,8 +385,7 @@ class FakeSequencingCompleteEventSource(take: Int,
         RunfolderReadyForProcessing(
           RunId("fake"),
           runFolder.getAbsolutePath,
-          RunConfiguration(false,
-                           StableSet.empty,
+          RunConfiguration(StableSet.empty,
                            None,
                            StableSet.empty,
                            StableSet.empty)

@@ -40,7 +40,7 @@ class FolderWatcherEventSourceTest
     val fileNameToWatch = "something"
     val configurationFile = "config-runid"
     val configurationFileContent =
-      "automatic=true\ndemultiplexing=[]"
+      "demultiplexing=[]"
     val runConfiguration =
       RunConfigurationDTO(configurationFileContent).map(_.toRunConfiguration)
     val runId = "runid"

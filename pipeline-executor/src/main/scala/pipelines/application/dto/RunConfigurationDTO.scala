@@ -9,14 +9,12 @@ import org.gc.pipelines.model._
 import org.gc.pipelines.util.StableSet.syntax
 
 case class RunConfigurationDTO(
-    automatic: Boolean,
     demultiplexingRuns: Set[DemultiplexingConfiguration],
     globalIndexSet: Option[String],
     wesProcessing: List[(Selector, WESConfiguration)],
     rnaProcessing: List[(Selector, RNASeqConfiguration)]
 ) {
   def toRunConfiguration = RunConfiguration(
-    automatic = automatic,
     demultiplexingRuns = demultiplexingRuns.toStable,
     globalIndexSet = globalIndexSet,
     wesProcessing = wesProcessing.toSet.toStable,
@@ -80,7 +78,6 @@ object RunConfigurationDTO {
             .asScala
             .map(getDemultiplexings)
             .toSet,
-          automatic = config.getBoolean("automatic"),
           globalIndexSet =
             if (config.hasPath("globalIndexSet"))
               Some(config.getString("globalIndexSet"))
