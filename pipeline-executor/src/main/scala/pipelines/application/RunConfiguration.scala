@@ -52,7 +52,16 @@ case class RunConfiguration(
     globalIndexSet: Option[String],
     wesProcessing: StableSet[(Selector, WESConfiguration)],
     rnaProcessing: StableSet[(Selector, RNASeqConfiguration)]
-)
+) {
+  def files = {
+    val sampleSheets = demultiplexingRuns.toSeq
+      .map(conf => conf.sampleSheet)
+    val wesFiles = wesProcessing.toSeq.flatMap(_._2.files.toSeq)
+    val rnaFiles = rnaProcessing.toSeq
+      .flatMap(_._2.files.toSeq)
+    (sampleSheets ++ wesFiles ++ rnaFiles).toSet
+  }
+}
 case class RunfolderReadyForProcessing(runId: RunId,
                                        runFolderPath: String,
                                        runConfiguration: RunConfiguration) {
@@ -63,9 +72,7 @@ case class RunfolderReadyForProcessing(runId: RunId,
   def isValid =
     new File(runFolderPath).canRead &&
       new File(runFolderPath, "RunInfo.xml").canRead &&
-      filesCanRead(
-        (runConfiguration.wesProcessing.toSeq.flatMap(_._2.files.toSeq) ++
-          runConfiguration.rnaProcessing.toSeq.flatMap(_._2.files.toSeq)).toSet)
+      filesCanRead(runConfiguration.files)
 
 }
 
