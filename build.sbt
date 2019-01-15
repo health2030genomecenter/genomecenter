@@ -19,7 +19,7 @@ lazy val tasksSlurm = project
   .settings(
     name := "tasks-slurm",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.23-SNAPSHOT",
+      "io.github.pityka" %% "tasks-core" % "0.0.23",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
@@ -78,13 +78,13 @@ lazy val pipelineExecutor = project
   .settings(
     name := "pipeline-executor",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.23-SNAPSHOT",
-      "io.github.pityka" %% "tasks-collection" % "0.0.23-SNAPSHOT",
-      "io.github.pityka" %% "tasks-ui-backend" % "0.0.23-SNAPSHOT",
-      "io.github.pityka" %% "tasks-tracker" % "0.0.23-SNAPSHOT",
+      "io.github.pityka" %% "tasks-core" % "0.0.23",
+      "io.github.pityka" %% "tasks-collection" % "0.0.23",
+      "io.github.pityka" %% "tasks-ui-backend" % "0.0.23",
+      "io.github.pityka" %% "tasks-tracker" % "0.0.23",
       "io.github.pityka" %% "fileutils" % "1.2.2",
-      "io.github.pityka" %% "nspl-core" % "0.0.20-SNAPSHOT",
-      "io.github.pityka" %% "nspl-awt" % "0.0.20-SNAPSHOT",
+      "io.github.pityka" %% "nspl-core" % "0.0.20",
+      "io.github.pityka" %% "nspl-awt" % "0.0.20",
       "org.scalatest" %% "scalatest" % "3.0.0" % "it,test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
