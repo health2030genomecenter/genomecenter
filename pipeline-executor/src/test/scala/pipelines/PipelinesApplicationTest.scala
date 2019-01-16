@@ -78,12 +78,6 @@ class PipelinesApplicationTest
 
     processedRuns
       .collect {
-        case RunFinished(_, success) => success
-      }
-      .count(identity) shouldBe numberOfRuns
-
-    processedRuns
-      .collect {
         case SampleFinished(_, _, _, success, _) => success
       }
       .count(identity) shouldBe 4 * numberOfRuns
@@ -138,12 +132,6 @@ class PipelinesApplicationTest
                                        .takeWithin(15 seconds)
                                        .runWith(Sink.seq),
                                      atMost = 16 seconds)
-
-    processedRuns
-      .collect {
-        case RunFinished(_, success) => success
-      }
-      .count(identity) shouldBe 1
 
     processedRuns
       .collect {
@@ -302,6 +290,52 @@ class PipelinesApplicationTest
 
   }
 
+  test("pipelines application should replace old runs even in case of failure ") {
+    implicit val AS = ActorSystem()
+    implicit val materializer = ActorMaterializer()
+    val config = ConfigFactory.parseString("""
+  tasks.cache.enabled = false
+    """)
+    val numberOfRuns = 2
+    Given("A sequence of two runs with the first repeated")
+    val eventSource =
+      new FakeSequencingCompleteEventSource(numberOfRuns,
+                                            uniform = false,
+                                            pattern = List(-1, -1))
+    val pipelineState = new InMemoryPipelineState
+    val taskSystem = defaultTaskSystem(Some(config))
+
+    When("Sending these run sequence into a running application")
+    val app = new PipelinesApplication(eventSource,
+                                       pipelineState,
+                                       implicitly[ActorSystem],
+                                       taskSystem,
+                                       new TestPipeline)
+
+    val processedRuns = Await.result(app.processingFinishedSource
+                                       .takeWithin(15 seconds)
+                                       .runWith(Sink.seq),
+                                     atMost = 16 seconds)
+
+    Then("The first should be processed should be processed on the second try.")
+    processedRuns
+      .collect {
+        case SampleFinished(_, _, _, _, result) => result
+      }
+      .toSet
+      .filter(_.isDefined)
+      .map(_.get.asInstanceOf[FakeSampleResult])
+      .filter(_.project == "project1")
+      .filter(_.sampleId == "sample1")
+      .toSet shouldBe Set(
+      FakeSampleResult(Project("project1"),
+                       SampleId("sample1"),
+                       RunId("fake-1"),
+                       "fake-1_0")
+    )
+
+  }
+
   test(
     "pipelines application should respect the pipeline's `canProcess` method") {
     implicit val AS = ActorSystem()
@@ -418,16 +452,25 @@ case class FakeSampleResult(
 
 trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult] {
 
+  val counter = scala.collection.mutable.Map[FakeDemultiplexed, Int]()
+  val runCounter = scala.collection.mutable.Map[RunId, Int]()
   def demultiplex(r: RunfolderReadyForProcessing)(
-      implicit tsc: TaskSystemComponents): Future[Seq[FakeDemultiplexed]] =
-    Future.successful(
-      List(
-        FakeDemultiplexed(Project("project1"), SampleId("sample1"), r.runId),
-        FakeDemultiplexed(Project("project1"), SampleId("sample2"), r.runId),
-        FakeDemultiplexed(Project("project2"), SampleId("sample1"), r.runId),
-        FakeDemultiplexed(Project("project2"), SampleId("sample2"), r.runId)
+      implicit tsc: TaskSystemComponents): Future[Seq[FakeDemultiplexed]] = {
+    if (r.runId == "fake-1" && !runCounter.contains(r.runId)) {
+      synchronized {
+        runCounter.update(r.runId, 0)
+      }
+      Future.failed(new RuntimeException("boo"))
+    } else
+      Future.successful(
+        List(
+          FakeDemultiplexed(Project("project1"), SampleId("sample1"), r.runId),
+          FakeDemultiplexed(Project("project1"), SampleId("sample2"), r.runId),
+          FakeDemultiplexed(Project("project2"), SampleId("sample1"), r.runId),
+          FakeDemultiplexed(Project("project2"), SampleId("sample2"), r.runId)
+        )
       )
-    )
+  }
 
   def getKeysOfDemultiplexedSample(
       d: FakeDemultiplexed): (Project, SampleId, RunId) =
@@ -447,13 +490,12 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult] {
       samples.head.project -> true
     }
 
-  val counter = scala.collection.mutable.Map[FakeDemultiplexed, Int]()
-
   def processSample(runConfiguration: RunfolderReadyForProcessing,
                     pastSampleResult: Option[FakeSampleResult],
                     demultiplexedSample: FakeDemultiplexed)(
       implicit tsc: TaskSystemComponents): Future[Option[FakeSampleResult]] =
     Future {
+      println(s"Pretend processing of $demultiplexedSample")
       Thread.sleep(2000)
 
       // keep track of how many times the same (run,project,sample) is processed
