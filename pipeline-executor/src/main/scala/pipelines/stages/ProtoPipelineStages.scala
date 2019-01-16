@@ -13,6 +13,7 @@ import org.gc.pipelines.application.{
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.ResourceConfig
 import org.gc.pipelines.util.StableSet
+import org.gc.pipelines.util.FastQHelpers
 import org.gc.pipelines.util.StableSet.syntax
 import java.io.File
 import com.typesafe.scalalogging.StrictLogging
@@ -296,57 +297,116 @@ object ProtoPipelineStages extends StrictLogging {
 
   }
 
+  def liftAlreadyDemultiplexedFastQs(r: RunfolderReadyForProcessing)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext): Future[Seq[PerSamplePerRunFastQ]] = {
+
+    val runId = r.runId
+
+    Future.traverse(r.demultiplexedSamples) { inputSampleAsFastQ =>
+      val fastqs = Future.traverse(inputSampleAsFastQ.lanes.toSeq) {
+        inputFastQ =>
+          tsc.withFilePrefix(Seq("premade_fastqs", inputSampleAsFastQ.project)) {
+            implicit tsc =>
+              val read1 = new File(inputFastQ.read1Path)
+              val read2 = new File(inputFastQ.read2Path)
+              val umi: Option[File] = inputFastQ.umi.map { umi =>
+                new File(umi)
+              }
+              for {
+                read1SF <- SharedFile(read1,
+                                      name = read1.getName,
+                                      deleteFile = false)
+                read2SF <- SharedFile(read2,
+                                      name = read2.getName,
+                                      deleteFile = false)
+                umiSF <- umi match {
+                  case None => Future.successful(None)
+                  case Some(umif: File) =>
+                    SharedFile(umif, umif.getName, false).map(Some(_))
+                }
+              } yield
+                FastQPerLane(
+                  runId,
+                  inputFastQ.lane,
+                  FastQ(read1SF, FastQHelpers.getNumberOfReads(read1)),
+                  FastQ(read2SF, FastQHelpers.getNumberOfReads(read2)),
+                  umiSF.map(umiSF =>
+                    FastQ(umiSF, FastQHelpers.getNumberOfReads(umi.get))),
+                  PartitionId(0)
+                )
+
+          }
+      }
+
+      for {
+        fastqs <- fastqs
+      } yield
+        PerSamplePerRunFastQ(StableSet(fastqs: _*),
+                             inputSampleAsFastQ.project,
+                             inputSampleAsFastQ.sampleId,
+                             runId)
+
+    }
+  }
+
   def executeDemultiplexing(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
-    Future
-      .traverse(r.runConfiguration.demultiplexingRuns.toSeq) {
-        demultiplexingConfig =>
-          inDemultiplexingFolder(r.runId, demultiplexingConfig.demultiplexingId) {
-            implicit tsc =>
-              for {
-                globalIndexSet <- ProtoPipelineStages.fetchGlobalIndexSet(
-                  r.runConfiguration)
-                sampleSheet <- ProtoPipelineStages.fetchSampleSheet(
-                  demultiplexingConfig.isTenX,
-                  demultiplexingConfig.sampleSheet)
-                parsedSampleSheet <- sampleSheet.parse
+    r.runFolderPath match {
+      case None => Future.successful(Nil)
+      case Some(runFolderPath) =>
+        Future
+          .traverse(r.runConfiguration.demultiplexingRuns.toSeq) {
+            demultiplexingConfig =>
+              inDemultiplexingFolder(r.runId,
+                                     demultiplexingConfig.demultiplexingId) {
+                implicit tsc =>
+                  for {
+                    globalIndexSet <- ProtoPipelineStages.fetchGlobalIndexSet(
+                      r.runConfiguration)
+                    sampleSheet <- ProtoPipelineStages.fetchSampleSheet(
+                      demultiplexingConfig.isTenX,
+                      demultiplexingConfig.sampleSheet)
+                    parsedSampleSheet <- sampleSheet.parse
 
-                demultiplexed <- Demultiplexing.allLanes(DemultiplexingInput(
-                  r.runFolderPath,
-                  sampleSheet,
-                  demultiplexingConfig.extraBcl2FastqArguments,
-                  globalIndexSet,
-                  partitionByLane = demultiplexingConfig.partitionByLane,
-                  noPartition = demultiplexingConfig.tenX
-                ))(ResourceConfig.minimal,
-                   labels = ResourceConfig.projectLabel(
-                     parsedSampleSheet.projects: _*))
+                    demultiplexed <- Demultiplexing.allLanes(
+                      DemultiplexingInput(
+                        runFolderPath,
+                        sampleSheet,
+                        demultiplexingConfig.extraBcl2FastqArguments,
+                        globalIndexSet,
+                        partitionByLane = demultiplexingConfig.partitionByLane,
+                        noPartition = demultiplexingConfig.tenX
+                      ))(ResourceConfig.minimal,
+                         labels = ResourceConfig.projectLabel(
+                           parsedSampleSheet.projects: _*))
 
-                perSampleFastQs = ProtoPipelineStages
-                  .groupBySample(demultiplexed.withoutUndetermined,
-                                 demultiplexingConfig.readAssignment,
-                                 demultiplexingConfig.umi,
-                                 r.runId)
+                    perSampleFastQs = ProtoPipelineStages
+                      .groupBySample(demultiplexed.withoutUndetermined,
+                                     demultiplexingConfig.readAssignment,
+                                     demultiplexingConfig.umi,
+                                     r.runId)
 
-              } yield perSampleFastQs
+                  } yield perSampleFastQs
 
+              }
           }
-      }
-      .map { demultiplexingRuns =>
-        val flattened = demultiplexingRuns.flatten
-        flattened
-          .groupBy(sample => (sample.project, sample.sampleId))
-          .toSeq
-          .flatMap {
-            case (_, group) =>
-              if (group.size > 1) {
-                logger.warn(
-                  s"The same sample have been demultiplexed several times. Dropping all from further analyses. $group")
-                Nil
-              } else List(group.head)
+          .map { demultiplexingRuns =>
+            val flattened = demultiplexingRuns.flatten
+            flattened
+              .groupBy(sample => (sample.project, sample.sampleId))
+              .toSeq
+              .flatMap {
+                case (_, group) =>
+                  if (group.size > 1) {
+                    logger.warn(
+                      s"The same sample have been demultiplexed several times. Dropping all from further analyses. $group")
+                    Nil
+                  } else List(group.head)
+              }
           }
-      }
+    }
 
   private def inDemultiplexingFolder[T](runId: RunId,
                                         demultiplexingId: DemultiplexingId)(

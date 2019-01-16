@@ -64,17 +64,40 @@ case class RunConfiguration(
     (sampleSheets ++ wesFiles ++ rnaFiles).toSet
   }
 }
-case class RunfolderReadyForProcessing(runId: RunId,
-                                       runFolderPath: String,
-                                       runConfiguration: RunConfiguration) {
+
+case class InputSampleAsFastQ(
+    lanes: Set[InputFastQPerLane],
+    project: Project,
+    sampleId: SampleId
+) {
+  def files =
+    lanes.toSeq
+      .flatMap(l => List(l.read1Path, l.read2Path) ++ l.umi.toList)
+      .toSet
+}
+
+case class InputFastQPerLane(lane: Lane,
+                             read1Path: String,
+                             read2Path: String,
+                             umi: Option[String])
+
+case class RunfolderReadyForProcessing(
+    runId: RunId,
+    runFolderPath: Option[String],
+    demultiplexedSamples: Seq[InputSampleAsFastQ],
+    runConfiguration: RunConfiguration) {
 
   private def filesCanRead(files: Set[String]) =
     files.forall(s => new File(s).canRead)
 
   def isValid =
-    new File(runFolderPath).canRead &&
-      new File(runFolderPath, "RunInfo.xml").canRead &&
-      filesCanRead(runConfiguration.files)
+    runFolderPath.forall(
+      runFolderPath =>
+        new File(runFolderPath).canRead &&
+          new File(runFolderPath, "RunInfo.xml").canRead) &&
+      filesCanRead(runConfiguration.files) &&
+      demultiplexedSamples.forall(demultiplexedSample =>
+        filesCanRead(demultiplexedSample.files))
 
 }
 
@@ -93,7 +116,8 @@ object RunfolderReadyForProcessing {
     RunConfigurationDTO(runConfigurationFile).map(
       runConfigurationDTO =>
         RunfolderReadyForProcessing(RunId(runId),
-                                    runFolder.getAbsolutePath,
+                                    Some(runFolder.getAbsolutePath),
+                                    Nil,
                                     runConfigurationDTO.toRunConfiguration))
   }
 
@@ -104,7 +128,8 @@ object RunfolderReadyForProcessing {
     RunConfigurationDTO(runConfigurationFile).map(
       runConfigurationDTO =>
         RunfolderReadyForProcessing(RunId(runId),
-                                    runFolder.getAbsolutePath,
+                                    Some(runFolder.getAbsolutePath),
+                                    Nil,
                                     runConfigurationDTO.toRunConfiguration))
   }
 }
@@ -133,5 +158,19 @@ object RunConfiguration {
     deriveEncoder[RunConfiguration]
   implicit val decoder: Decoder[RunConfiguration] =
     deriveDecoder[RunConfiguration]
+
+}
+object InputFastQPerLane {
+  implicit val encoder: Encoder[InputFastQPerLane] =
+    deriveEncoder[InputFastQPerLane]
+  implicit val decoder: Decoder[InputFastQPerLane] =
+    deriveDecoder[InputFastQPerLane]
+
+}
+object InputSampleAsFastQ {
+  implicit val encoder: Encoder[InputSampleAsFastQ] =
+    deriveEncoder[InputSampleAsFastQ]
+  implicit val decoder: Decoder[InputSampleAsFastQ] =
+    deriveDecoder[InputSampleAsFastQ]
 
 }

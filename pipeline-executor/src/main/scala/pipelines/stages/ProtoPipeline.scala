@@ -191,7 +191,10 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
   def demultiplex(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents): Future[Seq[PerSamplePerRunFastQ]] =
-    ProtoPipelineStages.executeDemultiplexing(r)
+    r.runFolderPath match {
+      case Some(_) => ProtoPipelineStages.executeDemultiplexing(r)
+      case None    => ProtoPipelineStages.liftAlreadyDemultiplexedFastQs(r)
+    }
 
   def processSample(r: RunfolderReadyForProcessing,
                     pastSampleResult: Option[SampleResult],

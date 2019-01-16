@@ -39,7 +39,8 @@ class PipelinesApplicationTest
     And("two runs with the same ids ")
     val run = RunfolderReadyForProcessing(
       RunId("fake"),
-      "fakePath",
+      Some("fakePath"),
+      Nil,
       RunConfiguration(StableSet.empty, None, StableSet.empty, StableSet.empty)
     )
     val run2 = RunfolderReadyForProcessing(
@@ -611,7 +612,8 @@ class FakeSequencingCompleteEventSource(take: Int,
         2 seconds,
         RunfolderReadyForProcessing(
           RunId("fake"),
-          runFolder.getAbsolutePath,
+          Some(runFolder.getAbsolutePath),
+          Nil,
           RunConfiguration(StableSet.empty,
                            None,
                            StableSet.empty,

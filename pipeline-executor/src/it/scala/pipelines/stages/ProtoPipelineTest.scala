@@ -42,9 +42,10 @@ class ProtopipelineTestSuite
       withTaskSystem(testConfig) { implicit ts =>
         import scala.concurrent.ExecutionContext.Implicits.global
         val run =
-          RunfolderReadyForProcessing(runId = runId,
-                                      runFolderPath = runFolderPath,
-                                      runConfiguration = runConfiguration)
+          RunfolderReadyForProcessing(runId,
+                                      Some(runFolderPath),
+                                      Nil,
+                                      runConfiguration)
         val pipeline = new ProtoPipeline()
         import scala.concurrent.duration._
         val demultiplexedSamples =

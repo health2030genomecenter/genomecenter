@@ -90,7 +90,8 @@ class HttpEventSourceTest
       probe.expectMsg(
         application.Append(
           RunfolderReadyForProcessing(RunId(runId),
-                                      runFolder.getAbsolutePath,
+                                      Some(runFolder.getAbsolutePath),
+                                      Nil,
                                       runConfiguration.right.get)))
       When("the watched file is deleted")
       watchedFile.delete
