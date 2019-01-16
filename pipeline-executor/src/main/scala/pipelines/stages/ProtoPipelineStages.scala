@@ -370,9 +370,9 @@ object ProtoPipelineStages extends StrictLogging {
           .map(SampleSheetFile(_))
           .andThen {
             case Success(_) =>
-              logger.debug(s"Fetched reference")
+              logger.debug(s"Fetched sample sheet")
             case Failure(e) =>
-              logger.error(s"Failed to fetch reference $file", e)
+              logger.error(s"Failed to fetch sample sheet $file", e)
 
           }
         resolvedFor10X <- resolve10XIfNeeded(is10X, sampleSheet)
