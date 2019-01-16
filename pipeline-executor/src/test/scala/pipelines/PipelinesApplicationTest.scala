@@ -302,7 +302,7 @@ class PipelinesApplicationTest
 
   }
 
-  ignore(
+  test(
     "pipelines application should respect the pipeline's `canProcess` method") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
@@ -333,7 +333,7 @@ class PipelinesApplicationTest
 
   }
 
-  ignore("pipelines application should survive a failing pipeline") {
+  test("pipelines application should survive a failing pipeline") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
