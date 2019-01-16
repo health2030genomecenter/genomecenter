@@ -107,20 +107,6 @@ object RunfolderReadyForProcessing {
   implicit val decoder: Decoder[RunfolderReadyForProcessing] =
     deriveDecoder[RunfolderReadyForProcessing]
 
-  def readFolder(
-      runFolder: File,
-      configFileFolder: File): Either[String, RunfolderReadyForProcessing] = {
-
-    val runId = runFolder.getAbsoluteFile.getName
-    val runConfigurationFile = new File(configFileFolder, "config-" + runId)
-    RunConfigurationDTO(runConfigurationFile).map(
-      runConfigurationDTO =>
-        RunfolderReadyForProcessing(RunId(runId),
-                                    Some(runFolder.getAbsolutePath),
-                                    Nil,
-                                    runConfigurationDTO.toRunConfiguration))
-  }
-
   def readFolderWithConfigFile(runFolder: File, runConfigurationFile: File)
     : Either[String, RunfolderReadyForProcessing] = {
 
