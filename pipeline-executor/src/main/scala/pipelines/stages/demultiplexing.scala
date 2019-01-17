@@ -314,8 +314,7 @@ object Demultiplexing {
                 if (exitCode != 0) {
                   val stdErrContents = fileutils.openSource(stderr)(_.mkString)
                   log.error(
-                    "bcl2fastq failed. stderr follows:\n" + stdErrContents.take(
-                      10000))
+                    "bcl2fastq failed. stderr follows:\n" + stdErrContents)
                   throw new RuntimeException(
                     s"bcl2fastq exited with code != 0 stderr: \n ${stdErrContents
                       .take(10000)}")
