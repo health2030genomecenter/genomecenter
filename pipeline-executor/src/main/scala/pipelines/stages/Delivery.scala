@@ -129,23 +129,24 @@ object Delivery {
             }
             fileList <- Future.traverse(pathLists) {
               case (project, pathList) =>
-                val source =
-                  Source.single(ByteString(pathList.sorted.mkString("\n")))
-
                 val runsIncluded = samples
                   .flatMap(_.runFolders)
                   .toSeq
                   .map(_.runId)
                   .distinct
                   .sortBy(_.toString)
-                  .mkString(".")
+
+                val source =
+                  Source.single(
+                    ByteString("#runs included: " + runsIncluded
+                      .mkString(".") + "\n\n" + pathList.sorted.mkString("\n")))
 
                 for {
                   pathListFile <- inProjectFolder(project) {
                     implicit computationEnvironment =>
                       SharedFile(
                         source,
-                        project + s".$runsIncluded." + samples.size + ".deliverables.list")
+                        project + s".r${runsIncluded.size}-#${runsIncluded.hashCode}.s" + samples.size + ".deliverables.list")
                   }
                 } yield (project, pathListFile)
             }
