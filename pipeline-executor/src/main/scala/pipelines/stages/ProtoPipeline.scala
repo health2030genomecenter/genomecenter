@@ -144,10 +144,14 @@ class ProtoPipeline(implicit EC: ExecutionContext)
               demultiplexedSample,
               conf,
               pastSampleResult
-                .flatMap(
-                  _.wes
-                    .find(_.analysisId == conf.analysisId)
-                    .map(_.uncalibrated)),
+                .flatMap(_.wes
+                  .find { wesConfigurationOfPastSample =>
+                    val matchingAnalysisId = wesConfigurationOfPastSample.analysisId == conf.analysisId
+                    val matchingMigratedOldAnalysisId = wesConfigurationOfPastSample.analysisId == "" && conf.analysisId == "hg19"
+
+                    matchingAnalysisId || matchingMigratedOldAnalysisId
+                  }
+                  .map(_.uncalibrated)),
           ))
 
         val perSampleResultsRNA = Future.traverse(selectedRNASeqConfigurations)(
