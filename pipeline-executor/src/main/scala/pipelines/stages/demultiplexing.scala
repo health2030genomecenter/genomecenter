@@ -316,8 +316,7 @@ object Demultiplexing {
                   log.error(
                     "bcl2fastq failed. stderr follows:\n" + stdErrContents)
                   throw new RuntimeException(
-                    s"bcl2fastq exited with code != 0 stderr: \n ${stdErrContents
-                      .take(10000)}")
+                    s"bcl2fastq exited with code != 0 stderr: \n $stdErrContents")
                 }
 
                 val statsFile =
