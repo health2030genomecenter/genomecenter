@@ -50,6 +50,7 @@ class ProtopipelineTestSuite
         val demultiplexedSamples =
           Await.result(pipeline.demultiplex(run), atMost = 400000 seconds)
 
+        Then("Demultiplexing should happen")
         demultiplexedSamples.nonEmpty shouldBe true
         demultiplexedSamples.size shouldBe 4
         demultiplexedSamples.map(dm => (dm.project, dm.sampleId)).toSet shouldBe
@@ -58,26 +59,36 @@ class ProtopipelineTestSuite
               ("project3", "sample3"),
               ("project1", "GIB2"))
 
+        Then("Fastq processing should happen")
         val processedSamples =
-          demultiplexedSamples.take(2).map { demultiplexedSample =>
-            Await.result(pipeline.processSample(run, None, demultiplexedSample),
-                         atMost = 400000 seconds)
+          demultiplexedSamples.filter(_.project == "project1").map {
+            demultiplexedSample =>
+              Await.result(
+                pipeline.processSample(run, None, demultiplexedSample),
+                atMost = 400000 seconds)
           }
+
+        Then("Complete run")
 
         Await.result(
           pipeline.processCompletedRun(processedSamples.flatMap(_.toSeq)),
           atMost = 400000 seconds)
 
+        Then("Complete project")
+
         Await.result(
           pipeline.processCompletedProject(processedSamples.flatMap(_.toSeq)),
           atMost = 400000 seconds)
 
-        demultiplexedSamples.take(1).map { demultiplexedSample =>
-          Await.result(pipeline.processSample(run,
-                                              Some(processedSamples.head.get),
-                                              demultiplexedSample),
-                       atMost = 400000 seconds)
-        }
+        Then("Process again the same sample ")
+        demultiplexedSamples
+          .find(_.sampleId == processedSamples.head.get.sampleId)
+          .map { demultiplexedSample =>
+            Await.result(pipeline.processSample(run,
+                                                Some(processedSamples.head.get),
+                                                demultiplexedSample),
+                         atMost = 400000 seconds)
+          }
 
         Then(
           "a run and lane specific folder should be created at the root of the storage")

@@ -162,22 +162,24 @@ object ProtoPipelineStages extends StrictLogging {
                       ))(ResourceConfig.minimal)
                 }
 
-                gvcf <- intoFinalFolder { implicit computationEnvironment =>
-                  HaplotypeCaller.mergeVcfs(MergeVCFInput(
-                    genotypesScattered,
-                    demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
-                    ResourceConfig.minimal)
+                genotypedVcf <- intoFinalFolder {
+                  implicit computationEnvironment =>
+                    HaplotypeCaller.mergeVcfs(MergeVCFInput(
+                      genotypesScattered,
+                      demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
+                      ResourceConfig.minimal)
                 }
 
                 gvcfQC <- intoQCFolder { implicit computationEnvironment =>
                   HaplotypeCaller.collectVariantCallingMetrics(
                     CollectVariantCallingMetricsInput(
                       indexedReference,
-                      gvcf,
+                      genotypedVcf,
                       dbSnpVcf,
                       variantEvaluationIntervals))(ResourceConfig.minimal)
                 }
-              } yield Some((haplotypeCallerReferenceCalls, gvcf, gvcfQC))
+              } yield
+                Some((haplotypeCallerReferenceCalls, genotypedVcf, gvcfQC))
             }
 
           } yield
@@ -193,7 +195,11 @@ object ProtoPipelineStages extends StrictLogging {
               targetSelectionQC = targetSelectionQC,
               wgsQC = wgsQC,
               gvcfQC = variantCalls.map(_._3),
-              analysisId = analysisId
+              analysisId = analysisId,
+              referenceFasta = indexedReference,
+              dbSnpVcf = dbSnpVcf,
+              vqsrTrainingFiles = vqsrTrainingFiles,
+              variantEvaluationIntervals = variantEvaluationIntervals
             )
 
     }

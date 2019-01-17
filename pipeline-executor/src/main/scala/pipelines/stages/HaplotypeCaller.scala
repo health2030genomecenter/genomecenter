@@ -93,7 +93,69 @@ case class ApplyVQSRInput(
 ) extends WithSharedFiles(
       vcf.files ++ List(snpRecal, snpTranches, indelRecal, indelTranches): _*)
 
+case class JointCallInput(
+    haplotypeCallerReferenceCalls: StableSet[VCF],
+    indexedReference: IndexedReferenceFasta,
+    dbSnpVcf: VCF,
+    vqsrTrainingFiles: Option[VQSRTrainingFiles],
+    variantEvaluationIntervals: BedFile,
+    outputFileName: String
+) extends WithSharedFiles(
+      haplotypeCallerReferenceCalls.toSeq.flatMap(_.files): _*)
+
+case class JointCalledResult(vcf: VCF, qc: VariantCallingMetricsResult)
+    extends WithSharedFiles(
+      vcf.files ++ qc.files: _*
+    )
+
 object HaplotypeCaller {
+
+  val jointCall =
+    AsyncTask[JointCallInput, JointCalledResult]("__joint-call", 1) {
+      case JointCallInput(haplotypeCallerReferenceCalls,
+                          indexedReference,
+                          dbSnpVcf,
+                          vqsrTrainingFiles,
+                          variantEvaluationIntervals,
+                          outputFileName) =>
+        implicit computationEnvironment =>
+          releaseResources
+
+          def intoIntermediateFolder[T] =
+            appendToFilePrefix[T](Seq("intermediate").filter(_.nonEmpty))
+
+          for {
+            GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
+              implicit computationEnvironment =>
+                HaplotypeCaller.genotypeGvcfs(
+                  GenotypeGVCFsInput(
+                    haplotypeCallerReferenceCalls,
+                    indexedReference,
+                    dbSnpVcf,
+                    outputFileName + ".genotypes",
+                    vqsrTrainingFiles = vqsrTrainingFiles
+                  ))(ResourceConfig.minimal)
+            }
+
+            genotypesVCF <- HaplotypeCaller.mergeVcfs(
+              MergeVCFInput(genotypesScattered,
+                            outputFileName + ".joint.genotyped.vcf.gz"))(
+              ResourceConfig.minimal)
+
+            qc <- HaplotypeCaller.collectVariantCallingMetrics(
+              CollectVariantCallingMetricsInput(indexedReference,
+                                                genotypesVCF,
+                                                dbSnpVcf,
+                                                variantEvaluationIntervals))(
+              ResourceConfig.minimal)
+
+          } yield
+            JointCalledResult(
+              genotypesVCF,
+              qc
+            )
+
+    }
 
   val applyVQSR =
     AsyncTask[ApplyVQSRInput, VCF]("__apply-vqsr", 1) {
@@ -805,4 +867,16 @@ object ApplyVQSRInput {
     deriveEncoder[ApplyVQSRInput]
   implicit val decoder: Decoder[ApplyVQSRInput] =
     deriveDecoder[ApplyVQSRInput]
+}
+object JointCallInput {
+  implicit val encoder: Encoder[JointCallInput] =
+    deriveEncoder[JointCallInput]
+  implicit val decoder: Decoder[JointCallInput] =
+    deriveDecoder[JointCallInput]
+}
+object JointCalledResult {
+  implicit val encoder: Encoder[JointCalledResult] =
+    deriveEncoder[JointCalledResult]
+  implicit val decoder: Decoder[JointCalledResult] =
+    deriveDecoder[JointCalledResult]
 }

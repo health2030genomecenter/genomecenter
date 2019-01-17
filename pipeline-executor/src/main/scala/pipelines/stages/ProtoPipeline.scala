@@ -86,12 +86,32 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     val sampleQCsWES =
       samples.flatMap(_.extractWESQCFiles)
 
+    val wesResultsByAnalysisId
+      : Seq[(AnalysisId, Seq[SingleSamplePipelineResult])] =
+      samples
+        .flatMap { sampleResult =>
+          sampleResult.wes.map { wesResult =>
+            val analysisId =
+              // this replacement is due to the migration which introduced analysis ids
+              // analyses without an id were given the empty string, but semantically they are
+              // equivalent to the hg19
+              if (wesResult.analysisId == "") AnalysisId("hg19")
+              else wesResult.analysisId
+
+            (analysisId, wesResult)
+          }
+        }
+        .groupBy(_._1)
+        .toSeq
+        .map { case (analysisId, group) => (analysisId, group.map(_._2)) }
+
     def projectQC = inProjectQCFolder(project) { implicit tsc =>
       for {
 
         wes <- AlignmentQC.runQCTable(
           RunQCTableInput(project + "." + samples.size,
                           sampleQCsWES.toSet.toStable))(ResourceConfig.minimal)
+
         rna <- RunQCRNA.runQCTable(
           RunQCTableRNAInput(project + "." + samples.size,
                              samples
@@ -99,20 +119,56 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                                  (rnaResult.analysisId, rnaResult.star)))
                                .toSet
                                .toStable))(ResourceConfig.minimal)
+
         reads <- ReadQC.readQC(
           ReadQCInput(fastqsOfThisRun.toSet.toStable,
                       project + "." + samples.size))(ResourceConfig.minimal)
+
       } yield (wes, rna, reads)
+    }
+
+    def assertUniqueAndGet[T](s: Seq[T]) = {
+      require(s.distinct.size == 1)
+      s.head
+    }
+
+    def jointCalls = Future.traverse(wesResultsByAnalysisId) {
+      case (analysisId, wesResults) =>
+        val indexedReference =
+          assertUniqueAndGet(wesResults.map(_.referenceFasta))
+        val dbSnpVcf = assertUniqueAndGet(wesResults.map(_.dbSnpVcf))
+        val vqsrTrainingFiles =
+          assertUniqueAndGet(wesResults.map(_.vqsrTrainingFiles))
+        val variantEvaluationIntervals =
+          assertUniqueAndGet(wesResults.map(_.variantEvaluationIntervals))
+        inProjectJointCallFolder(project, analysisId) { implicit tsc =>
+          HaplotypeCaller.jointCall(
+            JointCallInput(
+              wesResults.map(_.haplotypeCallerReferenceCalls).toSet.toStable,
+              indexedReference,
+              dbSnpVcf,
+              vqsrTrainingFiles,
+              variantEvaluationIntervals,
+              project + "." + analysisId
+            ))(ResourceConfig.minimal)
+        }
     }
 
     for {
       (wes, rna, reads) <- projectQC
+      jointCalls <- jointCalls
       _ <- inDeliverablesFolder { implicit tsc =>
+        val jointCallVcfFileSet = jointCalls
+          .map(result => project -> result.vcf.vcf)
+          .toSet
+
+        val files =
+          (jointCallVcfFileSet ++ Set(project -> wes.htmlTable,
+                                      project -> rna,
+                                      project -> reads.plots)).toStable
+
         Delivery.collectDeliverables(
-          CollectDeliverablesInput(samples.toSet.toStable,
-                                   Set(project -> wes.htmlTable,
-                                       project -> rna,
-                                       project -> reads.plots).toStable))(
+          CollectDeliverablesInput(samples.toSet.toStable, files))(
           ResourceConfig.minimal)
       }
     } yield (project, true)
@@ -271,6 +327,11 @@ class ProtoPipeline(implicit EC: ExecutionContext)
   private def inProjectQCFolder[T](project: Project)(
       f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
     tsc.withFilePrefix(Seq("projectQC", project))(f)
+
+  private def inProjectJointCallFolder[T](project: Project,
+                                          analysisId: AnalysisId)(
+      f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
+    tsc.withFilePrefix(Seq("projects", project, "joint-calls", analysisId))(f)
 
   private def inDeliverablesFolder[T](f: TaskSystemComponents => T)(
       implicit tsc: TaskSystemComponents) =
