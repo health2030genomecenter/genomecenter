@@ -98,25 +98,18 @@ case class JointCallInput(
     indexedReference: IndexedReferenceFasta,
     dbSnpVcf: VCF,
     vqsrTrainingFiles: Option[VQSRTrainingFiles],
-    variantEvaluationIntervals: BedFile,
     outputFileName: String
 ) extends WithSharedFiles(
       haplotypeCallerReferenceCalls.toSeq.flatMap(_.files): _*)
 
-case class JointCalledResult(vcf: VCF, qc: VariantCallingMetricsResult)
-    extends WithSharedFiles(
-      vcf.files ++ qc.files: _*
-    )
-
 object HaplotypeCaller {
 
   val jointCall =
-    AsyncTask[JointCallInput, JointCalledResult]("__joint-call", 1) {
+    AsyncTask[JointCallInput, VCF]("__joint-call", 1) {
       case JointCallInput(haplotypeCallerReferenceCalls,
                           indexedReference,
                           dbSnpVcf,
                           vqsrTrainingFiles,
-                          variantEvaluationIntervals,
                           outputFileName) =>
         implicit computationEnvironment =>
           releaseResources
@@ -142,18 +135,7 @@ object HaplotypeCaller {
                             outputFileName + ".joint.genotyped.vcf.gz"))(
               ResourceConfig.minimal)
 
-            qc <- HaplotypeCaller.collectVariantCallingMetrics(
-              CollectVariantCallingMetricsInput(indexedReference,
-                                                genotypesVCF,
-                                                dbSnpVcf,
-                                                variantEvaluationIntervals))(
-              ResourceConfig.minimal)
-
-          } yield
-            JointCalledResult(
-              genotypesVCF,
-              qc
-            )
+          } yield genotypesVCF
 
     }
 
@@ -873,10 +855,4 @@ object JointCallInput {
     deriveEncoder[JointCallInput]
   implicit val decoder: Decoder[JointCallInput] =
     deriveDecoder[JointCallInput]
-}
-object JointCalledResult {
-  implicit val encoder: Encoder[JointCalledResult] =
-    deriveEncoder[JointCalledResult]
-  implicit val decoder: Decoder[JointCalledResult] =
-    deriveDecoder[JointCalledResult]
 }

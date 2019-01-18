@@ -82,8 +82,7 @@ case class SingleSamplePipelineResult(
     analysisId: AnalysisId,
     referenceFasta: IndexedReferenceFasta,
     dbSnpVcf: VCF,
-    vqsrTrainingFiles: Option[VQSRTrainingFiles],
-    variantEvaluationIntervals: BedFile)
+    vqsrTrainingFiles: Option[VQSRTrainingFiles])
     extends WithSharedFiles(
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.files ++ referenceFasta.files ++ dbSnpVcf.files ++ vqsrTrainingFiles.toSeq
         .flatMap(_.files) ++ gvcf.files ++ gvcfQC.toSeq.flatMap(_.files): _*)

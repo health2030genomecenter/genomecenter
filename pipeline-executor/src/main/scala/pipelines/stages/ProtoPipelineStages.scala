@@ -198,8 +198,7 @@ object ProtoPipelineStages extends StrictLogging {
               analysisId = analysisId,
               referenceFasta = indexedReference,
               dbSnpVcf = dbSnpVcf,
-              vqsrTrainingFiles = vqsrTrainingFiles,
-              variantEvaluationIntervals = variantEvaluationIntervals
+              vqsrTrainingFiles = None
             )
 
     }

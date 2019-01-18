@@ -139,8 +139,6 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         val dbSnpVcf = assertUniqueAndGet(wesResults.map(_.dbSnpVcf))
         val vqsrTrainingFiles =
           assertUniqueAndGet(wesResults.map(_.vqsrTrainingFiles))
-        val variantEvaluationIntervals =
-          assertUniqueAndGet(wesResults.map(_.variantEvaluationIntervals))
         inProjectJointCallFolder(project, analysisId) { implicit tsc =>
           HaplotypeCaller.jointCall(
             JointCallInput(
@@ -148,7 +146,6 @@ class ProtoPipeline(implicit EC: ExecutionContext)
               indexedReference,
               dbSnpVcf,
               vqsrTrainingFiles,
-              variantEvaluationIntervals,
               project + "." + analysisId
             ))(ResourceConfig.minimal)
         }
@@ -156,10 +153,10 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
     for {
       (wes, rna, reads) <- projectQC
-      jointCalls <- jointCalls
+      jointCallsVCF <- jointCalls
       _ <- inDeliverablesFolder { implicit tsc =>
-        val jointCallVcfFileSet = jointCalls
-          .map(result => project -> result.vcf.vcf)
+        val jointCallVcfFileSet = jointCallsVCF
+          .map(vcfWithIndex => project -> vcfWithIndex.vcf)
           .toSet
 
         val files =
@@ -271,6 +268,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       dbSnpVcf <- ProtoPipelineStages.fetchDbSnpVcf(conf)
       variantEvaluationIntervals <- ProtoPipelineStages
         .fetchVariantEvaluationIntervals(conf)
+      vqsrTrainingFiles <- ProtoPipelineStages.fetchVqsrTrainingFiles(conf)
       perSampleResultsWES <- ProtoPipelineStages.singleSampleWES(
         SingleSamplePipelineInput(
           conf.analysisId,
@@ -287,7 +285,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
              samplesForWESAnalysis.project,
              samplesForWESAnalysis.sampleId))
 
-    } yield perSampleResultsWES
+    } yield perSampleResultsWES.copy(vqsrTrainingFiles = vqsrTrainingFiles)
 
   private def rna(
       samplesForRNASeqAnalysis: PerSamplePerRunFastQ,
