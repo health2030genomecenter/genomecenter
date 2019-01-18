@@ -468,7 +468,13 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
         mat
     }
 
-  case class CompletedProject(samples: Seq[SampleResult])
+  case class CompletedProject(samples: Seq[SampleResult]) {
+    require(samples
+              .map(sample => getKeysOfSampleResult(sample)._1: Project)
+              .distinct
+              .size <= 1,
+            s"More than one project. Programmer error. $samples")
+  }
   case class CompletedRun(samples: Seq[SampleResult])
 
   sealed trait Stage
