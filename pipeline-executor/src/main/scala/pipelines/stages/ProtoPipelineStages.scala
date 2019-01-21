@@ -31,7 +31,8 @@ object ProtoPipelineStages extends StrictLogging {
                                      selectionTargetIntervals,
                                      dbSnpVcf,
                                      variantEvaluationIntervals,
-                                     bamOfPreviousRuns) =>
+                                     bamOfPreviousRuns,
+                                     doVariantCalling) =>
         implicit computationEnvironment =>
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
@@ -124,54 +125,59 @@ object ProtoPipelineStages extends StrictLogging {
                 ResourceConfig.minimal)
             }
 
-            haplotypeCallerReferenceCalls <- intoFinalFolder {
-              implicit computationEnvironment =>
-                HaplotypeCaller.haplotypeCaller(
-                  HaplotypeCallerInput(recalibrated, indexedReference))(
-                  ResourceConfig.minimal)
-            }
+            variantCalls <- if (!doVariantCalling) Future.successful(None)
+            else {
+              for {
+                haplotypeCallerReferenceCalls <- intoFinalFolder {
+                  implicit computationEnvironment =>
+                    HaplotypeCaller.haplotypeCaller(
+                      HaplotypeCallerInput(recalibrated, indexedReference))(
+                      ResourceConfig.minimal)
+                }
 
-            GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                HaplotypeCaller.genotypeGvcfs(
-                  GenotypeGVCFsInput(
-                    StableSet(haplotypeCallerReferenceCalls),
-                    indexedReference,
-                    dbSnpVcf,
-                    demultiplexed.project + "." + demultiplexed.sampleId + ".single",
-                    vqsrTrainingFiles = None
-                  ))(ResourceConfig.minimal)
-            }
+                GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
+                  implicit computationEnvironment =>
+                    HaplotypeCaller.genotypeGvcfs(
+                      GenotypeGVCFsInput(
+                        StableSet(haplotypeCallerReferenceCalls),
+                        indexedReference,
+                        dbSnpVcf,
+                        demultiplexed.project + "." + demultiplexed.sampleId + ".single",
+                        vqsrTrainingFiles = None
+                      ))(ResourceConfig.minimal)
+                }
 
-            gvcf <- intoFinalFolder { implicit computationEnvironment =>
-              HaplotypeCaller.mergeVcfs(MergeVCFInput(
-                genotypesScattered,
-                demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
-                ResourceConfig.minimal)
-            }
+                gvcf <- intoFinalFolder { implicit computationEnvironment =>
+                  HaplotypeCaller.mergeVcfs(MergeVCFInput(
+                    genotypesScattered,
+                    demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
+                    ResourceConfig.minimal)
+                }
 
-            gvcfQC <- intoQCFolder { implicit computationEnvironment =>
-              HaplotypeCaller.collectVariantCallingMetrics(
-                CollectVariantCallingMetricsInput(indexedReference,
-                                                  gvcf,
-                                                  dbSnpVcf,
-                                                  variantEvaluationIntervals))(
-                ResourceConfig.minimal)
+                gvcfQC <- intoQCFolder { implicit computationEnvironment =>
+                  HaplotypeCaller.collectVariantCallingMetrics(
+                    CollectVariantCallingMetricsInput(
+                      indexedReference,
+                      gvcf,
+                      dbSnpVcf,
+                      variantEvaluationIntervals))(ResourceConfig.minimal)
+                }
+              } yield Some((haplotypeCallerReferenceCalls, gvcf, gvcfQC))
             }
 
           } yield
             SingleSamplePipelineResult(
               bam = recalibrated,
               uncalibrated = alignedSample.bam,
-              haplotypeCallerReferenceCalls = haplotypeCallerReferenceCalls,
-              gvcf = gvcf,
+              haplotypeCallerReferenceCalls = variantCalls.map(_._1),
+              gvcf = variantCalls.map(_._2),
               project = demultiplexed.project,
               sampleId = demultiplexed.sampleId,
               alignmentQC = alignmentQC,
               duplicationQC = duplicationQC,
               targetSelectionQC = targetSelectionQC,
               wgsQC = wgsQC,
-              gvcfQC = gvcfQC,
+              gvcfQC = variantCalls.map(_._3),
               analysisId = analysisId
             )
 

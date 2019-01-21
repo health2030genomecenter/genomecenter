@@ -224,7 +224,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           selectionTargetIntervals,
           dbSnpVcf,
           variantEvaluationIntervals,
-          previousUncalibratedBam
+          previousUncalibratedBam,
+          !conf.doVariantCalls.exists(_ == false)
         ))(ResourceConfig.minimal,
            labels = ResourceConfig.projectAndSampleLabel(
              samplesForWESAnalysis.project,

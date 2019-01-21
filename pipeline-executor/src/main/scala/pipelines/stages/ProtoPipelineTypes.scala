@@ -37,7 +37,7 @@ case class SampleResult(
         sample.duplicationQC.markDuplicateMetrics,
         fastpReportsOfSample,
         sample.wgsQC.wgsMetrics,
-        sample.gvcfQC.summary,
+        sample.gvcfQC.map(_.summary),
         sample.project,
         sample.sampleId,
         sample.alignmentQC.insertSizeMetrics
@@ -61,25 +61,28 @@ case class SingleSamplePipelineInput(analysisId: AnalysisId,
                                      selectionTargetIntervals: BedFile,
                                      dbSnpVcf: VCF,
                                      variantEvaluationIntervals: BedFile,
-                                     bamOfPreviousRuns: Option[Bam])
+                                     bamOfPreviousRuns: Option[Bam],
+                                     doVariantCalling: Boolean)
     extends WithSharedFiles(demultiplexed.files ++ reference.files ++ knownSites
       .flatMap(_.files) ++ selectionTargetIntervals.files ++ bamOfPreviousRuns.toSeq
       .flatMap(_.files): _*)
 
-case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
-                                      uncalibrated: Bam,
-                                      haplotypeCallerReferenceCalls: VCF,
-                                      gvcf: VCF,
-                                      project: Project,
-                                      sampleId: SampleId,
-                                      alignmentQC: AlignmentQCResult,
-                                      duplicationQC: DuplicationQCResult,
-                                      targetSelectionQC: SelectionQCResult,
-                                      wgsQC: CollectWholeGenomeMetricsResult,
-                                      gvcfQC: VariantCallingMetricsResult,
-                                      analysisId: AnalysisId)
+case class SingleSamplePipelineResult(
+    bam: CoordinateSortedBam,
+    uncalibrated: Bam,
+    haplotypeCallerReferenceCalls: Option[VCF],
+    gvcf: Option[VCF],
+    project: Project,
+    sampleId: SampleId,
+    alignmentQC: AlignmentQCResult,
+    duplicationQC: DuplicationQCResult,
+    targetSelectionQC: SelectionQCResult,
+    wgsQC: CollectWholeGenomeMetricsResult,
+    gvcfQC: Option[VariantCallingMetricsResult],
+    analysisId: AnalysisId)
     extends WithSharedFiles(
-      bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.files ++ gvcf.files: _*)
+      bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.toSeq
+        .flatMap(_.files) ++ gvcf.toSeq.flatMap(_.files): _*)
 
 case class SingleSamplePipelineResultRNA(
     analysisId: AnalysisId,

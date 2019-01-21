@@ -39,11 +39,13 @@ object Delivery {
     singleSampleResults.toSeq
       .flatMap { singleSampleResult =>
         List(
-          (singleSampleResult.project, singleSampleResult.bam.bam),
-          (singleSampleResult.project, singleSampleResult.gvcf.vcf),
-          (singleSampleResult.project,
-           singleSampleResult.haplotypeCallerReferenceCalls.vcf),
-        )
+          (singleSampleResult.project, singleSampleResult.bam.bam)
+        ) ++ singleSampleResult.gvcf.toSeq
+          .map(vcf => (singleSampleResult.project, vcf.vcf))
+          .toList ++
+          singleSampleResult.haplotypeCallerReferenceCalls.toSeq
+            .map(vcf => (singleSampleResult.project, vcf.vcf))
+            .toList
       }
       .groupBy { case (project, _) => project }
       .map {

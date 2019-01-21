@@ -47,7 +47,8 @@ object Migration0000 extends Function1[Json, Json] {
            vqsrHapmap = parsed.vqsrHapmap,
            vqsrOneKgOmni = parsed.vqsrOneKgOmni,
            vqsrDbSnp138 = parsed.vqsrDbSnp138,
-           vqsrOneKgHighConfidenceSnps = parsed.vqsrOneKgHighConfidenceSnps
+           vqsrOneKgHighConfidenceSnps = parsed.vqsrOneKgHighConfidenceSnps,
+           doVariantCalls = Some(false)
          ))
       ),
       rnaProcessing = StableSet(

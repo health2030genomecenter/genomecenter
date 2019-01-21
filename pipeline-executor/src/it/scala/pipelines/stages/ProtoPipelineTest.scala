@@ -325,7 +325,8 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
             vqsrHapmap = None,
             vqsrOneKgOmni = None,
             vqsrOneKgHighConfidenceSnps = None,
-            vqsrDbSnp138 = None
+            vqsrDbSnp138 = None,
+            doVariantCalls = Some(true)
           )
       ),
       rnaProcessing = StableSet.empty

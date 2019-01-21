@@ -56,17 +56,17 @@ case class SampleMetrics(analysisId: AnalysisId,
                          duplicationMetrics: SharedFile,
                          fastpReport: FastpReport,
                          wgsMetrics: SharedFile,
-                         gvcfQCMetrics: SharedFile,
+                         gvcfQCMetrics: Option[SharedFile],
                          project: Project,
                          sampleId: SampleId,
                          insertSizeMetrics: SharedFile)
-    extends WithSharedFiles(alignmentSummary,
-                            hsMetrics,
-                            duplicationMetrics,
-                            wgsMetrics,
-                            gvcfQCMetrics,
-                            fastpReport.json,
-                            insertSizeMetrics)
+    extends WithSharedFiles(
+      List(alignmentSummary,
+           hsMetrics,
+           duplicationMetrics,
+           wgsMetrics,
+           fastpReport.json,
+           insertSizeMetrics) ++ gvcfQCMetrics.toList: _*)
 
 case class RunQCTableInput(fileName: String, samples: StableSet[SampleMetrics])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
@@ -82,7 +82,7 @@ object AlignmentQC {
         (DuplicationMetrics.Root,
          FastpReportModel.Root,
          WgsMetrics.Root,
-         VariantCallingMetrics.Root,
+         Option[VariantCallingMetrics.Root],
          InsertSizeMetrics.Root,
          AnalysisId)]): String = {
 
@@ -95,14 +95,13 @@ object AlignmentQC {
         case (dups,
               fastpMetrics,
               wgsMetrics,
-              vcfMetrics,
+              mayVcfMetrics,
               insertSizeMetrics,
               analysisId) =>
           import dups.metrics._
           import dups._
           import fastpMetrics.metrics._
           import wgsMetrics.metrics._
-          import vcfMetrics.metrics._
           import insertSizeMetrics.metrics._
 
           Html.line(
@@ -122,14 +121,14 @@ object AlignmentQC {
               f"${pctCoverage20x * 100}%11.2f%%" -> right,
               f"${pctCoverage60x * 100}%11.2f%%" -> right,
               f"$pctExcludedTotal%11.2f%%" -> right,
-              f"$totalSnps%s" -> right,
-              f"$snpsInDbSnp%s" -> right,
-              f"$novelSnp%s" -> right,
-              f"$dbSnpTiTv%11.2f" -> right,
-              f"$novelTiTv%11.2f" -> right,
-              f"$totalIndel%s" -> right,
-              f"$indelsInDbSnp%s" -> right,
-              f"$novelIndel%s" -> right
+              f"${mayVcfMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
+              f"${mayVcfMetrics.map(_.metrics.snpsInDbSnp).getOrElse("")}%s" -> right,
+              f"${mayVcfMetrics.map(_.metrics.novelSnp).getOrElse("")}%s" -> right,
+              f"${mayVcfMetrics.map(_.metrics.dbSnpTiTv).getOrElse(Double.NaN)}%11.2f" -> right,
+              f"${mayVcfMetrics.map(_.metrics.novelTiTv).getOrElse(Double.NaN)}%11.2f" -> right,
+              f"${mayVcfMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfMetrics.map(_.metrics.indelsInDbSnp).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfMetrics.map(_.metrics.novelIndel).getOrElse(Double.NaN)}%s" -> right
             ))
 
       }
@@ -257,10 +256,15 @@ object AlignmentQC {
               .map(txt => DuplicationMetrics.Root(txt, m.project, m.sampleId))
 
           def parseVariantCallingMetrics(m: SampleMetrics) =
-            m.gvcfQCMetrics.file
-              .map(read)
-              .map(txt =>
-                VariantCallingMetrics.Root(txt, m.project, m.sampleId))
+            m.gvcfQCMetrics match {
+              case None => Future.successful(None)
+              case Some(file) =>
+                file.file
+                  .map(read)
+                  .map(txt =>
+                    Some(
+                      VariantCallingMetrics.Root(txt, m.project, m.sampleId)))
+            }
 
           def parse(m: SampleMetrics) =
             for {
