@@ -46,7 +46,7 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
 
   private def migrateFromVersion(version: Int, json: Json): T =
     if (version == currentVersion)
-      implicitly[Decoder[T]].decodeJson(json).right.get
+      implicitly[Decoder[T]].decodeJson(json).toTry.get
     else {
       val migrated = migrations(version)(json)
       logger.debug(s"Migrated ${json.noSpaces} to ${migrated.noSpaces}")
