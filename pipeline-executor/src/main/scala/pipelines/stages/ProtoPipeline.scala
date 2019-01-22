@@ -205,7 +205,6 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       dbSnpVcf <- ProtoPipelineStages.fetchDbSnpVcf(conf)
       variantEvaluationIntervals <- ProtoPipelineStages
         .fetchVariantEvaluationIntervals(conf)
-      vqsrTrainingFiles <- ProtoPipelineStages.fetchVqsrTrainingFiles(conf)
       perSampleResultsWES <- ProtoPipelineStages.singleSampleWES(
         SingleSamplePipelineInput(
           conf.analysisId,
@@ -215,8 +214,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           selectionTargetIntervals,
           dbSnpVcf,
           variantEvaluationIntervals,
-          previousUncalibratedBam,
-          vqsrTrainingFiles
+          previousUncalibratedBam
         ))(ResourceConfig.minimal,
            labels = ResourceConfig.projectLabel(samplesForWESAnalysis.project))
 

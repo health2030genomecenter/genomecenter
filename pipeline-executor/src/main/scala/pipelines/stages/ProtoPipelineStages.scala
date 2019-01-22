@@ -31,8 +31,7 @@ object ProtoPipelineStages extends StrictLogging {
                                      selectionTargetIntervals,
                                      dbSnpVcf,
                                      variantEvaluationIntervals,
-                                     bamOfPreviousRuns,
-                                     vqsrTrainingFiles) =>
+                                     bamOfPreviousRuns) =>
         implicit computationEnvironment =>
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
@@ -140,7 +139,7 @@ object ProtoPipelineStages extends StrictLogging {
                     indexedReference,
                     dbSnpVcf,
                     demultiplexed.project + "." + demultiplexed.sampleId + ".single",
-                    vqsrTrainingFiles = vqsrTrainingFiles
+                    vqsrTrainingFiles = None
                   ))(ResourceConfig.minimal)
             }
 

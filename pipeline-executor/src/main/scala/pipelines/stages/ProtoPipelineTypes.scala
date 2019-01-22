@@ -54,19 +54,17 @@ case class SingleSamplePipelineInputRNASeq(
     extends WithSharedFiles(
       demultiplexed.files ++ reference.files ++ gtf.files: _*)
 
-case class SingleSamplePipelineInput(
-    analysisId: AnalysisId,
-    demultiplexed: PerSampleFastQ,
-    reference: ReferenceFasta,
-    knownSites: StableSet[VCF],
-    selectionTargetIntervals: BedFile,
-    dbSnpVcf: VCF,
-    variantEvaluationIntervals: BedFile,
-    bamOfPreviousRuns: Option[Bam],
-    vqsrTrainingFiles: Option[VQSRTrainingFiles])
+case class SingleSamplePipelineInput(analysisId: AnalysisId,
+                                     demultiplexed: PerSampleFastQ,
+                                     reference: ReferenceFasta,
+                                     knownSites: StableSet[VCF],
+                                     selectionTargetIntervals: BedFile,
+                                     dbSnpVcf: VCF,
+                                     variantEvaluationIntervals: BedFile,
+                                     bamOfPreviousRuns: Option[Bam])
     extends WithSharedFiles(demultiplexed.files ++ reference.files ++ knownSites
       .flatMap(_.files) ++ selectionTargetIntervals.files ++ bamOfPreviousRuns.toSeq
-      .flatMap(_.files) ++ vqsrTrainingFiles.toSeq.flatMap(_.files): _*)
+      .flatMap(_.files): _*)
 
 case class SingleSamplePipelineResult(bam: CoordinateSortedBam,
                                       uncalibrated: Bam,
