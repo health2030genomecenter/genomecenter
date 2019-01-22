@@ -138,8 +138,11 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                                  demultiplexedSample)
             .toList
 
-        val perSampleResultsWES = Future.traverse(selectedWESConfigurations)(
-          conf =>
+        val perSampleResultsWES =
+          Future.traverse(selectedWESConfigurations) { conf =>
+            logger.info(
+              demultiplexedSample.runId + " " + demultiplexedSample.project + " " + demultiplexedSample.sampleId + " past result: " + pastSampleResult
+                .map(_.runFolders.map(_.runId)))
             wes(
               demultiplexedSample,
               conf,
@@ -149,10 +152,14 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                     val matchingAnalysisId = wesConfigurationOfPastSample.analysisId == conf.analysisId
                     val matchingMigratedOldAnalysisId = wesConfigurationOfPastSample.analysisId == "" && conf.analysisId == "hg19"
 
+                    logger.debug(
+                      "matchingAnalysisId: " + matchingAnalysisId + " matchingMigratedOldAnalysisId: " + matchingMigratedOldAnalysisId + " " + demultiplexedSample + " " + conf)
+
                     matchingAnalysisId || matchingMigratedOldAnalysisId
                   }
                   .map(_.uncalibrated)),
-          ))
+            )
+          }
 
         val perSampleResultsRNA = Future.traverse(selectedRNASeqConfigurations)(
           rna(demultiplexedSample, _, readLengths))
