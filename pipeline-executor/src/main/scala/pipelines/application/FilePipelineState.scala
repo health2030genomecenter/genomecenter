@@ -65,7 +65,7 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
 class FilePipelineState(logFile: File)
     extends PipelineState
     with StrictLogging {
-  private var past = List[RunfolderReadyForProcessing]()
+  private var past = Vector[RunfolderReadyForProcessing]()
   sealed trait Event
   case class Registered(run: RunfolderReadyForProcessing) extends Event
   case class Deleted(runId: RunId) extends Event
@@ -97,7 +97,7 @@ class FilePipelineState(logFile: File)
 
   def updateState(e: Event) = e match {
     case Registered(r) =>
-      past = r :: (past.filterNot(_.runId == r.runId))
+      past = (past.filterNot(_.runId == r.runId)) :+ r
     case Deleted(runId) =>
       past =
         past.filterNot(runFolder => (runFolder.runId: RunId) == (runId: RunId))
@@ -118,7 +118,7 @@ class FilePipelineState(logFile: File)
   }
 
   def pastRuns =
-    Future.successful(past)
+    Future.successful(past.toList)
 
   def contains(runId: RunId) =
     Future.successful(past.exists(_.runId == runId))

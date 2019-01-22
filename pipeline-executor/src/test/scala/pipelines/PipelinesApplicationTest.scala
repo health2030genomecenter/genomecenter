@@ -26,29 +26,50 @@ class PipelinesApplicationTest
 
   test("file based state logging should work") {
     import better.files.File._
+    Given("a file with run data serialized")
     val file = fileutils.TempFile.createTempFile("state")
     val source = new java.io.File(
       this.getClass.getResource("/migration_test_data").getFile).toPath
     better.files.Dsl.cp(source, file.toPath)
-
+    And("loaded into a FilePipelineState")
     val pipelineState = new FilePipelineState(file)
 
+    And("two runs with the same ids ")
     val run = RunfolderReadyForProcessing(
       RunId("fake"),
       "fakePath",
       RunConfiguration(StableSet.empty, None, StableSet.empty, StableSet.empty)
     )
-
+    val run2 = RunfolderReadyForProcessing(
+      RunId("fake"),
+      "fakePath2",
+      RunConfiguration(StableSet.empty, None, StableSet.empty, StableSet.empty)
+    )
+    When("the first run is registered")
     pipelineState.registered(run)
 
+    Then(
+      "the FilePipelineState's pastRuns method should return 2 runs, first the one in the file")
     val result = Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
     result.size shouldBe 2
-    result.take(1) shouldBe List(run)
+    result.takeRight(1) shouldBe List(run)
+    result.map(_.runId) shouldBe List("", "fake")
 
+    When("The second is invalidated")
     pipelineState.invalidated(run.runId)
+    Then("the pastRuns method should return 1 run")
     Await
       .result((new FilePipelineState(file)).pastRuns, 5 seconds)
       .size shouldBe 1
+
+    When("a new run with the same runId as the second is registered")
+    pipelineState.registered(run2)
+    val result2 =
+      Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
+    Then("pastRuns should return two runs")
+    result2.size shouldBe 2
+    result2.map(_.runId) shouldBe List("", "fake")
+    result2.map(_.runFolderPath) shouldBe List("raw_data//", "fakePath2")
   }
 
   test(
