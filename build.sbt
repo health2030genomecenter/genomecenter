@@ -9,7 +9,90 @@ lazy val commonSettings = Seq(
   javaOptions += "-Xmx4G",
   cancelable in Global := true,
   git.useGitDescribe := true
+) ++ enablePublishDependencies
+
+lazy val publishDependencies = taskKey[Unit]("Publish dependencies.")
+
+lazy val publishToStagingArtifactory = Seq(
+  publishTo := Some(
+    "gc-internal-snapshots" at "http://10.6.38.2:31080/artifactory/internal-local")
 )
+
+def enablePublishDependencies =
+  Seq(
+    publishDependencies := {
+      import sbt.librarymanagement._
+      import sbt.internal.librarymanagement._
+
+      val ivySbt0 = new IvySbt(InlineIvyConfiguration().withResolvers(Vector(
+        "gc-external" at "http://10.6.38.2:31080/artifactory/external-local")))
+      val streams0 = streams.value
+      val log = streams0.log
+
+      val modules = (update.value.configurations.flatMap { configReport =>
+        val modules = configReport.details.flatMap { detail =>
+          detail.modules
+        } ++ configReport.modules
+
+        modules map { moduleReport =>
+          val moduleID = moduleReport.module
+          val artifacts = moduleReport.artifacts
+          (moduleID, artifacts)
+        }
+      }).distinct
+
+      log.info(
+        "Trying to publish the following modules:" +
+          modules.map(x => x._1.toString).sorted.mkString("\n"))
+
+      modules.distinct.foreach {
+        case (moduleID, artifacts) =>
+          val moduleInfo = ModuleInfo(moduleID.name)
+            .withOrganizationName(moduleID.organization)
+
+          val ivyModule = new ivySbt0.Module(
+            ModuleDescriptorConfiguration(moduleID, moduleInfo))
+
+          val pomFile = {
+            val tmpFile = java.io.File.createTempFile("pom", "pom")
+            IvyActions.makePomFile(ivyModule,
+                                   MakePomConfiguration()
+                                     .withFile(tmpFile)
+                                     .withModuleInfo(moduleInfo),
+                                   streams0.log)
+          }
+          val pomArtifact = Artifact.pom(moduleID.name)
+
+          val publishConfigurationWithDependencyArtifacts =
+            PublishConfiguration(
+              publishMavenStyle = true,
+              deliverIvyPattern =
+                sbt.Classpaths.deliverPattern(crossTarget.value),
+              status = "release",
+              configurations = ivyConfigurations.value
+                .map(c => ConfigRef(c.name))
+                .toVector,
+              resolverName = "gc-external",
+              artifacts = artifacts :+ (pomArtifact -> pomFile),
+              checksums = checksums.in(publish).value.toVector,
+              logging = ivyLoggingLevel.value,
+              overwrite = false
+            )
+
+          scala.util
+            .Try(
+              sbt.internal.librarymanagement.IvyActions.publish(
+                ivyModule,
+                publishConfigurationWithDependencyArtifacts,
+                streams0.log))
+            .failed
+            .foreach { x =>
+              log.info(x.toString)
+            }
+      }
+
+    }
+  )
 
 resolvers += Resolver.jcenterRepo
 
@@ -26,6 +109,7 @@ lazy val tasksSlurm = project
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.18" % "test"
     )
   )
+  .settings(publishToStagingArtifactory: _*)
 
 lazy val readqc = project
   .in(file("readqc"))
@@ -138,6 +222,9 @@ lazy val pipelineExecutor = project
     else new File(testFolder).getCanonicalFile
   })
   .settings(inConfig(IntegrationTest)(scalafmtSettings))
+  .settings(
+    publishToStagingArtifactory: _*
+  )
 
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
