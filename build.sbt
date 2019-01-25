@@ -180,7 +180,8 @@ lazy val pipelineExecutor = project
       "com.github.samtools" % "htsjdk" % "2.16.1",
       "com.github.pathikrit" %% "better-files" % "3.6.0",
       "io.circe" %% "circe-core" % "0.10.1",
-      "io.circe" %% "circe-generic" % "0.10.1"
+      "io.circe" %% "circe-generic" % "0.10.1",
+      "org.scala-lang.modules" %% "scala-xml" % "1.1.1"
     ),
     unmanagedClasspath in Test += {
       val testFolder = System.getenv("GC_TESTFOLDER")
