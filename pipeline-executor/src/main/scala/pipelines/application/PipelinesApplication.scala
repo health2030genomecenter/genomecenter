@@ -314,9 +314,24 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       .mapAsync(1000) {
         case CompletedProject(samples) =>
           val (project, _, _) = getKeysOfSampleResult(samples.head)
+
+          val lastRunOfEachSample = samples.zipWithIndex
+            .groupBy {
+              case (sample, _) =>
+                val (_, sampleId, _) = getKeysOfSampleResult(sample)
+                sampleId
+            }
+            .toSeq
+            .map {
+              case (_, group) =>
+                group.last
+            }
+            .sortBy { case (_, idx) => idx }
+            .map { case (sample, _) => sample }
+
           logger.info(
-            s"Project finished with ${samples.size} samples: $project " + samples)
-          pipeline.processCompletedProject(samples).recover {
+            s"Project finished with ${samples.size} samples: $project " + lastRunOfEachSample)
+          pipeline.processCompletedProject(lastRunOfEachSample).recover {
             case error =>
               logger.error(
                 s"$pipeline failed on $project while processing completed project",

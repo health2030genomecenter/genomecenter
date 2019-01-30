@@ -143,11 +143,13 @@ class PipelinesApplicationTest
     val pipelineState = new InMemoryPipelineState
     val taskSystem = defaultTaskSystem(Some(config))
 
+    val testPipeline = new TestPipeline
+
     val app = new PipelinesApplication(eventSource,
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       new TestPipeline)
+                                       testPipeline)
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .takeWithin(15 seconds)
@@ -176,6 +178,29 @@ class PipelinesApplicationTest
                        SampleId("sample1"),
                        RunId("fake"),
                        "fake_2")
+    )
+
+    testPipeline.completedProjects.map(_.toSet).toSet shouldBe Set(
+      Set(
+        FakeSampleResult(Project("project1"),
+                         SampleId("sample1"),
+                         RunId("fake"),
+                         "fake_2"),
+        FakeSampleResult(Project("project1"),
+                         SampleId("sample2"),
+                         RunId("fake"),
+                         "fake_2")
+      ),
+      Set(
+        FakeSampleResult(Project("project2"),
+                         SampleId("sample1"),
+                         RunId("fake"),
+                         "fake_2"),
+        FakeSampleResult(Project("project2"),
+                         SampleId("sample2"),
+                         RunId("fake"),
+                         "fake_2")
+      )
     )
 
   }
@@ -264,13 +289,14 @@ class PipelinesApplicationTest
                                             pattern = List(1, 1, 2))
     val pipelineState = new InMemoryPipelineState
     val taskSystem = defaultTaskSystem(Some(config))
+    val testPipeline = new TestPipeline
 
     When("Sending these run sequence into a running application")
     val app = new PipelinesApplication(eventSource,
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       new TestPipeline)
+                                       testPipeline)
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .takeWithin(15 seconds)
@@ -307,6 +333,29 @@ class PipelinesApplicationTest
                        SampleId("sample1"),
                        RunId("fake2"),
                        "fake1_1fake2_0")
+    )
+
+    testPipeline.completedProjects.map(_.toSet).toSet shouldBe Set(
+      Set(
+        FakeSampleResult(Project("project1"),
+                         SampleId("sample1"),
+                         RunId("fake2"),
+                         "fake1_1fake2_0"),
+        FakeSampleResult(Project("project1"),
+                         SampleId("sample2"),
+                         RunId("fake2"),
+                         "fake1_1fake2_0")
+      ),
+      Set(
+        FakeSampleResult(Project("project2"),
+                         SampleId("sample1"),
+                         RunId("fake2"),
+                         "fake1_1fake2_0"),
+        FakeSampleResult(Project("project2"),
+                         SampleId("sample2"),
+                         RunId("fake2"),
+                         "fake1_1fake2_0")
+      )
     )
 
   }
@@ -505,9 +554,14 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult] {
       samples.head.runId -> true
     }
 
+  lazy val completedProjects =
+    scala.collection.mutable.ArrayBuffer[Seq[FakeSampleResult]]()
   def processCompletedProject(samples: Seq[FakeSampleResult])(
       implicit tsc: TaskSystemComponents): Future[(Project, Boolean)] =
     Future.successful {
+      synchronized {
+        completedProjects.append(samples)
+      }
       samples.head.project -> true
     }
 

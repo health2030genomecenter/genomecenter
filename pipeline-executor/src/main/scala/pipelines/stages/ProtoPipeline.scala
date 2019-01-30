@@ -62,10 +62,17 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
   }
 
-  def processCompletedProject(samples: Seq[SampleResult])(
+  def processCompletedProject(samples0: Seq[SampleResult])(
       implicit tsc: TaskSystemComponents): Future[(Project, Boolean)] = {
-    require(samples.map(_.project).distinct.size == 1, samples.toString)
-    val project = samples.head.project
+    require(samples0.map(_.project).distinct.size == 1, samples0.toString)
+    val project = samples0.head.project
+
+    // See Migration0001.scala why this is here
+    val samples = {
+      val existHg10 = samples0.exists(_.wes.exists(_.analysisId == "hg19"))
+      if (existHg10) samples0.filterNot(_.wes.forall(_.analysisId == ""))
+      else samples0
+    }
 
     val fastqsOfThisRun =
       samples
