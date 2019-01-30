@@ -68,11 +68,14 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     val project = samples0.head.project
 
     // See Migration0001.scala why this is here
-    val samples = {
-      val existHg10 = samples0.exists(_.wes.exists(_.analysisId == "hg19"))
-      if (existHg10) samples0.filterNot(_.wes.forall(_.analysisId == ""))
-      else samples0
-    }
+    val samples =
+      samples0.map { sample =>
+        val existHg19 = sample.wes.exists(_.analysisId == "hg19")
+        if (existHg19)
+          sample.copy(wes = sample.wes.filterNot(_.analysisId == ""))
+        else sample
+
+      }
 
     val fastqsOfThisRun =
       samples
