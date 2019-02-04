@@ -3,8 +3,9 @@ package org.gc.pipelines.util
 import akka.actor._
 import akka.stream.scaladsl._
 import akka.stream._
+import com.typesafe.scalalogging.StrictLogging
 
-object ActorSource {
+object ActorSource extends StrictLogging {
   private class Forwarder extends Actor {
     var listeners: List[ActorRef] = Nil
     override def postStop: Unit = {
@@ -25,6 +26,17 @@ object ActorSource {
       .mapMaterializedValue { actorRef =>
         fw ! actorRef
 
+      }
+      .watchTermination() {
+        case (mat, future) =>
+          future.onComplete {
+            case result =>
+              result.failed.foreach { e =>
+                logger.error("Unexpected exception ", e)
+              }
+              logger.info("ActorSource terminated.")
+          }(AS.dispatcher)
+          mat
       }
     val close = () => fw ! PoisonPill
     (fw, source, close)
