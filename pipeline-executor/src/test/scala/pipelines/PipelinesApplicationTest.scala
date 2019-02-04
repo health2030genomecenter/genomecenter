@@ -92,16 +92,18 @@ class PipelinesApplicationTest
                                        taskSystem,
                                        new TestPipeline)
 
-    val processedRuns = Await.result(app.processingFinishedSource
-                                       .takeWithin(23 seconds)
-                                       .runWith(Sink.seq),
-                                     atMost = 25 seconds)
-
-    processedRuns
-      .collect {
-        case SampleFinished(_, _, _, success, _) => success
-      }
-      .count(identity) shouldBe 4 * numberOfRuns
+    val processedRuns = Await.result(
+      app.processingFinishedSource
+        .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+        .takeWhile(samplesFinished(
+                     FakeSampleResult(Project("project1"),
+                                      SampleId("sample1"),
+                                      RunId("fake2"),
+                                      "fake0_0fake1_0fake2_0")),
+                   true)
+        .runWith(Sink.last),
+      atMost = 60 seconds
+    )
 
     processedRuns
       .collect {
@@ -137,7 +139,7 @@ class PipelinesApplicationTest
     val config = ConfigFactory.parseString("""
   tasks.cache.enabled = false
     """)
-    val numberOfRuns = 3
+    val numberOfRuns = 2
     val eventSource =
       new FakeSequencingCompleteEventSource(numberOfRuns, uniform = true)
     val pipelineState = new InMemoryPipelineState
@@ -151,10 +153,19 @@ class PipelinesApplicationTest
                                        taskSystem,
                                        testPipeline)
 
-    val processedRuns = Await.result(app.processingFinishedSource
-                                       .takeWithin(15 seconds)
-                                       .runWith(Sink.seq),
-                                     atMost = 16 seconds)
+    val processedRuns =
+      Await.result(
+        app.processingFinishedSource
+          .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+          .takeWhile(samplesFinished(
+                       FakeSampleResult(Project("project1"),
+                                        SampleId("sample1"),
+                                        RunId("fake"),
+                                        "fake_1")),
+                     true)
+          .runWith(Sink.last),
+        atMost = 90 seconds
+      )
 
     processedRuns
       .collect {
@@ -173,11 +184,7 @@ class PipelinesApplicationTest
       FakeSampleResult(Project("project1"),
                        SampleId("sample1"),
                        RunId("fake"),
-                       "fake_1"),
-      FakeSampleResult(Project("project1"),
-                       SampleId("sample1"),
-                       RunId("fake"),
-                       "fake_2")
+                       "fake_1")
     )
 
     testPipeline.completedProjects.map(_.toSet).toSet shouldBe Set(
@@ -228,16 +235,19 @@ class PipelinesApplicationTest
                                        taskSystem,
                                        new TestPipeline)
 
-    val processedRuns = Await.result(app.processingFinishedSource
-                                       .takeWithin(15 seconds)
-                                       .runWith(Sink.seq),
-                                     atMost = 16 seconds)
-
-    processedRuns
-      .collect {
-        case RunFinished(_, success) => success
-      }
-      .count(identity) shouldBe 4
+    val processedRuns =
+      Await.result(
+        app.processingFinishedSource
+          .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+          .takeWhile(samplesFinished(
+                       FakeSampleResult(Project("project1"),
+                                        SampleId("sample1"),
+                                        RunId("fake3"),
+                                        "fake1_0fake2_1fake3_1")),
+                     true)
+          .runWith(Sink.last),
+        atMost = 60 seconds
+      )
 
     Then(
       "Each run should be processed by taking the previous into account and the when the middle run is sent the second time the third should be reprocessed but not the first")
@@ -265,12 +275,12 @@ class PipelinesApplicationTest
                        "fake1_0fake2_0fake3_0"),
       FakeSampleResult(Project("project1"),
                        SampleId("sample1"),
-                       RunId("fake3"),
-                       "fake1_0fake3_1"),
+                       RunId("fake2"),
+                       "fake1_0fake2_1"),
       FakeSampleResult(Project("project1"),
                        SampleId("sample1"),
-                       RunId("fake2"),
-                       "fake1_0fake3_1fake2_1")
+                       RunId("fake3"),
+                       "fake1_0fake2_1fake3_1")
     )
 
   }
@@ -298,41 +308,26 @@ class PipelinesApplicationTest
                                        taskSystem,
                                        testPipeline)
 
-    val processedRuns = Await.result(app.processingFinishedSource
-                                       .takeWithin(15 seconds)
-                                       .runWith(Sink.seq),
-                                     atMost = 16 seconds)
-
-    processedRuns
-      .collect {
-        case RunFinished(_, success) => success
-      }
-      .count(identity) shouldBe 2
-
     Then(
       "The first should be processed twice, after which the second should be processed.")
-    processedRuns
-      .collect {
-        case SampleFinished(_, _, _, _, result) => result
-      }
-      .toSet
-      .filter(_.isDefined)
-      .map(_.get.asInstanceOf[FakeSampleResult])
-      .filter(_.project == "project1")
-      .filter(_.sampleId == "sample1")
-      .toSet shouldBe Set(
-      FakeSampleResult(Project("project1"),
-                       SampleId("sample1"),
-                       RunId("fake1"),
-                       "fake1_0"),
-      FakeSampleResult(Project("project1"),
-                       SampleId("sample1"),
-                       RunId("fake1"),
-                       "fake1_1"),
-      FakeSampleResult(Project("project1"),
-                       SampleId("sample1"),
-                       RunId("fake2"),
-                       "fake1_1fake2_0")
+    Await.result(
+      app.processingFinishedSource
+        .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+        .takeWhile(
+          samplesFinished2(Set(
+            FakeSampleResult(Project("project1"),
+                             SampleId("sample1"),
+                             RunId("fake2"),
+                             "fake1_1fake2_1"),
+            FakeSampleResult(Project("project1"),
+                             SampleId("sample1"),
+                             RunId("fake2"),
+                             "fake1_1fake2_0")
+          )),
+          true
+        )
+        .runWith(Sink.last),
+      atMost = 60 seconds
     )
 
     testPipeline.completedProjects.map(_.toSet).toSet shouldBe Set(
@@ -382,10 +377,19 @@ class PipelinesApplicationTest
                                        taskSystem,
                                        new TestPipeline)
 
-    val processedRuns = Await.result(app.processingFinishedSource
-                                       .takeWithin(15 seconds)
-                                       .runWith(Sink.seq),
-                                     atMost = 16 seconds)
+    val processedRuns =
+      Await.result(
+        app.processingFinishedSource
+          .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+          .takeWhile(samplesFinished(
+                       FakeSampleResult(Project("project1"),
+                                        SampleId("sample1"),
+                                        RunId("fake-1"),
+                                        "fake-1_0")),
+                     true)
+          .runWith(Sink.last),
+        atMost = 60 seconds
+      )
 
     Then("The first should be processed should be processed on the second try.")
     processedRuns
@@ -464,6 +468,25 @@ class PipelinesApplicationTest
         case RunFinished(_, success) => success
       }
       .count(identity) shouldBe 0
+  }
+
+  def samplesFinished2(waitFor: Set[FakeSampleResult])(s: Seq[Any]): Boolean = {
+    val r =
+      (s find {
+        case SampleFinished(_, _, _, _, Some(fsr: FakeSampleResult))
+            if waitFor.contains(fsr) =>
+          true
+        case _ => false
+      }).isEmpty
+    r
+  }
+  def samplesFinished(waitFor: FakeSampleResult)(s: Seq[Any]): Boolean = {
+    val r =
+      (s find {
+        case SampleFinished(_, _, _, _, Some(fsr)) if fsr == waitFor => true
+        case _                                                       => false
+      }).isEmpty
+    r
   }
 
 }
