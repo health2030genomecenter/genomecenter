@@ -227,6 +227,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
           state.finish(processedSample)
 
         case (state, Raw(runFolder)) =>
+          logger.info(s"Got new run ${runFolder.runId}")
           state.addNewRun(runFolder)
       }
 
@@ -363,9 +364,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
                     DemultiplexedSample)]) {
         case (pastResultsOfThisSample,
               (currentRunConfiguration, currentDemultiplexedSample)) =>
-          logger.info(
-            s"Processing sample: ${getSampleId(currentDemultiplexedSample)}.")
-
           val (runsBeforeThis, runsAfterInclusive) =
             pastResultsOfThisSample.span {
               case (_, pastRunFolder, _) =>
@@ -377,8 +375,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
               (runFolder, demultiplexedSamples)
           }
 
-          val runsToReApply = runsAfterThis :+ ((currentRunConfiguration,
-                                                 currentDemultiplexedSample))
+          val runsToReApply = ((currentRunConfiguration,
+                                currentDemultiplexedSample)) +: runsAfterThis
+
+          logger.info(
+            s"Processing sample: ${getSampleId(currentDemultiplexedSample)}. RunsBefore: ${runsBeforeThis
+              .map(_._2.runId)}. RunsToReapply: ${runsToReApply.map(_._1.runId)}.")
 
           runsToReApply.foldLeft(Future.successful(runsBeforeThis)) {
             case (pastIntermediateResults,
