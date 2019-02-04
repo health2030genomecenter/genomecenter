@@ -13,9 +13,13 @@ lazy val commonSettings = Seq(
 
 lazy val publishDependencies = taskKey[Unit]("Publish dependencies.")
 
+lazy val stagingIvy1Repository =
+  Resolver.url("gc-ivy1",
+               new java.net.URL("http://10.6.38.2:31080/artifactory/ivy1"))(
+    Resolver.ivyStylePatterns)
+
 lazy val publishToStagingArtifactory = Seq(
-  publishTo := Some(
-    "gc-internal-snapshots" at "http://10.6.38.2:31080/artifactory/internal-local")
+  publishTo := Some(stagingIvy1Repository)
 )
 
 def enablePublishDependencies =
@@ -24,8 +28,8 @@ def enablePublishDependencies =
       import sbt.librarymanagement._
       import sbt.internal.librarymanagement._
 
-      val ivySbt0 = new IvySbt(InlineIvyConfiguration().withResolvers(Vector(
-        "gc-external" at "http://10.6.38.2:31080/artifactory/external-local")))
+      val ivySbt0 = new IvySbt(
+        InlineIvyConfiguration().withResolvers(Vector(stagingIvy1Repository)))
       val streams0 = streams.value
       val log = streams0.log
 
@@ -63,6 +67,26 @@ def enablePublishDependencies =
           }
           val pomArtifact = Artifact.pom(moduleID.name)
 
+          val ivyFile = artifacts.headOption.flatMap {
+            case (artifact, file) =>
+              def lookForIvy(f: File): Option[File] = {
+                val parent = f.getParentFile
+                if (parent == null) None
+                else {
+                  val candidate1 =
+                    new File(parent, "ivy-" + moduleID.revision + ".xml")
+                  val candidate2 = new File(parent + "/ivys", "ivy.xml")
+                  if (candidate1.canRead) Some(candidate1)
+                  else if (candidate2.canRead) Some(candidate2)
+                  else lookForIvy(parent)
+                }
+              }
+
+              lookForIvy(file)
+          }
+          val ivyArtifact =
+            Artifact(moduleID.name, "ivy", "ivy", None, Vector(), None)
+
           val publishConfigurationWithDependencyArtifacts =
             PublishConfiguration(
               publishMavenStyle = true,
@@ -72,8 +96,9 @@ def enablePublishDependencies =
               configurations = ivyConfigurations.value
                 .map(c => ConfigRef(c.name))
                 .toVector,
-              resolverName = "gc-external",
-              artifacts = artifacts :+ (pomArtifact -> pomFile),
+              resolverName = stagingIvy1Repository.name,
+              artifacts = (artifacts :+ (pomArtifact -> pomFile)) ++ ivyFile.toSeq
+                .map(f => ivyArtifact -> f),
               checksums = checksums.in(publish).value.toVector,
               logging = ivyLoggingLevel.value,
               overwrite = false

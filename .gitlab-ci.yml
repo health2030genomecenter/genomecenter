@@ -1,0 +1,17 @@
+image: docker.staging/centos7-slurm-sbt:18.08.8-1.2.1
+
+
+before_script:
+  - uname
+  - pwd 
+  - which sbt 
+  - hostname
+  - sed -i 's/ernie/localhost/g' /etc/slurm/slurm.conf
+  - /usr/local/bin/docker-entrypoint.sh
+  - supervisorctl status
+
+sbt-test:
+  script:
+    - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-1.tar | tar xf - 2> /dev/null
+    - GC_TESTFOLDER=testdata sbt -Dsbt.repository.config=repositories -Dsbt.override.build.repos=true -batch test
+    - find . 
