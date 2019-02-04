@@ -256,6 +256,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
             .map(_.sendToDemultiplexing)
             .via(deduplicate)
             .mapConcat(_.toList)
+            .map { runFolder =>
+              logger.info(s"Sending ${runFolder.runId} to demultiplexing.")
+              runFolder
+            }
         )
 
         stateScan.out ~> broadcast.in
@@ -331,7 +335,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
             .map { case (sample, _) => sample }
 
           logger.info(
-            s"Project finished with ${samples.size} samples: $project " + lastRunOfEachSample)
+            s"Project finished with ${lastRunOfEachSample.size} samples: $project " + lastRunOfEachSample)
           pipeline.processCompletedProject(lastRunOfEachSample).recover {
             case error =>
               logger.error(
@@ -484,7 +488,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       unfinished: Set[(Project, SampleId, RunId)],
       finished: Seq[SampleResult],
       registeredDemultiplexedSamples: Boolean,
-      sendToDemultiplexing: Seq[RunfolderReadyForProcessing]) {
+      sendToDemultiplexing: Seq[RunfolderReadyForProcessing])
+      extends StrictLogging {
 
     private def removeSamplesOfCompletedRuns = {
       val finishedSamples = completedRun.samples.toSet
@@ -511,13 +516,14 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
         .toSeq
         .map { case (_, group) => group.sortBy(_._2).map(_._1).last }
 
-      val newRunFoldersOnHold = uniqueRunsOnHold.filterNot(runFolder =>
-        releasableRunIds.contains(runFolder.runId))
+      val (sendToDemultiplexing, newRunFoldersOnHold) =
+        uniqueRunsOnHold.partition(runFolder =>
+          releasableRunIds.contains(runFolder.runId))
 
       val runIdsToDemultiplex = uniqueRunsOnHold.map(_.runId).toSet
 
       copy(
-        sendToDemultiplexing = uniqueRunsOnHold,
+        sendToDemultiplexing = sendToDemultiplexing,
         runFoldersOnHold = newRunFoldersOnHold,
         unfinishedDemultiplexingOfRunIds =
           unfinishedDemultiplexingOfRunIds ++ uniqueRunsOnHold
@@ -537,10 +543,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
 
     def addNewRun(run: RunfolderReadyForProcessing) =
       if (unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
+        logger.info(s"Put run on hold: ${run.runId}.")
         copy(runFoldersOnHold = runFoldersOnHold :+ run,
              registeredDemultiplexedSamples = false,
              sendToDemultiplexing = Nil)
       } else {
+        logger.debug(s"Set state to send to demultiplexing: ${run.runId}.")
         removeSamplesOfCompletedRuns.copy(
           unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds + run.runId,
           registeredDemultiplexedSamples = false,
@@ -550,6 +558,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
     def addNewDemultiplexedSamples(
         samples: Seq[DemultiplexedSample]): StateOfUnfinishedSamples = {
       val keys = samples.map(getKeysOfDemultiplexedSample)
+      logger.debug(s"Add new demultiplexed samples: $keys.")
       copy(unfinished = unfinished ++ keys,
            registeredDemultiplexedSamples = true,
            sendToDemultiplexing = Nil)
@@ -557,6 +566,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
 
     def finish(processedSample: SampleResult): StateOfUnfinishedSamples = {
       val keysOfFinishedSample = getKeysOfSampleResult(processedSample)
+      logger.debug(
+        s"Finishing $processedSample, $keysOfFinishedSample unfinished before: $unfinished")
       copy(
         unfinished = unfinished.filterNot(_ == keysOfFinishedSample),
         finished = finished :+ processedSample,

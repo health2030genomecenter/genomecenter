@@ -19,6 +19,8 @@ import org.gc.pipelines.util.StableSet
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
+object MyTestKit extends akka.testkit.TestKit(ActorSystem())
+
 class PipelinesApplicationTest
     extends FunSuite
     with GivenWhenThen
@@ -187,27 +189,121 @@ class PipelinesApplicationTest
                        "fake_1")
     )
 
-    testPipeline.completedProjects.map(_.toSet).toSet shouldBe Set(
-      Set(
-        FakeSampleResult(Project("project1"),
-                         SampleId("sample1"),
-                         RunId("fake"),
-                         "fake_2"),
-        FakeSampleResult(Project("project1"),
-                         SampleId("sample2"),
-                         RunId("fake"),
-                         "fake_2")
+  }
+
+  test("pipelines application should not demultiplex the same run prematurely") {
+
+    implicit val AS = ActorSystem()
+    implicit val materializer = ActorMaterializer()
+    val config = ConfigFactory.parseString("""
+  tasks.cache.enabled = false
+    """)
+    val numberOfRuns = 2
+    val eventSource =
+      new FakeSequencingCompleteEventSource(numberOfRuns, uniform = true)
+    val pipelineState = new InMemoryPipelineState
+    val taskSystem = defaultTaskSystem(Some(config))
+
+    val testPipeline = new TestPipeline
+
+    val app = new PipelinesApplication(eventSource,
+                                       pipelineState,
+                                       implicitly[ActorSystem],
+                                       taskSystem,
+                                       testPipeline)
+
+    intercept[Exception](
+      Await.result(
+        app.processingFinishedSource
+          .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+          .takeWhile(
+            samplesFinished(
+              FakeSampleResult(Project("project1"),
+                               SampleId("sample1"),
+                               RunId("fake"),
+                               "fake_2")),
+            true
+          )
+          .runWith(Sink.last),
+        atMost = 40 seconds
+      ))
+
+  }
+
+  test(
+    "pipelines application should not process the same sample twice on project completion") {
+
+    implicit val AS = ActorSystem()
+    implicit val materializer = ActorMaterializer()
+    val config = ConfigFactory.parseString("""
+  tasks.cache.enabled = false
+    """)
+    val numberOfRuns = 2
+    val eventSource =
+      new FakeSequencingCompleteEventSource(numberOfRuns, uniform = true)
+    val pipelineState = new InMemoryPipelineState
+    val taskSystem = defaultTaskSystem(Some(config))
+
+    val testPipeline = new TestPipeline
+
+    val app = new PipelinesApplication(eventSource,
+                                       pipelineState,
+                                       implicitly[ActorSystem],
+                                       taskSystem,
+                                       testPipeline)
+
+    Await.result(
+      app.processingFinishedSource
+        .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+        .takeWhile(
+          samplesFinishedAll(Set(
+            FakeSampleResult(Project("project1"),
+                             SampleId("sample1"),
+                             RunId("fake"),
+                             "fake_1"),
+            FakeSampleResult(Project("project1"),
+                             SampleId("sample2"),
+                             RunId("fake"),
+                             "fake_1"),
+            FakeSampleResult(Project("project2"),
+                             SampleId("sample1"),
+                             RunId("fake"),
+                             "fake_1"),
+            FakeSampleResult(Project("project2"),
+                             SampleId("sample2"),
+                             RunId("fake"),
+                             "fake_1")
+          )),
+          true
+        )
+        .runWith(Sink.last),
+      atMost = 90 seconds
+    )
+
+    MyTestKit.awaitAssert(
+      testPipeline.completedProjects.map(_.toSet).toSet shouldBe Set(
+        Set(
+          FakeSampleResult(Project("project1"),
+                           SampleId("sample1"),
+                           RunId("fake"),
+                           "fake_1"),
+          FakeSampleResult(Project("project1"),
+                           SampleId("sample2"),
+                           RunId("fake"),
+                           "fake_1")
+        ),
+        Set(
+          FakeSampleResult(Project("project2"),
+                           SampleId("sample1"),
+                           RunId("fake"),
+                           "fake_1"),
+          FakeSampleResult(Project("project2"),
+                           SampleId("sample2"),
+                           RunId("fake"),
+                           "fake_1")
+        )
       ),
-      Set(
-        FakeSampleResult(Project("project2"),
-                         SampleId("sample1"),
-                         RunId("fake"),
-                         "fake_2"),
-        FakeSampleResult(Project("project2"),
-                         SampleId("sample2"),
-                         RunId("fake"),
-                         "fake_2")
-      )
+      max = 10 seconds,
     )
 
   }
@@ -330,29 +426,6 @@ class PipelinesApplicationTest
       atMost = 60 seconds
     )
 
-    testPipeline.completedProjects.map(_.toSet).toSet shouldBe Set(
-      Set(
-        FakeSampleResult(Project("project1"),
-                         SampleId("sample1"),
-                         RunId("fake2"),
-                         "fake1_1fake2_0"),
-        FakeSampleResult(Project("project1"),
-                         SampleId("sample2"),
-                         RunId("fake2"),
-                         "fake1_1fake2_0")
-      ),
-      Set(
-        FakeSampleResult(Project("project2"),
-                         SampleId("sample1"),
-                         RunId("fake2"),
-                         "fake1_1fake2_0"),
-        FakeSampleResult(Project("project2"),
-                         SampleId("sample2"),
-                         RunId("fake2"),
-                         "fake1_1fake2_0")
-      )
-    )
-
   }
 
   test("pipelines application should replace old runs even in case of failure ") {
@@ -468,6 +541,21 @@ class PipelinesApplicationTest
         case RunFinished(_, success) => success
       }
       .count(identity) shouldBe 0
+  }
+
+  def samplesFinishedAll(waitFor: Set[FakeSampleResult])(
+      s: Seq[Any]): Boolean = {
+    val r = waitFor.forall { test =>
+      s exists {
+        case SampleFinished(_, _, _, _, Some(fsr: FakeSampleResult))
+            if test == fsr =>
+          true
+        case _ => false
+      }
+    }
+
+    !r
+
   }
 
   def samplesFinished2(waitFor: Set[FakeSampleResult])(s: Seq[Any]): Boolean = {
