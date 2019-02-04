@@ -162,10 +162,10 @@ lazy val pipelineExecutor = project
   .settings(
     name := "pipeline-executor",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.23",
-      "io.github.pityka" %% "tasks-collection" % "0.0.23",
-      "io.github.pityka" %% "tasks-ui-backend" % "0.0.23",
-      "io.github.pityka" %% "tasks-tracker" % "0.0.23",
+      "io.github.pityka" %% "tasks-core" % "0.0.24",
+      "io.github.pityka" %% "tasks-collection" % "0.0.24",
+      "io.github.pityka" %% "tasks-ui-backend" % "0.0.24",
+      "io.github.pityka" %% "tasks-tracker" % "0.0.24",
       "io.github.pityka" %% "fileutils" % "1.2.2",
       "io.github.pityka" %% "nspl-core" % "0.0.20",
       "io.github.pityka" %% "nspl-awt" % "0.0.20",
