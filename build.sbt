@@ -127,7 +127,7 @@ lazy val tasksSlurm = project
   .settings(
     name := "tasks-slurm",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.23",
+      "io.github.pityka" %% "tasks-core" % "0.0.24",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
