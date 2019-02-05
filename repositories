@@ -1,5 +1,6 @@
 [repositories]
   local
   maven_mirror: http://10.6.38.2:31080/artifactory/maven_mirror/maven2/
+  maven_internal: http://10.6.38.2:31080/artifactory/internal-maven
   staging-all: http://10.6.38.2:31080/artifactory/all, [organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]
   
