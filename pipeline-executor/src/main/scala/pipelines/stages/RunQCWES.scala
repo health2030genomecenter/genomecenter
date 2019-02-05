@@ -73,7 +73,38 @@ case class RunQCTableInput(fileName: String, samples: StableSet[SampleMetrics])
 
 case class RunQCTable(htmlTable: SharedFile) extends WithSharedFiles(htmlTable)
 
+case class ParseWholeGenomeCoverageInput(
+    qc: CollectWholeGenomeMetricsResult,
+    runId: String,
+    project: Project,
+    sample: SampleId,
+    analysisId: AnalysisId
+) extends WithSharedFiles(qc.files: _*)
+
 object AlignmentQC {
+
+  val parseWholeGenomeMetrics =
+    AsyncTask[ParseWholeGenomeCoverageInput, SharedFile]("__parse_wgs_coverage",
+                                                         1) {
+      case ParseWholeGenomeCoverageInput(qc,
+                                         runIdTag,
+                                         project,
+                                         sample,
+                                         analysisId) =>
+        implicit computationEnvironment =>
+          implicit val mat = computationEnvironment.components.actorMaterializer
+          for {
+            txt <- qc.wgsMetrics.source
+              .runFold(ByteString(""))(_ ++ _)
+              .map(_.utf8String)
+            parsed = {
+              WgsMetrics.Root(txt, project, sample).metrics.meanCoverage
+            }
+            sf <- SharedFile(
+              Source.single(ByteString(parsed.toString)),
+              project + "." + sample + "." + analysisId + "." + runIdTag)
+          } yield sf
+    }
 
   def makeHtmlTable(
       laneMetrics: Seq[
@@ -519,4 +550,10 @@ object CollectWholeGenomeMetricsResult {
     deriveEncoder[CollectWholeGenomeMetricsResult]
   implicit val decoder: Decoder[CollectWholeGenomeMetricsResult] =
     deriveDecoder[CollectWholeGenomeMetricsResult]
+}
+object ParseWholeGenomeCoverageInput {
+  implicit val encoder: Encoder[ParseWholeGenomeCoverageInput] =
+    deriveEncoder[ParseWholeGenomeCoverageInput]
+  implicit val decoder: Decoder[ParseWholeGenomeCoverageInput] =
+    deriveDecoder[ParseWholeGenomeCoverageInput]
 }

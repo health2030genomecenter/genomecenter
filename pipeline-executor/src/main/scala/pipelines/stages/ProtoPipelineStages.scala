@@ -66,6 +66,11 @@ object ProtoPipelineStages extends StrictLogging {
                   analysisId,
                   "QC").filter(_.nonEmpty))
 
+          def intoCoverageFolder[T] =
+            appendToFilePrefix[T](
+              Seq("coverages", demultiplexed.project, analysisId)
+                .filter(_.nonEmpty))
+
           for {
 
             indexedReference <- BWAAlignment.indexReference(referenceFasta)(
@@ -122,6 +127,16 @@ object ProtoPipelineStages extends StrictLogging {
             wgsQC <- intoQCFolder { implicit computationEnvironment =>
               AlignmentQC.wholeGenomeMetrics(
                 CollectWholeGenomeMetricsInput(recalibrated, indexedReference))(
+                ResourceConfig.minimal)
+            }
+
+            _ <- intoCoverageFolder { implicit computationEnvironment =>
+              AlignmentQC.parseWholeGenomeMetrics(
+                ParseWholeGenomeCoverageInput(wgsQC,
+                                              demultiplexed.runIdTag,
+                                              demultiplexed.project,
+                                              demultiplexed.sampleId,
+                                              analysisId))(
                 ResourceConfig.minimal)
             }
 
