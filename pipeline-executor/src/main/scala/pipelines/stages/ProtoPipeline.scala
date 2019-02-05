@@ -142,7 +142,10 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         inProjectJointCallFolder(project, analysisId) { implicit tsc =>
           HaplotypeCaller.jointCall(
             JointCallInput(
-              wesResults.map(_.haplotypeCallerReferenceCalls).toSet.toStable,
+              wesResults
+                .flatMap(_.haplotypeCallerReferenceCalls.toSeq)
+                .toSet
+                .toStable,
               indexedReference,
               dbSnpVcf,
               vqsrTrainingFiles,
