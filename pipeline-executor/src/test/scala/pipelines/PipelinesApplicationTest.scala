@@ -281,8 +281,11 @@ class PipelinesApplicationTest
     )
 
     MyTestKit.awaitAssert(
-      testPipeline.completedProjects.map(_.toSet).toSet shouldBe Set(
-        Set(
+      {
+        val completedProjects =
+          testPipeline.completedProjects.map(_.toSet).toSet
+
+        completedProjects should contain allOf (Set(
           FakeSampleResult(Project("project1"),
                            SampleId("sample1"),
                            RunId("fake"),
@@ -291,8 +294,7 @@ class PipelinesApplicationTest
                            SampleId("sample2"),
                            RunId("fake"),
                            "fake_1")
-        ),
-        Set(
+        ), Set(
           FakeSampleResult(Project("project2"),
                            SampleId("sample1"),
                            RunId("fake"),
@@ -301,8 +303,9 @@ class PipelinesApplicationTest
                            SampleId("sample2"),
                            RunId("fake"),
                            "fake_1")
-        )
-      ),
+        ))
+
+      },
       max = 10 seconds,
     )
 
