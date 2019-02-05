@@ -1,7 +1,10 @@
 package org.gc.pipelines.stages
 
 import tasks._
-import org.gc.pipelines.application.RunfolderReadyForProcessing
+import org.gc.pipelines.application.{
+  RunfolderReadyForProcessing,
+  WESConfiguration
+}
 
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.StableSet
@@ -82,7 +85,8 @@ case class SingleSamplePipelineResult(
     analysisId: AnalysisId,
     referenceFasta: IndexedReferenceFasta,
     dbSnpVcf: VCF,
-    vqsrTrainingFiles: Option[VQSRTrainingFiles])
+    vqsrTrainingFiles: Option[VQSRTrainingFiles],
+    wesConfiguration: Option[WESConfiguration])
     extends WithSharedFiles(
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.toSeq
         .flatMap(_.files) ++ referenceFasta.files ++ dbSnpVcf.files ++ vqsrTrainingFiles.toSeq

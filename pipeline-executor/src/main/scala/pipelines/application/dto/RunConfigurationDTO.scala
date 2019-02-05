@@ -75,7 +75,8 @@ object RunConfigurationDTO {
           vqsrDbSnp138 =
             option(config, "vqsrDbSnp138")(c => p => c.getString(p)),
           doVariantCalls =
-            option(config, "variantCalls")(c => p => c.getBoolean(p))
+            option(config, "variantCalls")(c => p => c.getBoolean(p)),
+          doJointCalls = option(config, "jointCalls")(c => p => c.getBoolean(p))
         )
 
         RunConfigurationDTO(

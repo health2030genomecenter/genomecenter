@@ -132,27 +132,42 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       s.head
     }
 
-    def jointCalls = Future.traverse(wesResultsByAnalysisId) {
-      case (analysisId, wesResults) =>
-        val indexedReference =
-          assertUniqueAndGet(wesResults.map(_.referenceFasta))
-        val dbSnpVcf = assertUniqueAndGet(wesResults.map(_.dbSnpVcf))
-        val vqsrTrainingFiles =
-          assertUniqueAndGet(wesResults.map(_.vqsrTrainingFiles))
-        inProjectJointCallFolder(project, analysisId) { implicit tsc =>
-          HaplotypeCaller.jointCall(
-            JointCallInput(
-              wesResults
-                .flatMap(_.haplotypeCallerReferenceCalls.toSeq)
-                .toSet
-                .toStable,
-              indexedReference,
-              dbSnpVcf,
-              vqsrTrainingFiles,
-              project + "." + analysisId
-            ))(ResourceConfig.minimal)
+    def jointCalls =
+      Future
+        .traverse(wesResultsByAnalysisId) {
+          case (analysisId, wesResults) =>
+            val indexedReference =
+              assertUniqueAndGet(wesResults.map(_.referenceFasta))
+            val dbSnpVcf = assertUniqueAndGet(wesResults.map(_.dbSnpVcf))
+            val vqsrTrainingFiles =
+              assertUniqueAndGet(wesResults.map(_.vqsrTrainingFiles))
+            val jointCall = assertUniqueAndGet(
+              wesResults.map(
+                _.wesConfiguration.flatMap(_.doJointCalls).getOrElse(false)
+              )
+            )
+
+            inProjectJointCallFolder(project, analysisId) { implicit tsc =>
+              if (jointCall)
+                HaplotypeCaller
+                  .jointCall(JointCallInput(
+                    wesResults
+                      .filter(_.wesConfiguration
+                        .flatMap(_.doJointCalls)
+                        .getOrElse(false))
+                      .flatMap(_.haplotypeCallerReferenceCalls.toSeq)
+                      .toSet
+                      .toStable,
+                    indexedReference,
+                    dbSnpVcf,
+                    vqsrTrainingFiles,
+                    project + "." + analysisId
+                  ))(ResourceConfig.minimal)
+                  .map(Some(_))
+              else Future.successful(None)
+            }
         }
-    }
+        .map(_.collect { case Some(calls) => calls })
 
     for {
       (wes, rna, reads) <- projectQC
@@ -288,7 +303,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
              samplesForWESAnalysis.project,
              samplesForWESAnalysis.sampleId))
 
-    } yield perSampleResultsWES.copy(vqsrTrainingFiles = vqsrTrainingFiles)
+    } yield
+      perSampleResultsWES.copy(vqsrTrainingFiles = vqsrTrainingFiles,
+                               wesConfiguration = Some(conf))
 
   private def rna(
       samplesForRNASeqAnalysis: PerSamplePerRunFastQ,
