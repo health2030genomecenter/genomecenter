@@ -292,7 +292,8 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
                                         "y75n,i6n*,n10,y75n"),
           readAssignment = (1, 2),
           umi = None,
-          tenX = None
+          tenX = None,
+          partitionByLane = None
         ),
         DemultiplexingConfiguration(
           demultiplexingId = DemultiplexingId("demultiplexTwice"),
@@ -303,7 +304,8 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
                                         "y75n,i6n*,n10,y75n"),
           readAssignment = (1, 2),
           umi = None,
-          tenX = None
+          tenX = None,
+          partitionByLane = None
         )
       ),
       globalIndexSet = Some(globalIndexSetFilePath),

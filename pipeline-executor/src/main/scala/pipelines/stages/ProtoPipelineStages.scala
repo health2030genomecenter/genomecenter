@@ -285,17 +285,16 @@ object ProtoPipelineStages extends StrictLogging {
                   demultiplexingConfig.sampleSheet)
                 parsedSampleSheet <- sampleSheet.parse
 
-                demultiplexed <- Demultiplexing.allLanes(
-                  DemultiplexingInput(
-                    r.runFolderPath,
-                    sampleSheet,
-                    demultiplexingConfig.extraBcl2FastqArguments,
-                    globalIndexSet,
-                    partitionByLane = None,
-                    noPartition = demultiplexingConfig.tenX))(
-                  ResourceConfig.minimal,
-                  labels =
-                    ResourceConfig.projectLabel(parsedSampleSheet.projects: _*))
+                demultiplexed <- Demultiplexing.allLanes(DemultiplexingInput(
+                  r.runFolderPath,
+                  sampleSheet,
+                  demultiplexingConfig.extraBcl2FastqArguments,
+                  globalIndexSet,
+                  partitionByLane = demultiplexingConfig.partitionByLane,
+                  noPartition = demultiplexingConfig.tenX
+                ))(ResourceConfig.minimal,
+                   labels = ResourceConfig.projectLabel(
+                     parsedSampleSheet.projects: _*))
 
                 perSampleFastQs = ProtoPipelineStages
                   .groupBySample(demultiplexed.withoutUndetermined,

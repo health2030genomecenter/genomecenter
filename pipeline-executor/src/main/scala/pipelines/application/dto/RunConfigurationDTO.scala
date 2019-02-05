@@ -43,6 +43,10 @@ object RunConfigurationDTO {
             config.getStringList("extraBcl2FastqArguments").asScala,
           tenX =
             if (config.hasPath("tenX")) Some(config.getBoolean("tenX"))
+            else None,
+          partitionByLane =
+            if (config.hasPath("partitionByLane"))
+              Some(config.getBoolean("partitionByLane"))
             else None
         )
 
