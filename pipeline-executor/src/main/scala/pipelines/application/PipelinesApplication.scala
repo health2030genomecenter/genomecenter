@@ -534,12 +534,25 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
 
     }
 
-    def removeFromUnfinishedDemultiplexing(runId: RunId) =
-      copy(
+    def removeFromUnfinishedDemultiplexing(runId: RunId) = {
+      val runRemovedFromUnfinishedDemultiplexing = copy(
+        runFoldersOnHold = runFoldersOnHold
+          .filterNot(_.runId == runId),
         unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds - runId,
         registeredDemultiplexedSamples = true,
         sendToDemultiplexing = Nil
       )
+      val onHold = runFoldersOnHold.filter(_.runId == runId)
+      logger.info(
+        s"Removed ${onHold.size} runs from hold and re-add the last with id $runId ")
+
+      onHold.lastOption match {
+        case None => runRemovedFromUnfinishedDemultiplexing
+        case Some(run) =>
+          runRemovedFromUnfinishedDemultiplexing.addNewRun(run)
+      }
+
+    }
 
     def addNewRun(run: RunfolderReadyForProcessing) =
       if (unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
