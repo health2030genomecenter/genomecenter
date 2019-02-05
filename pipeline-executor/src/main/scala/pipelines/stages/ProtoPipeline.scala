@@ -226,7 +226,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           variantEvaluationIntervals,
           previousUncalibratedBam
         ))(ResourceConfig.minimal,
-           labels = ResourceConfig.projectLabel(samplesForWESAnalysis.project))
+           labels = ResourceConfig.projectAndSampleLabel(
+             samplesForWESAnalysis.project,
+             samplesForWESAnalysis.sampleId))
 
     } yield perSampleResultsWES
 

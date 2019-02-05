@@ -2,9 +2,15 @@ package org.gc.pipelines.util
 
 import com.typesafe.config.ConfigFactory
 import tasks._
-import org.gc.pipelines.model.Project
+import org.gc.pipelines.model.{Project, SampleId}
 
 object ResourceConfig {
+
+  def projectAndSampleLabel(project: Project, sample: SampleId) =
+    tasks.shared.Labels(
+      List("project" -> project,
+           "sample" -> sample,
+           "uuid" -> java.util.UUID.randomUUID.toString))
 
   def projectLabel(projects: Project*) =
     tasks.shared.Labels(projects.toList.map(p => "project" -> p))
