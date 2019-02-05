@@ -45,7 +45,8 @@ class PipelinesApplicationTest
     )
     val run2 = RunfolderReadyForProcessing(
       RunId("fake"),
-      "fakePath2",
+      Some("fakePath2"),
+      Nil,
       RunConfiguration(StableSet.empty, None, StableSet.empty, StableSet.empty)
     )
     When("the first run is registered")
