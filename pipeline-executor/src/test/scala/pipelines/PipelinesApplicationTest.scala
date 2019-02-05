@@ -572,6 +572,7 @@ class PipelinesApplicationTest
     r
   }
   def samplesFinished(waitFor: FakeSampleResult)(s: Seq[Any]): Boolean = {
+    println("Sample finished: "+s)
     val r =
       (s find {
         case SampleFinished(_, _, _, _, Some(fsr)) if fsr == waitFor => true
