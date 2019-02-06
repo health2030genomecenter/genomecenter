@@ -35,7 +35,9 @@ case class WESConfiguration(
     vqsrOneKgHighConfidenceSnps: Option[String],
     vqsrDbSnp138: Option[String],
     doVariantCalls: Option[Boolean],
-    doJointCalls: Option[Boolean]
+    doJointCalls: Option[Boolean],
+    minimumWGSCoverage: Option[Double],
+    minimumTargetCoverage: Option[Double]
 ) {
   def files =
     Set(referenceFasta, targetIntervals, dbSnpVcf, variantEvaluationIntervals) ++ bqsrKnownSites.toSeq ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet

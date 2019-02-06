@@ -10,9 +10,10 @@ import org.gc.pipelines.model._
 import org.gc.pipelines.util.{Html, BAM, JVM, StableSet}
 import org.gc.pipelines.model.{FastpReport => FastpReportModel}
 import java.io.File
-import scala.concurrent.Future
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext
 
 case class AlignmentQCInput(bam: CoordinateSortedBam,
                             reference: IndexedReferenceFasta)
@@ -83,6 +84,41 @@ case class ParseWholeGenomeCoverageInput(
 
 object AlignmentQC {
 
+  def getWGSMeanCoverage(qc: CollectWholeGenomeMetricsResult,
+                         project: Project,
+                         sample: SampleId)(
+      implicit ec: ExecutionContext,
+      tsc: TaskSystemComponents): Future[Double] = {
+    implicit val mat = tsc.actorMaterializer
+    for {
+      txt <- qc.wgsMetrics.source
+        .runFold(ByteString(""))(_ ++ _)
+        .map(_.utf8String)
+      parsed = {
+        WgsMetrics.Root(txt, project, sample).metrics.meanCoverage
+      }
+    } yield parsed.toDouble
+  }
+
+  def getTargetedMeanCoverage(qc: SelectionQCResult,
+                              project: Project,
+                              sample: SampleId)(
+      implicit ec: ExecutionContext,
+      tsc: TaskSystemComponents): Future[Double] = {
+    implicit val mat = tsc.actorMaterializer
+    for {
+      txt <- qc.hsMetrics.source
+        .runFold(ByteString(""))(_ ++ _)
+        .map(_.utf8String)
+      parsed = {
+        HsMetrics
+          .Root(txt, project, sample)
+          .map(_.metrics.meanTargetCoverage)
+          .sum
+      }
+    } yield parsed
+  }
+
   val parseWholeGenomeMetrics =
     AsyncTask[ParseWholeGenomeCoverageInput, SharedFile]("__parse_wgs_coverage",
                                                          1) {
@@ -92,14 +128,8 @@ object AlignmentQC {
                                          sample,
                                          analysisId) =>
         implicit computationEnvironment =>
-          implicit val mat = computationEnvironment.components.actorMaterializer
           for {
-            txt <- qc.wgsMetrics.source
-              .runFold(ByteString(""))(_ ++ _)
-              .map(_.utf8String)
-            parsed = {
-              WgsMetrics.Root(txt, project, sample).metrics.meanCoverage
-            }
+            parsed <- getWGSMeanCoverage(qc, project, sample)
             sf <- SharedFile(
               Source.single(ByteString(parsed.toString)),
               project + "." + sample + "." + analysisId + "." + runIdTag)

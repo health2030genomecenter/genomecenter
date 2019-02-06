@@ -76,7 +76,11 @@ object RunConfigurationDTO {
             option(config, "vqsrDbSnp138")(c => p => c.getString(p)),
           doVariantCalls =
             option(config, "variantCalls")(c => p => c.getBoolean(p)),
-          doJointCalls = option(config, "jointCalls")(c => p => c.getBoolean(p))
+          doJointCalls = option(config, "jointCalls")(c => p => c.getBoolean(p)),
+          minimumWGSCoverage =
+            option(config, "minimumWGSCoverage")(c => p => c.getDouble(p)),
+          minimumTargetCoverage =
+            option(config, "minimumTargetCoverage")(c => p => c.getDouble(p)),
         )
 
         RunConfigurationDTO(

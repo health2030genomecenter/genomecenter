@@ -65,7 +65,9 @@ case class SingleSamplePipelineInput(analysisId: AnalysisId,
                                      dbSnpVcf: VCF,
                                      variantEvaluationIntervals: BedFile,
                                      bamOfPreviousRuns: Option[Bam],
-                                     doVariantCalling: Boolean)
+                                     doVariantCalling: Boolean,
+                                     minimumWGSCoverage: Option[Double],
+                                     minimumTargetCoverage: Option[Double])
     extends WithSharedFiles(demultiplexed.files ++ reference.files ++ knownSites
       .flatMap(_.files) ++ selectionTargetIntervals.files ++ bamOfPreviousRuns.toSeq
       .flatMap(_.files): _*)

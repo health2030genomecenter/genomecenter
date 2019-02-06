@@ -300,7 +300,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           dbSnpVcf,
           variantEvaluationIntervals,
           previousUncalibratedBam,
-          !conf.doVariantCalls.exists(_ == false)
+          !conf.doVariantCalls.exists(_ == false),
+          minimumWGSCoverage = conf.minimumWGSCoverage,
+          minimumTargetCoverage = conf.minimumTargetCoverage
         ))(ResourceConfig.minimal,
            labels = ResourceConfig.projectAndSampleLabel(
              samplesForWESAnalysis.project,

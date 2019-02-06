@@ -21,6 +21,20 @@ import scala.util.{Success, Failure}
 
 object ProtoPipelineStages extends StrictLogging {
 
+  def executeVariantCalling(
+      doVariantCalling: Boolean,
+      wgsCoverage: Double,
+      targetedCoverage: Double,
+      minimumWGSCoverage: Option[Double],
+      minimumTargetedCoverage: Option[Double]
+  ): Boolean = {
+    if (!doVariantCalling) false
+    else
+      minimumWGSCoverage.forall(_ <= wgsCoverage) &&
+      minimumTargetedCoverage.forall(_ <= targetedCoverage)
+
+  }
+
   val singleSampleWES =
     AsyncTask[SingleSamplePipelineInput, SingleSamplePipelineResult](
       "__persample-single",
@@ -33,7 +47,9 @@ object ProtoPipelineStages extends StrictLogging {
                                      dbSnpVcf,
                                      variantEvaluationIntervals,
                                      bamOfPreviousRuns,
-                                     doVariantCalling) =>
+                                     doVariantCalling,
+                                     minimumWGSCoverage,
+                                     minimumTargetedCoverage) =>
         implicit computationEnvironment =>
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
@@ -141,7 +157,22 @@ object ProtoPipelineStages extends StrictLogging {
                 ResourceConfig.minimal)
             }
 
-            variantCalls <- if (!doVariantCalling) Future.successful(None)
+            wgsMeanCoverage <- AlignmentQC.getWGSMeanCoverage(
+              wgsQC,
+              demultiplexed.project,
+              demultiplexed.sampleId)
+            targetedMeanCoverage <- AlignmentQC.getTargetedMeanCoverage(
+              targetSelectionQC,
+              demultiplexed.project,
+              demultiplexed.sampleId
+            )
+
+            variantCalls <- if (!executeVariantCalling(doVariantCalling,
+                                                       wgsMeanCoverage,
+                                                       targetedMeanCoverage,
+                                                       minimumTargetedCoverage,
+                                                       minimumWGSCoverage))
+              Future.successful(None)
             else {
               for {
                 haplotypeCallerReferenceCalls <- intoFinalFolder {
