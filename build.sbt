@@ -257,7 +257,7 @@ lazy val root = (project in file("."))
   .settings(
     publishArtifact := false
   )
-  .aggregate(tasksSlurm, pipelineExecutor, umiProcessor)
+  .aggregate(tasksSlurm, pipelineExecutor, umiProcessor, readqc, readqcCLI)
   .enablePlugins(GitVersioning)
 
 scalafmtOnCompile in ThisBuild := true
