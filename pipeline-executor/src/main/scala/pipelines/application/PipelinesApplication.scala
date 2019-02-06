@@ -555,7 +555,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
       onHold.lastOption match {
         case None => runRemovedFromUnfinishedDemultiplexing
         case Some(run) =>
-          runRemovedFromUnfinishedDemultiplexing.addNewRun(run)
+          runRemovedFromUnfinishedDemultiplexing
+            .addNewRun(run)
+            .copy(registeredDemultiplexedSamples = true)
       }
 
     }
