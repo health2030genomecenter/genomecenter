@@ -657,6 +657,7 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult] {
       synchronized {
         runCounter.update(r.runId, 0)
       }
+      println("Pretending demultiplexing exception.")
       Future.failed(new RuntimeException("boo"))
     } else
       Future.successful(
