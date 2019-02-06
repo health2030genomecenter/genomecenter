@@ -44,7 +44,7 @@ class ProtopipelineTestSuite
         val run =
           RunfolderReadyForProcessing(runId,
                                       Some(runFolderPath),
-                                      Nil,
+                                      None,
                                       runConfiguration)
         val pipeline = new ProtoPipeline()
         import scala.concurrent.duration._

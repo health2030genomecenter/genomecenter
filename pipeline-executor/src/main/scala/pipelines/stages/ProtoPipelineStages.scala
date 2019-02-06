@@ -303,49 +303,51 @@ object ProtoPipelineStages extends StrictLogging {
 
     val runId = r.runId
 
-    Future.traverse(r.demultiplexedSamples) { inputSampleAsFastQ =>
-      val fastqs = Future.traverse(inputSampleAsFastQ.lanes.toSeq) {
-        inputFastQ =>
-          tsc.withFilePrefix(Seq("premade_fastqs", inputSampleAsFastQ.project)) {
-            implicit tsc =>
-              val read1 = new File(inputFastQ.read1Path)
-              val read2 = new File(inputFastQ.read2Path)
-              val umi: Option[File] = inputFastQ.umi.map { umi =>
-                new File(umi)
-              }
-              for {
-                read1SF <- SharedFile(read1,
-                                      name = read1.getName,
-                                      deleteFile = false)
-                read2SF <- SharedFile(read2,
-                                      name = read2.getName,
-                                      deleteFile = false)
-                umiSF <- umi match {
-                  case None => Future.successful(None)
-                  case Some(umif: File) =>
-                    SharedFile(umif, umif.getName, false).map(Some(_))
+    Future.traverse(r.demultiplexedSamples.toSeq.flatten) {
+      inputSampleAsFastQ =>
+        val fastqs = Future.traverse(inputSampleAsFastQ.lanes.toSeq) {
+          inputFastQ =>
+            tsc.withFilePrefix(
+              Seq("premade_fastqs", inputSampleAsFastQ.project)) {
+              implicit tsc =>
+                val read1 = new File(inputFastQ.read1Path)
+                val read2 = new File(inputFastQ.read2Path)
+                val umi: Option[File] = inputFastQ.umi.map { umi =>
+                  new File(umi)
                 }
-              } yield
-                FastQPerLane(
-                  runId,
-                  inputFastQ.lane,
-                  FastQ(read1SF, FastQHelpers.getNumberOfReads(read1)),
-                  FastQ(read2SF, FastQHelpers.getNumberOfReads(read2)),
-                  umiSF.map(umiSF =>
-                    FastQ(umiSF, FastQHelpers.getNumberOfReads(umi.get))),
-                  PartitionId(0)
-                )
+                for {
+                  read1SF <- SharedFile(read1,
+                                        name = read1.getName,
+                                        deleteFile = false)
+                  read2SF <- SharedFile(read2,
+                                        name = read2.getName,
+                                        deleteFile = false)
+                  umiSF <- umi match {
+                    case None => Future.successful(None)
+                    case Some(umif: File) =>
+                      SharedFile(umif, umif.getName, false).map(Some(_))
+                  }
+                } yield
+                  FastQPerLane(
+                    runId,
+                    inputFastQ.lane,
+                    FastQ(read1SF, FastQHelpers.getNumberOfReads(read1)),
+                    FastQ(read2SF, FastQHelpers.getNumberOfReads(read2)),
+                    umiSF.map(umiSF =>
+                      FastQ(umiSF, FastQHelpers.getNumberOfReads(umi.get))),
+                    PartitionId(0)
+                  )
 
-          }
-      }
+            }
+        }
 
-      for {
-        fastqs <- fastqs
-      } yield
-        PerSamplePerRunFastQ(StableSet(fastqs: _*),
-                             inputSampleAsFastQ.project,
-                             inputSampleAsFastQ.sampleId,
-                             runId)
+        for {
+          fastqs <- fastqs
+        } yield
+          PerSamplePerRunFastQ(StableSet(fastqs: _*),
+                               inputSampleAsFastQ.project,
+                               inputSampleAsFastQ.sampleId,
+                               runId)
 
     }
   }

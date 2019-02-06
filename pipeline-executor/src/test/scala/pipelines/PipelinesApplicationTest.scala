@@ -40,13 +40,13 @@ class PipelinesApplicationTest
     val run = RunfolderReadyForProcessing(
       RunId("fake"),
       Some("fakePath"),
-      Nil,
+      None,
       RunConfiguration(StableSet.empty, None, StableSet.empty, StableSet.empty)
     )
     val run2 = RunfolderReadyForProcessing(
       RunId("fake"),
       Some("fakePath2"),
-      Nil,
+      None,
       RunConfiguration(StableSet.empty, None, StableSet.empty, StableSet.empty)
     )
     When("the first run is registered")
@@ -614,7 +614,7 @@ class FakeSequencingCompleteEventSource(take: Int,
         RunfolderReadyForProcessing(
           RunId("fake"),
           Some(runFolder.getAbsolutePath),
-          Nil,
+          None,
           RunConfiguration(StableSet.empty,
                            None,
                            StableSet.empty,

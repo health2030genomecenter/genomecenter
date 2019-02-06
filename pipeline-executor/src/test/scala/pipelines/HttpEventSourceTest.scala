@@ -91,7 +91,7 @@ class HttpEventSourceTest
         application.Append(
           RunfolderReadyForProcessing(RunId(runId),
                                       Some(runFolder.getAbsolutePath),
-                                      Nil,
+                                      None,
                                       runConfiguration.right.get)))
       When("the watched file is deleted")
       watchedFile.delete

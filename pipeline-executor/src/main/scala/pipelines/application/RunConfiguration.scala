@@ -84,7 +84,7 @@ case class InputFastQPerLane(lane: Lane,
 case class RunfolderReadyForProcessing(
     runId: RunId,
     runFolderPath: Option[String],
-    demultiplexedSamples: Seq[InputSampleAsFastQ],
+    demultiplexedSamples: Option[Seq[InputSampleAsFastQ]],
     runConfiguration: RunConfiguration) {
 
   private def filesCanRead(files: Set[String]) =
@@ -96,7 +96,7 @@ case class RunfolderReadyForProcessing(
         new File(runFolderPath).canRead &&
           new File(runFolderPath, "RunInfo.xml").canRead) &&
       filesCanRead(runConfiguration.files) &&
-      demultiplexedSamples.forall(demultiplexedSample =>
+      demultiplexedSamples.toSeq.flatten.forall(demultiplexedSample =>
         filesCanRead(demultiplexedSample.files))
 
 }
@@ -115,7 +115,7 @@ object RunfolderReadyForProcessing {
       runConfigurationDTO =>
         RunfolderReadyForProcessing(RunId(runId),
                                     Some(runFolder.getAbsolutePath),
-                                    Nil,
+                                    None,
                                     runConfigurationDTO.toRunConfiguration))
   }
 }
