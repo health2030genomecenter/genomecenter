@@ -73,7 +73,7 @@ class PipelinesApplicationTest
     Then("pastRuns should return two runs")
     result2.size shouldBe 2
     result2.map(_.runId) shouldBe List("", "fake")
-    result2.map(_.runFolderPath) shouldBe List("raw_data//", "fakePath2")
+    result2.map(_.runFolderPath) shouldBe List(Some("raw_data//"), Some("fakePath2"))
   }
 
   test(
