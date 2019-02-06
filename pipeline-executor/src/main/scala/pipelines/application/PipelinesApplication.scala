@@ -588,7 +588,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
     def finish(processedSample: SampleResult): StateOfUnfinishedSamples = {
       val keysOfFinishedSample = getKeysOfSampleResult(processedSample)
       logger.debug(
-        s"Finishing $processedSample, $keysOfFinishedSample unfinished before: $unfinished")
+        s"Finishing $keysOfFinishedSample unfinished before: $unfinished")
       copy(
         unfinished = unfinished.filterNot(_ == keysOfFinishedSample),
         finished = finished :+ processedSample,
