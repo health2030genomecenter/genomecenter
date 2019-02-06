@@ -28,7 +28,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
   def processCompletedRun(samples: Seq[SampleResult])(
       implicit tsc: TaskSystemComponents): Future[(RunId, Boolean)] = {
-    require(samples.map(_.lastRunId).distinct.size == 1)
+    require(samples.map(_.lastRunId).distinct.size <= 1,
+            s"Multiple run ids found: ${samples.map(_.lastRunId)}")
     val runId = samples.head.lastRunId
 
     val fastqsOfThisRun =
