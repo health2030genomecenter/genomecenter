@@ -3,6 +3,7 @@ package org.gc.pipelines.stages
 import scala.concurrent.{ExecutionContext, Future}
 import tasks._
 import tasks.circesupport._
+import tasks.shared.Priority
 import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   RunConfiguration,
@@ -54,6 +55,9 @@ object ProtoPipelineStages extends StrictLogging {
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
 
+          val priorityBam = Priority(10000)
+          val priorityVcf = Priority(20000)
+
           val runIdTag =
             demultiplexed.runIdTag
 
@@ -102,13 +106,15 @@ object ProtoPipelineStages extends StrictLogging {
                                                demultiplexed.sampleId,
                                                indexedReference,
                                                bamOfPreviousRuns))(
-                    ResourceConfig.minimal)
+                    ResourceConfig.minimal,
+                    priorityBam)
             }
 
             coordinateSorted <- intoIntermediateFolder {
               implicit computationEnvironment =>
                 BWAAlignment.sortByCoordinateAndIndex(alignedSample.bam)(
-                  ResourceConfig.sortBam)
+                  ResourceConfig.sortBam,
+                  priorityBam)
             }
 
             // _ <- alignedSample.bam.file.delete
@@ -118,12 +124,14 @@ object ProtoPipelineStages extends StrictLogging {
                 BaseQualityScoreRecalibration.trainBQSR(
                   TrainBQSRInput(coordinateSorted,
                                  indexedReference,
-                                 knownSites))(ResourceConfig.trainBqsr)
+                                 knownSites))(ResourceConfig.trainBqsr,
+                                              priorityBam)
             }
             recalibrated <- intoFinalFolder { implicit computationEnvironment =>
               BaseQualityScoreRecalibration.applyBQSR(
                 ApplyBQSRInput(coordinateSorted, indexedReference, bqsrTable))(
-                ResourceConfig.applyBqsr)
+                ResourceConfig.applyBqsr,
+                priorityBam)
             }
             _ <- coordinateSorted.bam.delete
             _ <- coordinateSorted.bai.delete
@@ -131,7 +139,8 @@ object ProtoPipelineStages extends StrictLogging {
             alignmentQC <- intoQCFolder { implicit computationEnvironment =>
               AlignmentQC.general(
                 AlignmentQCInput(recalibrated, indexedReference))(
-                ResourceConfig.minimal)
+                ResourceConfig.minimal,
+                priorityBam)
             }
             targetSelectionQC <- intoQCFolder {
               implicit computationEnvironment =>
@@ -139,12 +148,14 @@ object ProtoPipelineStages extends StrictLogging {
                   SelectionQCInput(recalibrated,
                                    indexedReference,
                                    selectionTargetIntervals))(
-                  ResourceConfig.minimal)
+                  ResourceConfig.minimal,
+                  priorityBam)
             }
             wgsQC <- intoQCFolder { implicit computationEnvironment =>
               AlignmentQC.wholeGenomeMetrics(
                 CollectWholeGenomeMetricsInput(recalibrated, indexedReference))(
-                ResourceConfig.minimal)
+                ResourceConfig.minimal,
+                priorityBam)
             }
 
             _ <- intoCoverageFolder { implicit computationEnvironment =>
@@ -154,7 +165,8 @@ object ProtoPipelineStages extends StrictLogging {
                                               demultiplexed.project,
                                               demultiplexed.sampleId,
                                               analysisId))(
-                ResourceConfig.minimal)
+                ResourceConfig.minimal,
+                priorityBam)
             }
 
             wgsMeanCoverage <- AlignmentQC.getWGSMeanCoverage(
@@ -179,7 +191,8 @@ object ProtoPipelineStages extends StrictLogging {
                   implicit computationEnvironment =>
                     HaplotypeCaller.haplotypeCaller(
                       HaplotypeCallerInput(recalibrated, indexedReference))(
-                      ResourceConfig.minimal)
+                      ResourceConfig.minimal,
+                      priorityVcf)
                 }
 
                 GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
@@ -191,7 +204,7 @@ object ProtoPipelineStages extends StrictLogging {
                         dbSnpVcf,
                         demultiplexed.project + "." + demultiplexed.sampleId + ".single",
                         vqsrTrainingFiles = None
-                      ))(ResourceConfig.minimal)
+                      ))(ResourceConfig.minimal, priorityVcf)
                 }
 
                 genotypedVcf <- intoFinalFolder {
@@ -199,7 +212,8 @@ object ProtoPipelineStages extends StrictLogging {
                     HaplotypeCaller.mergeVcfs(MergeVCFInput(
                       genotypesScattered,
                       demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
-                      ResourceConfig.minimal)
+                      ResourceConfig.minimal,
+                      priorityVcf)
                 }
 
                 gvcfQC <- intoQCFolder { implicit computationEnvironment =>
@@ -208,7 +222,8 @@ object ProtoPipelineStages extends StrictLogging {
                       indexedReference,
                       genotypedVcf,
                       dbSnpVcf,
-                      variantEvaluationIntervals))(ResourceConfig.minimal)
+                      variantEvaluationIntervals))(ResourceConfig.minimal,
+                                                   priorityVcf)
                 }
               } yield
                 Some((haplotypeCallerReferenceCalls, genotypedVcf, gvcfQC))
