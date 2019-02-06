@@ -130,6 +130,7 @@ class PipelinesApplicationTest
                        RunId("fake2"),
                        "fake0_0fake1_0fake2_0")
     )
+    taskSystem.shutdown
 
   }
 
@@ -188,6 +189,7 @@ class PipelinesApplicationTest
                        RunId("fake"),
                        "fake_1")
     )
+    taskSystem.shutdown
 
   }
 
@@ -308,6 +310,7 @@ class PipelinesApplicationTest
       },
       max = 10 seconds,
     )
+    taskSystem.shutdown
 
   }
 
@@ -381,6 +384,7 @@ class PipelinesApplicationTest
                        RunId("fake3"),
                        "fake1_0fake2_1fake3_1")
     )
+    taskSystem.shutdown
 
   }
 
@@ -428,6 +432,7 @@ class PipelinesApplicationTest
         .runWith(Sink.last),
       atMost = 60 seconds
     )
+    taskSystem.shutdown
 
   }
 
@@ -483,6 +488,7 @@ class PipelinesApplicationTest
                        RunId("fake-1"),
                        "fake-1_0")
     )
+    taskSystem.shutdown
 
   }
 
@@ -514,6 +520,8 @@ class PipelinesApplicationTest
         case RunFinished(_, success) => success
       }
       .count(identity) shouldBe 0
+
+    taskSystem.shutdown
 
   }
 
@@ -572,7 +580,7 @@ class PipelinesApplicationTest
     r
   }
   def samplesFinished(waitFor: FakeSampleResult)(s: Seq[Any]): Boolean = {
-    println("Sample finished: "+s)
+    println("Sample finished: " + s)
     val r =
       (s find {
         case SampleFinished(_, _, _, _, Some(fsr)) if fsr == waitFor => true

@@ -9,6 +9,7 @@ object ActorSource extends StrictLogging {
   private class Forwarder extends Actor {
     var listeners: List[ActorRef] = Nil
     override def postStop: Unit = {
+      logger.error("Stopping ActorSource forwarder")
       listeners.foreach(_ ! PoisonPill)
     }
     def receive = {
