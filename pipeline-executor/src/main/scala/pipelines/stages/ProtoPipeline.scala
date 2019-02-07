@@ -135,7 +135,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     }
 
     def assertUniqueAndGet[T](s: Seq[T]) = {
-      require(s.distinct.size == 1)
+      require(s.distinct.size == 1, s"Unicity failed on $s")
       s.head
     }
 
