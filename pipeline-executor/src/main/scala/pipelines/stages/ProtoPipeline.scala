@@ -28,7 +28,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
   def processCompletedRun(samples: Seq[SampleResult])(
       implicit tsc: TaskSystemComponents): Future[(RunId, Boolean)] = {
-    require(samples.map(_.lastRunId).distinct.size <= 1,
+    require(samples.map(_.lastRunId).distinct.size == 1,
             s"Multiple run ids found: ${samples.map(_.lastRunId)}")
     val runId = samples.head.lastRunId
 
@@ -250,8 +250,14 @@ class ProtoPipeline(implicit EC: ExecutionContext)
             )
           }
 
-        val perSampleResultsRNA = Future.traverse(selectedRNASeqConfigurations)(
-          rna(demultiplexedSample, _, readLengths))
+        val perSampleResultsRNA = if (readLengths.isEmpty) {
+          logger.warn(
+            "Empty read lengths. RNASeq analysis on 3rd party fastqs not implemented.")
+          Future.successful(Nil)
+
+        } else
+          Future.traverse(selectedRNASeqConfigurations)(
+            rna(demultiplexedSample, _, readLengths))
 
         for {
 
