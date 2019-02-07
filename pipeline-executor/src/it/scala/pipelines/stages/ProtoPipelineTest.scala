@@ -341,7 +341,8 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
             doVariantCalls = Some(true),
             doJointCalls = Some(true),
             minimumTargetCoverage = None,
-            minimumWGSCoverage = None
+            minimumWGSCoverage = None,
+            variantCallingContigs = None
           )
       ),
       rnaProcessing = StableSet.empty

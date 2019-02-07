@@ -37,10 +37,11 @@ case class WESConfiguration(
     doVariantCalls: Option[Boolean],
     doJointCalls: Option[Boolean],
     minimumWGSCoverage: Option[Double],
-    minimumTargetCoverage: Option[Double]
+    minimumTargetCoverage: Option[Double],
+    variantCallingContigs: Option[String]
 ) {
   def files =
-    Set(referenceFasta, targetIntervals, dbSnpVcf, variantEvaluationIntervals) ++ bqsrKnownSites.toSeq ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet
+    Set(referenceFasta, targetIntervals, dbSnpVcf, variantEvaluationIntervals) ++ bqsrKnownSites.toSeq ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet ++ variantCallingContigs.toSet
 }
 
 case class RNASeqConfiguration(

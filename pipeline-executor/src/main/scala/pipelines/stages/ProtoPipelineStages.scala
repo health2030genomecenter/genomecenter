@@ -19,6 +19,8 @@ import org.gc.pipelines.util.StableSet.syntax
 import java.io.File
 import com.typesafe.scalalogging.StrictLogging
 import scala.util.{Success, Failure}
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
 
 object ProtoPipelineStages extends StrictLogging {
 
@@ -50,7 +52,8 @@ object ProtoPipelineStages extends StrictLogging {
                                      bamOfPreviousRuns,
                                      doVariantCalling,
                                      minimumWGSCoverage,
-                                     minimumTargetedCoverage) =>
+                                     minimumTargetedCoverage,
+                                     contigsFile) =>
         implicit computationEnvironment =>
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
@@ -190,9 +193,10 @@ object ProtoPipelineStages extends StrictLogging {
                 haplotypeCallerReferenceCalls <- intoFinalFolder {
                   implicit computationEnvironment =>
                     HaplotypeCaller.haplotypeCaller(
-                      HaplotypeCallerInput(recalibrated, indexedReference))(
-                      ResourceConfig.minimal,
-                      priorityVcf)
+                      HaplotypeCallerInput(recalibrated,
+                                           indexedReference,
+                                           contigsFile))(ResourceConfig.minimal,
+                                                         priorityVcf)
                 }
 
                 GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
@@ -203,7 +207,8 @@ object ProtoPipelineStages extends StrictLogging {
                         indexedReference,
                         dbSnpVcf,
                         demultiplexed.project + "." + demultiplexed.sampleId + ".single",
-                        vqsrTrainingFiles = None
+                        vqsrTrainingFiles = None,
+                        contigsFile = contigsFile
                       ))(ResourceConfig.minimal, priorityVcf)
                 }
 
@@ -246,7 +251,8 @@ object ProtoPipelineStages extends StrictLogging {
               referenceFasta = indexedReference,
               dbSnpVcf = dbSnpVcf,
               vqsrTrainingFiles = None,
-              wesConfiguration = None
+              wesConfiguration = None,
+              variantCallingContigs = contigsFile
             )
 
     }
@@ -599,6 +605,43 @@ object ProtoPipelineStages extends StrictLogging {
           logger.error(s"Failed to target intervals $file", e)
 
       }
+    }
+  }
+
+  def fetchContigsFile(runConfiguration: WESConfiguration)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) = {
+    tsc.withFilePrefix(Seq("references")) { implicit tsc =>
+      runConfiguration.variantCallingContigs match {
+        case None =>
+          val text = scala.io.Source
+            .fromInputStream(
+              getClass.getResourceAsStream("/variantcallingcontigs.txt"))
+            .mkString
+          SharedFile(Source.single(ByteString(text)),
+                     "default_variant_calling_contigs.txt")
+            .map(ContigsFile(_))
+            .andThen {
+              case Success(_) =>
+                logger.debug(s"Fetched target contigs for variant calling")
+              case Failure(e) =>
+                logger.error(s"Failed to save default variant calling contigs",
+                             e)
+
+            }
+        case Some(path) =>
+          val file = new File(path)
+          val fileName = file.getName
+          logger.debug(s"Fetching variant calling contigs file $file")
+          SharedFile(file, fileName).map(ContigsFile(_)).andThen {
+            case Success(_) =>
+              logger.debug(s"Fetched target contigs for variant calling")
+            case Failure(e) =>
+              logger.error(s"Failed to fetch variant calling contigs $file", e)
+
+          }
+      }
+
     }
   }
   def fetchKnownSitesFiles(runConfiguration: WESConfiguration)(

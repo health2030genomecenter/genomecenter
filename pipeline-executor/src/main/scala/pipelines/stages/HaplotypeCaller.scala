@@ -11,7 +11,8 @@ import java.io.File
 
 case class HaplotypeCallerInput(
     bam: CoordinateSortedBam,
-    indexedReference: IndexedReferenceFasta
+    indexedReference: IndexedReferenceFasta,
+    contigs: ContigsFile
 ) extends WithSharedFiles(bam.files ++ indexedReference.files: _*)
 
 case class VariantCallingMetricsResult(
@@ -51,7 +52,8 @@ case class GenotypeGVCFsInput(targetVcfs: StableSet[VCF],
                               reference: IndexedReferenceFasta,
                               dbSnpVcf: VCF,
                               name: String,
-                              vqsrTrainingFiles: Option[VQSRTrainingFiles])
+                              vqsrTrainingFiles: Option[VQSRTrainingFiles],
+                              contigsFile: ContigsFile)
     extends WithSharedFiles(
       targetVcfs.toSeq
         .flatMap(_.files) ++ reference.files ++ dbSnpVcf.files: _*)
@@ -98,7 +100,8 @@ case class JointCallInput(
     indexedReference: IndexedReferenceFasta,
     dbSnpVcf: VCF,
     vqsrTrainingFiles: Option[VQSRTrainingFiles],
-    outputFileName: String
+    outputFileName: String,
+    contigsFile: ContigsFile
 ) extends WithSharedFiles(
       haplotypeCallerReferenceCalls.toSeq.flatMap(_.files): _*)
 
@@ -110,7 +113,8 @@ object HaplotypeCaller {
                           indexedReference,
                           dbSnpVcf,
                           vqsrTrainingFiles,
-                          outputFileName) =>
+                          outputFileName,
+                          contigsFile) =>
         implicit computationEnvironment =>
           releaseResources
 
@@ -126,7 +130,8 @@ object HaplotypeCaller {
                     indexedReference,
                     dbSnpVcf,
                     outputFileName + ".genotypes",
-                    vqsrTrainingFiles = vqsrTrainingFiles
+                    vqsrTrainingFiles = vqsrTrainingFiles,
+                    contigsFile = contigsFile
                   ))(ResourceConfig.minimal)
             }
 
@@ -409,9 +414,10 @@ object HaplotypeCaller {
 
           for {
             dict <- input.reference.dict
+            contigs <- input.contigsFile.readContigs
             intervals = BaseQualityScoreRecalibration
               .createIntervals(dict)
-              .filterNot(_ == "unmapped")
+              .filter(c => contigs.contains(c))
             scattered <- Future.traverse(intervals) { interval =>
               intoScattersFolder { implicit computationEnvironment =>
                 genotypeGvcfsOnInterval(
@@ -572,7 +578,7 @@ object HaplotypeCaller {
 
   val haplotypeCaller =
     AsyncTask[HaplotypeCallerInput, VCF]("__haplotypecaller", 1) {
-      case HaplotypeCallerInput(bam, reference) =>
+      case HaplotypeCallerInput(bam, reference, contigsFile) =>
         implicit computationEnvironment =>
           releaseResources
 
@@ -582,9 +588,10 @@ object HaplotypeCaller {
 
           for {
             dict <- reference.dict
+            contigs <- contigsFile.readContigs
             intervals = BaseQualityScoreRecalibration
               .createIntervals(dict)
-              .filterNot(_ == "unmapped")
+              .filter(c => contigs.contains(c))
             scattered <- Future.traverse(intervals) { interval =>
               intoScattersFolder { implicit computationEnvironment =>
                 haplotypeCallerOnInterval(

@@ -147,6 +147,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
               )
             )
 
+            val contigs =
+              assertUniqueAndGet(wesResults.map(_.variantCallingContigs))
+
             inProjectJointCallFolder(project, analysisId) { implicit tsc =>
               if (jointCall)
                 HaplotypeCaller
@@ -161,7 +164,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                     indexedReference,
                     dbSnpVcf,
                     vqsrTrainingFiles,
-                    project + "." + analysisId
+                    project + "." + analysisId,
+                    contigs
                   ))(ResourceConfig.minimal)
                   .map(Some(_))
               else Future.successful(None)
@@ -286,6 +290,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       knownSites <- ProtoPipelineStages.fetchKnownSitesFiles(conf)
 
       selectionTargetIntervals <- ProtoPipelineStages.fetchTargetIntervals(conf)
+      contigsFile <- ProtoPipelineStages.fetchContigsFile(conf)
       dbSnpVcf <- ProtoPipelineStages.fetchDbSnpVcf(conf)
       variantEvaluationIntervals <- ProtoPipelineStages
         .fetchVariantEvaluationIntervals(conf)
@@ -302,7 +307,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           previousUncalibratedBam,
           !conf.doVariantCalls.exists(_ == false),
           minimumWGSCoverage = conf.minimumWGSCoverage,
-          minimumTargetCoverage = conf.minimumTargetCoverage
+          minimumTargetCoverage = conf.minimumTargetCoverage,
+          contigsFile = contigsFile
         ))(ResourceConfig.minimal,
            labels = ResourceConfig.projectAndSampleLabel(
              samplesForWESAnalysis.project,

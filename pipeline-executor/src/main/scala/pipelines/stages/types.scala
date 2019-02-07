@@ -7,6 +7,7 @@ import io.circe.generic.semiauto._
 import org.gc.pipelines.model._
 import scala.concurrent.{ExecutionContext, Future}
 import org.gc.pipelines.util.StableSet
+import akka.util.ByteString
 
 case class SampleSheetFile(file: SharedFile) extends WithSharedFiles {
   def parse(implicit tsc: TaskSystemComponents, ec: ExecutionContext) = {
@@ -135,6 +136,16 @@ case class VCF(vcf: SharedFile, index: Option[SharedFile])
 case class BQSRTable(file: SharedFile) extends WithSharedFiles(file)
 
 case class BedFile(file: SharedFile) extends WithSharedFiles(file)
+
+case class ContigsFile(file: SharedFile) extends WithSharedFiles(file) {
+  def readContigs(implicit tsc: TaskSystemComponents,
+                  ec: ExecutionContext): Future[Set[String]] = {
+    implicit val mat = tsc.actorMaterializer
+    for {
+      txt <- file.source.runFold(ByteString(""))(_ ++ _).map(_.utf8String)
+    } yield scala.io.Source.fromString(txt).getLines.toSet
+  }
+}
 
 case class GTFFile(file: SharedFile) extends WithSharedFiles(file)
 
@@ -298,4 +309,10 @@ object PerSamplePerRunFastQ {
     deriveEncoder[PerSamplePerRunFastQ]
   implicit val decoder: Decoder[PerSamplePerRunFastQ] =
     deriveDecoder[PerSamplePerRunFastQ]
+}
+object ContigsFile {
+  implicit val encoder: Encoder[ContigsFile] =
+    deriveEncoder[ContigsFile]
+  implicit val decoder: Decoder[ContigsFile] =
+    deriveDecoder[ContigsFile]
 }

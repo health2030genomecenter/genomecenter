@@ -29,7 +29,8 @@ class HaplotypeCallerTest
           indexedFasta,
           dbsnpvcf,
           "boo",
-          None
+          None,
+          ContigsFile(await(SharedFile(contigs, "contigs.txt")))
         )
 
         When("genotyping them")
@@ -60,7 +61,8 @@ class HaplotypeCallerTest
           HaplotypeCallerInput(
             CoordinateSortedBam(await(SharedFile(bam, "some.bam")),
                                 await(SharedFile(bai, "some.bam.bai"))),
-            indexedFasta
+            indexedFasta,
+            ContigsFile(await(SharedFile(contigs, "contigs.txt")))
           )
 
         When("calling variants with haplotypecaller")
@@ -147,6 +149,9 @@ class HaplotypeCallerTest
       getClass
         .getResource("/example.vcf.gz.tbi")
         .getFile)
+
+    val contigs = new File(
+      getClass.getResource("/variantcallingcontigs.txt").getFile)
 
     val (testConfig, basePath) = makeTestConfig
   }

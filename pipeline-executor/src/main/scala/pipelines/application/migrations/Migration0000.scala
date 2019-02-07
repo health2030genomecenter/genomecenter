@@ -51,7 +51,8 @@ object Migration0000 extends Function1[Json, Json] {
            doVariantCalls = Some(false),
            doJointCalls = None,
            minimumWGSCoverage = None,
-           minimumTargetCoverage = None
+           minimumTargetCoverage = None,
+           variantCallingContigs = None
          ))
       ),
       rnaProcessing = StableSet(

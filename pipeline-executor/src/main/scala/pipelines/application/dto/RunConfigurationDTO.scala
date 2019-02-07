@@ -81,6 +81,8 @@ object RunConfigurationDTO {
             option(config, "minimumWGSCoverage")(c => p => c.getDouble(p)),
           minimumTargetCoverage =
             option(config, "minimumTargetCoverage")(c => p => c.getDouble(p)),
+          variantCallingContigs =
+            option(config, "variantCallingContigs")(c => p => c.getString(p))
         )
 
         RunConfigurationDTO(
