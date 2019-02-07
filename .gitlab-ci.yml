@@ -10,7 +10,21 @@ before_script:
   - /usr/local/bin/docker-entrypoint.sh
   - supervisorctl status
 
-sbt-test:
+sbt-unit-test:
+  script:
+    - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-1.tar | tar xf - 2> /dev/null
+    - GC_TESTFOLDER=testdata sbt -Dsbt.repository.config=repositories -Dsbt.override.build.repos=true -batch 'coverage' 'test' 'coverageReport' 'coverageAggregate'
+  artifacts:
+    reports:
+      junit:
+       - '*/target/test-reports/*xml'
+    paths:
+      - target/scala-2.12/scoverage-report/*
+  coverage: '/Coverage was \[(\d+\.\d+)\]/'
+  except:
+    - master
+
+sbt-unit-it-test:
   script:
     - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-1.tar | tar xf - 2> /dev/null
     - GC_TESTFOLDER=testdata sbt -Dsbt.repository.config=repositories -Dsbt.override.build.repos=true -batch 'coverage' 'test' 'it:test' 'coverageReport' 'coverageAggregate'
@@ -20,4 +34,17 @@ sbt-test:
        - '*/target/test-reports/*xml'
     paths:
       - target/scala-2.12/scoverage-report/*
-  coverage: '/Coverage was \[(\d+\.\d+)\]/'
+  coverage: '/Coverage was \[(\d+\.\d+)\]/'  
+  only:
+    - master
+
+sbt-package:
+  stage: deploy
+  script:
+    - sbt -Dsbt.repository.config=repositories -Dsbt.override.build.repos=true -batch 'pipelineExecutor/universal:packageZipTarball'
+  artifacts:
+    expire_in: '1 day'
+    paths:
+      - pipeline-executor/target/universal/*gz
+  only:
+    - master    
