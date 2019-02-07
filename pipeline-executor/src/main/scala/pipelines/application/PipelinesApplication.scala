@@ -335,7 +335,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
             .map { case (sample, _) => sample }
 
           logger.info(
-            s"Project finished with ${lastRunOfEachSample.size} samples: $project " + lastRunOfEachSample)
+            s"Project finished with ${lastRunOfEachSample.size} samples: $project .")
           pipeline.processCompletedProject(lastRunOfEachSample).recover {
             case error =>
               logger.error(
@@ -587,8 +587,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
 
     def finish(processedSample: SampleResult): StateOfUnfinishedSamples = {
       val keysOfFinishedSample = getKeysOfSampleResult(processedSample)
-      logger.debug(
-        s"Finishing $keysOfFinishedSample.")
+      logger.debug(s"Finishing $keysOfFinishedSample.")
       copy(
         unfinished = unfinished.filterNot(_ == keysOfFinishedSample),
         finished = finished :+ processedSample,
