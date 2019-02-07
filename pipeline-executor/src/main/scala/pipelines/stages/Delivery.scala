@@ -94,7 +94,7 @@ object Delivery {
 
           val wesBamAndVcfs: Map[Project, Seq[SharedFile]] =
             inAll(samples.toSeq)(sample =>
-              extractBamAndVcfList(sample.wes.toSet))
+              extractBamAndVcfList(sample.wes.map(_._1).toSet))
 
           val collectedRnaSeqBam: Map[Project, Seq[SharedFile]] =
             inAll(samples.toSeq)(sample =>

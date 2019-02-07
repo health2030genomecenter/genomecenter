@@ -11,8 +11,18 @@ import org.gc.pipelines.util.StableSet
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
+case class SingleSampleConfiguration(
+    analysisId: AnalysisId,
+    dbSnpVcf: VCF,
+    vqsrTrainingFiles: Option[VQSRTrainingFiles],
+    wesConfiguration: WESConfiguration,
+    variantCallingContigs: Option[ContigsFile]
+) extends WithSharedFiles(
+      dbSnpVcf.files ++ vqsrTrainingFiles.toSeq
+        .flatMap(_.files) ++ variantCallingContigs.toSeq.flatMap(_.files): _*)
+
 case class SampleResult(
-    wes: Seq[SingleSamplePipelineResult],
+    wes: Seq[(SingleSamplePipelineResult, SingleSampleConfiguration)],
     rna: Seq[SingleSamplePipelineResultRNA],
     demultiplexed: Seq[PerSamplePerRunFastQ],
     fastpReports: Seq[FastpReport],
@@ -20,7 +30,8 @@ case class SampleResult(
     project: Project,
     sampleId: SampleId
 ) extends WithSharedFiles(
-      wes.toSeq.flatMap(_.files) ++
+      wes.toSeq.flatMap(_._1.files) ++
+        wes.toSeq.flatMap(_._2.files) ++
         rna.toSeq.flatMap(_.files) ++
         demultiplexed.flatMap(_.files) ++
         fastpReports.flatMap(_.files): _*
@@ -28,23 +39,24 @@ case class SampleResult(
   def lastRunId = runFolders.last.runId
 
   def extractWESQCFiles: Seq[SampleMetrics] =
-    wes.map { sample =>
-      val fastpReportsOfSample = fastpReports.find { fp =>
-        fp.sampleId == sample.sampleId &&
-        fp.project == sample.project
-      }.get
-      SampleMetrics(
-        sample.analysisId,
-        sample.alignmentQC.alignmentSummary,
-        sample.targetSelectionQC.hsMetrics,
-        sample.duplicationQC.markDuplicateMetrics,
-        fastpReportsOfSample,
-        sample.wgsQC.wgsMetrics,
-        sample.gvcfQC.map(_.summary),
-        sample.project,
-        sample.sampleId,
-        sample.alignmentQC.insertSizeMetrics
-      )
+    wes.map {
+      case (sample, sampleConfig) =>
+        val fastpReportsOfSample = fastpReports.find { fp =>
+          fp.sampleId == sample.sampleId &&
+          fp.project == sample.project
+        }.get
+        SampleMetrics(
+          sampleConfig.analysisId,
+          sample.alignmentQC.alignmentSummary,
+          sample.targetSelectionQC.hsMetrics,
+          sample.duplicationQC.markDuplicateMetrics,
+          fastpReportsOfSample,
+          sample.wgsQC.wgsMetrics,
+          sample.gvcfQC.map(_.summary),
+          sample.project,
+          sample.sampleId,
+          sample.alignmentQC.insertSizeMetrics
+        )
     }
 }
 
@@ -73,6 +85,14 @@ case class SingleSamplePipelineInput(analysisId: AnalysisId,
       .flatMap(_.files) ++ selectionTargetIntervals.files ++ bamOfPreviousRuns.toSeq
       .flatMap(_.files): _*)
 
+//   ,
+// analysisId: AnalysisId,
+// referenceFasta: IndexedReferenceFasta,
+// dbSnpVcf: VCF,
+// vqsrTrainingFiles: Option[VQSRTrainingFiles],
+// wesConfiguration: Option[WESConfiguration],
+// variantCallingContigs: Option[ContigsFile]
+
 case class SingleSamplePipelineResult(
     bam: CoordinateSortedBam,
     uncalibrated: Bam,
@@ -85,16 +105,11 @@ case class SingleSamplePipelineResult(
     targetSelectionQC: SelectionQCResult,
     wgsQC: CollectWholeGenomeMetricsResult,
     gvcfQC: Option[VariantCallingMetricsResult],
-    analysisId: AnalysisId,
-    referenceFasta: IndexedReferenceFasta,
-    dbSnpVcf: VCF,
-    vqsrTrainingFiles: Option[VQSRTrainingFiles],
-    wesConfiguration: Option[WESConfiguration],
-    variantCallingContigs: Option[ContigsFile])
+    referenceFasta: IndexedReferenceFasta)
     extends WithSharedFiles(
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.toSeq
-        .flatMap(_.files) ++ referenceFasta.files ++ dbSnpVcf.files ++ vqsrTrainingFiles.toSeq
-        .flatMap(_.files) ++ gvcf.toSeq.flatMap(_.files) ++ gvcfQC.toSeq
+        .flatMap(_.files) ++ gvcf.toSeq
+        .flatMap(_.files) ++ referenceFasta.files ++ gvcfQC.toSeq
         .flatMap(_.files): _*)
 
 case class SingleSamplePipelineResultRNA(
@@ -140,6 +155,13 @@ object SingleSamplePipelineResultRNA {
     deriveEncoder[SingleSamplePipelineResultRNA]
   implicit val decoder: Decoder[SingleSamplePipelineResultRNA] =
     deriveDecoder[SingleSamplePipelineResultRNA]
+}
+
+object SingleSampleConfiguration {
+  implicit val encoder: Encoder[SingleSampleConfiguration] =
+    deriveEncoder[SingleSampleConfiguration]
+  implicit val decoder: Decoder[SingleSampleConfiguration] =
+    deriveDecoder[SingleSampleConfiguration]
 }
 
 object SampleResult {

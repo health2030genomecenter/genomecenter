@@ -245,12 +245,7 @@ object ProtoPipelineStages extends StrictLogging {
               targetSelectionQC = targetSelectionQC,
               wgsQC = wgsQC,
               gvcfQC = variantCalls.map(_._3),
-              analysisId = analysisId,
-              referenceFasta = indexedReference,
-              dbSnpVcf = dbSnpVcf,
-              vqsrTrainingFiles = None,
-              wesConfiguration = None,
-              variantCallingContigs = contigsFile
+              referenceFasta = indexedReference
             )
 
     }

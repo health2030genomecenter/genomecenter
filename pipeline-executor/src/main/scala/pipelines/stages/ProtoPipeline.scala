@@ -71,9 +71,13 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     // See Migration0001.scala why this is here
     val samples =
       samples0.map { sample =>
-        val existHg19 = sample.wes.exists(_.analysisId == "hg19")
+        val existHg19 = sample.wes.exists {
+          case (_, analysisConfig) => analysisConfig.analysisId == "hg19"
+        }
         if (existHg19)
-          sample.copy(wes = sample.wes.filterNot(_.analysisId == ""))
+          sample.copy(wes = sample.wes.filterNot {
+            case (_, analysisConfig) => analysisConfig.analysisId == ""
+          })
         else sample
 
       }
@@ -88,18 +92,20 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       samples.flatMap(_.extractWESQCFiles)
 
     val wesResultsByAnalysisId
-      : Seq[(AnalysisId, Seq[SingleSamplePipelineResult])] =
+      : Seq[(AnalysisId,
+             Seq[(SingleSamplePipelineResult, SingleSampleConfiguration)])] =
       samples
         .flatMap { sampleResult =>
-          sampleResult.wes.map { wesResult =>
-            val analysisId =
-              // this replacement is due to the migration which introduced analysis ids
-              // analyses without an id were given the empty string, but semantically they are
-              // equivalent to the hg19
-              if (wesResult.analysisId == "") AnalysisId("hg19")
-              else wesResult.analysisId
+          sampleResult.wes.map {
+            case (wesResult, wesConfig) =>
+              val analysisId =
+                // this replacement is due to the migration which introduced analysis ids
+                // analyses without an id were given the empty string, but semantically they are
+                // equivalent to the hg19
+                if (wesConfig.analysisId == "") AnalysisId("hg19")
+                else wesConfig.analysisId
 
-            (analysisId, wesResult)
+              (analysisId, (wesResult, wesConfig))
           }
         }
         .groupBy(_._1)
@@ -138,28 +144,27 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         .traverse(wesResultsByAnalysisId) {
           case (analysisId, wesResults) =>
             val indexedReference =
-              assertUniqueAndGet(wesResults.map(_.referenceFasta))
-            val dbSnpVcf = assertUniqueAndGet(wesResults.map(_.dbSnpVcf))
+              assertUniqueAndGet(wesResults.map(_._1.referenceFasta))
+            val dbSnpVcf = assertUniqueAndGet(wesResults.map(_._2.dbSnpVcf))
             val vqsrTrainingFiles =
-              assertUniqueAndGet(wesResults.map(_.vqsrTrainingFiles))
+              assertUniqueAndGet(wesResults.map(_._2.vqsrTrainingFiles))
             val jointCall = assertUniqueAndGet(
               wesResults.map(
-                _.wesConfiguration.flatMap(_.doJointCalls).getOrElse(false)
+                _._2.wesConfiguration.doJointCalls.getOrElse(false)
               )
             )
 
             val contigs =
-              assertUniqueAndGet(wesResults.map(_.variantCallingContigs))
+              assertUniqueAndGet(wesResults.map(_._2.variantCallingContigs))
 
             inProjectJointCallFolder(project, analysisId) { implicit tsc =>
               if (jointCall)
                 HaplotypeCaller
                   .jointCall(JointCallInput(
                     wesResults
-                      .filter(_.wesConfiguration
-                        .flatMap(_.doJointCalls)
+                      .filter(_._2.wesConfiguration.doJointCalls
                         .getOrElse(false))
-                      .flatMap(_.haplotypeCallerReferenceCalls.toSeq)
+                      .flatMap(_._1.haplotypeCallerReferenceCalls.toSeq)
                       .toSet
                       .toStable,
                     indexedReference,
@@ -237,16 +242,20 @@ class ProtoPipeline(implicit EC: ExecutionContext)
               conf,
               pastSampleResult
                 .flatMap(_.wes
-                  .find { wesConfigurationOfPastSample =>
-                    val matchingAnalysisId = wesConfigurationOfPastSample.analysisId == conf.analysisId
-                    val matchingMigratedOldAnalysisId = wesConfigurationOfPastSample.analysisId == "" && conf.analysisId == "hg19"
+                  .find {
+                    case (_, wesConfigurationOfPastSample) =>
+                      val matchingAnalysisId = wesConfigurationOfPastSample.analysisId == conf.analysisId
+                      val matchingMigratedOldAnalysisId = wesConfigurationOfPastSample.analysisId == "" && conf.analysisId == "hg19"
 
-                    logger.debug(
-                      "matchingAnalysisId: " + matchingAnalysisId + " matchingMigratedOldAnalysisId: " + matchingMigratedOldAnalysisId + " " + demultiplexedSample + " " + conf)
+                      logger.debug(
+                        "matchingAnalysisId: " + matchingAnalysisId + " matchingMigratedOldAnalysisId: " + matchingMigratedOldAnalysisId + " " + demultiplexedSample + " " + conf)
 
-                    matchingAnalysisId || matchingMigratedOldAnalysisId
+                      matchingAnalysisId || matchingMigratedOldAnalysisId
                   }
-                  .map(_.uncalibrated)),
+                  .map {
+                    case (wesResultOfPastSample, _) =>
+                      wesResultOfPastSample.uncalibrated
+                  }),
             )
           }
 
@@ -322,8 +331,12 @@ class ProtoPipeline(implicit EC: ExecutionContext)
              samplesForWESAnalysis.sampleId))
 
     } yield
-      perSampleResultsWES.copy(vqsrTrainingFiles = vqsrTrainingFiles,
-                               wesConfiguration = Some(conf))
+      (perSampleResultsWES,
+       SingleSampleConfiguration(conf.analysisId,
+                                 dbSnpVcf,
+                                 vqsrTrainingFiles,
+                                 conf,
+                                 contigsFile))
 
   private def rna(
       samplesForRNASeqAnalysis: PerSamplePerRunFastQ,
