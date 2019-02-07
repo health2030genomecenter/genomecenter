@@ -68,7 +68,7 @@ case class SingleSamplePipelineInput(analysisId: AnalysisId,
                                      doVariantCalling: Boolean,
                                      minimumWGSCoverage: Option[Double],
                                      minimumTargetCoverage: Option[Double],
-                                     contigsFile: ContigsFile)
+                                     contigsFile: Option[ContigsFile])
     extends WithSharedFiles(demultiplexed.files ++ reference.files ++ knownSites
       .flatMap(_.files) ++ selectionTargetIntervals.files ++ bamOfPreviousRuns.toSeq
       .flatMap(_.files): _*)
@@ -90,7 +90,7 @@ case class SingleSamplePipelineResult(
     dbSnpVcf: VCF,
     vqsrTrainingFiles: Option[VQSRTrainingFiles],
     wesConfiguration: Option[WESConfiguration],
-    variantCallingContigs: ContigsFile)
+    variantCallingContigs: Option[ContigsFile])
     extends WithSharedFiles(
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.toSeq
         .flatMap(_.files) ++ referenceFasta.files ++ dbSnpVcf.files ++ vqsrTrainingFiles.toSeq

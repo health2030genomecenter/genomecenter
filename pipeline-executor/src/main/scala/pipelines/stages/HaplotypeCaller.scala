@@ -12,7 +12,7 @@ import java.io.File
 case class HaplotypeCallerInput(
     bam: CoordinateSortedBam,
     indexedReference: IndexedReferenceFasta,
-    contigs: ContigsFile
+    contigs: Option[ContigsFile]
 ) extends WithSharedFiles(bam.files ++ indexedReference.files: _*)
 
 case class VariantCallingMetricsResult(
@@ -53,7 +53,7 @@ case class GenotypeGVCFsInput(targetVcfs: StableSet[VCF],
                               dbSnpVcf: VCF,
                               name: String,
                               vqsrTrainingFiles: Option[VQSRTrainingFiles],
-                              contigsFile: ContigsFile)
+                              contigsFile: Option[ContigsFile])
     extends WithSharedFiles(
       targetVcfs.toSeq
         .flatMap(_.files) ++ reference.files ++ dbSnpVcf.files: _*)
@@ -101,11 +101,18 @@ case class JointCallInput(
     dbSnpVcf: VCF,
     vqsrTrainingFiles: Option[VQSRTrainingFiles],
     outputFileName: String,
-    contigsFile: ContigsFile
+    contigsFile: Option[ContigsFile]
 ) extends WithSharedFiles(
       haplotypeCallerReferenceCalls.toSeq.flatMap(_.files): _*)
 
 object HaplotypeCaller {
+
+  lazy val defaultContigs: Set[String] =
+    scala.io.Source
+      .fromInputStream(
+        getClass.getResourceAsStream("/variantcallingcontigs.txt"))
+      .getLines
+      .toSet
 
   val jointCall =
     AsyncTask[JointCallInput, VCF]("__joint-call", 1) {
@@ -414,7 +421,9 @@ object HaplotypeCaller {
 
           for {
             dict <- input.reference.dict
-            contigs <- input.contigsFile.readContigs
+            contigs <- input.contigsFile
+              .map(_.readContigs)
+              .getOrElse(Future.successful(HaplotypeCaller.defaultContigs))
             intervals = BaseQualityScoreRecalibration
               .createIntervals(dict)
               .filter(c => contigs.contains(c))
@@ -588,7 +597,9 @@ object HaplotypeCaller {
 
           for {
             dict <- reference.dict
-            contigs <- contigsFile.readContigs
+            contigs <- contigsFile
+              .map(_.readContigs)
+              .getOrElse(Future.successful(HaplotypeCaller.defaultContigs))
             intervals = BaseQualityScoreRecalibration
               .createIntervals(dict)
               .filter(c => contigs.contains(c))

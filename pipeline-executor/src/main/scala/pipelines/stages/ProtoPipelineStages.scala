@@ -19,8 +19,6 @@ import org.gc.pipelines.util.StableSet.syntax
 import java.io.File
 import com.typesafe.scalalogging.StrictLogging
 import scala.util.{Success, Failure}
-import akka.stream.scaladsl.Source
-import akka.util.ByteString
 
 object ProtoPipelineStages extends StrictLogging {
 
@@ -620,27 +618,12 @@ object ProtoPipelineStages extends StrictLogging {
       ec: ExecutionContext) = {
     tsc.withFilePrefix(Seq("references")) { implicit tsc =>
       runConfiguration.variantCallingContigs match {
-        case None =>
-          val text = scala.io.Source
-            .fromInputStream(
-              getClass.getResourceAsStream("/variantcallingcontigs.txt"))
-            .mkString
-          SharedFile(Source.single(ByteString(text)),
-                     "default_variant_calling_contigs.txt")
-            .map(ContigsFile(_))
-            .andThen {
-              case Success(_) =>
-                logger.debug(s"Fetched target contigs for variant calling")
-              case Failure(e) =>
-                logger.error(s"Failed to save default variant calling contigs",
-                             e)
-
-            }
+        case None => Future.successful(None)
         case Some(path) =>
           val file = new File(path)
           val fileName = file.getName
           logger.debug(s"Fetching variant calling contigs file $file")
-          SharedFile(file, fileName).map(ContigsFile(_)).andThen {
+          SharedFile(file, fileName).map(f => Some(ContigsFile(f))).andThen {
             case Success(_) =>
               logger.debug(s"Fetched target contigs for variant calling")
             case Failure(e) =>

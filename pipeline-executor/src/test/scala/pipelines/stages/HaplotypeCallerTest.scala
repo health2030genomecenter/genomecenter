@@ -30,7 +30,7 @@ class HaplotypeCallerTest
           dbsnpvcf,
           "boo",
           None,
-          ContigsFile(await(SharedFile(contigs, "contigs.txt")))
+          None
         )
 
         When("genotyping them")
@@ -62,7 +62,7 @@ class HaplotypeCallerTest
             CoordinateSortedBam(await(SharedFile(bam, "some.bam")),
                                 await(SharedFile(bai, "some.bam.bai"))),
             indexedFasta,
-            ContigsFile(await(SharedFile(contigs, "contigs.txt")))
+            None
           )
 
         When("calling variants with haplotypecaller")
