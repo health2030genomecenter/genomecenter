@@ -60,9 +60,11 @@ object BWAAlignment {
           fasta.file.flatMap { localFastaFile =>
             val pathToFasta = localFastaFile.getAbsolutePath
 
+            val bwaOutput = TempFile.createTempFile("bwaindex").getAbsolutePath
+
             Exec.bash(logDiscriminator = "bwa.index",
                       onError = Exec.ThrowIfNonZero)(
-              s"$bwaExecutable index  -a bwtsw $pathToFasta")
+              s"$bwaExecutable index  -a bwtsw $pathToFasta -p $bwaOutput")
 
             val dictionaryPath = pathToFasta.stripSuffix("fasta") + "dict"
             new File(dictionaryPath).delete
@@ -82,11 +84,11 @@ object BWAAlignment {
             }
 
             val dict = new File(dictionaryPath)
-            val bwt = new File(pathToFasta + ".bwt")
-            val pac = new File(pathToFasta + ".pac")
-            val ann = new File(pathToFasta + ".ann")
-            val amb = new File(pathToFasta + ".amb")
-            val sa = new File(pathToFasta + ".sa")
+            val bwt = new File(bwaOutput + ".bwt")
+            val pac = new File(bwaOutput + ".pac")
+            val ann = new File(bwaOutput + ".ann")
+            val amb = new File(bwaOutput + ".amb")
+            val sa = new File(bwaOutput + ".sa")
 
             for {
               dict <- SharedFile(dict, dict.getName)
