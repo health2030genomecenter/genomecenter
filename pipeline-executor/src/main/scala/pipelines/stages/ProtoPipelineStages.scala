@@ -609,7 +609,7 @@ object ProtoPipelineStages extends StrictLogging {
     if (analysisId == "hg19") "" else analysisId
 
   private def referenceFolder(analysisId: AnalysisId): Seq[String] =
-    Seq("references", migrateAnalysisId(analysisId))
+    Seq("references", migrateAnalysisId(analysisId)).filter(_.nonEmpty)
 
   def fetchFileAsReference(path: String, runConfiguration: WESConfiguration)(
       implicit tsc: TaskSystemComponents) =
