@@ -467,9 +467,10 @@ object ProtoPipelineStages extends StrictLogging {
       f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
     tsc.withFilePrefix(Seq("demultiplexing", runId, demultiplexingId))(f)
 
-  def fetchReference(filePath: String)(implicit tsc: TaskSystemComponents,
-                                       ec: ExecutionContext) = {
-    tsc.withFilePrefix(Seq("references")) { implicit tsc =>
+  def fetchReferenceFasta(filePath: String, analysisId: AnalysisId)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) = {
+    tsc.withFilePrefix(referenceFolder(analysisId)) { implicit tsc =>
       val file = new File(filePath)
       val fileName = file.getName
       logger.debug(s"Fetching reference $file")
@@ -525,25 +526,28 @@ object ProtoPipelineStages extends StrictLogging {
       ec: ExecutionContext) =
     runConfiguration.globalIndexSet match {
       case None       => Future.successful(None)
-      case Some(path) => fetchFile("references", path).map(Some(_))
+      case Some(path) => fetchFile(Seq("references"), path).map(Some(_))
     }
   def fetchGenemodel(runConfiguration: RNASeqConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
-    fetchFile("references", runConfiguration.geneModelGtf).map(GTFFile(_))
+    fetchFileAsReference(runConfiguration.geneModelGtf, runConfiguration)
+      .map(GTFFile(_))
 
   def fetchVariantEvaluationIntervals(runConfiguration: WESConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
-    fetchFile("references", runConfiguration.variantEvaluationIntervals)
+    fetchFileAsReference(runConfiguration.variantEvaluationIntervals,
+                         runConfiguration)
       .map(BedFile(_))
 
   def fetchDbSnpVcf(runConfiguration: WESConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
     for {
-      vcf <- fetchFile("references", runConfiguration.dbSnpVcf)
-      vcfidx <- fetchFile("references", runConfiguration.dbSnpVcf + ".tbi")
+      vcf <- fetchFileAsReference(runConfiguration.dbSnpVcf, runConfiguration)
+      vcfidx <- fetchFileAsReference(runConfiguration.dbSnpVcf + ".tbi",
+                                     runConfiguration)
     } yield VCF(vcf, Some(vcfidx))
 
   def fetchVqsrTrainingFiles(runConfiguration: WESConfiguration)(
@@ -551,25 +555,33 @@ object ProtoPipelineStages extends StrictLogging {
       ec: ExecutionContext) =
     if (runConfiguration.vqsrMillsAnd1Kg.isDefined)
       for {
-        millsAnd1Kg <- fetchFile("references",
-                                 runConfiguration.vqsrMillsAnd1Kg.get)
-        millsAnd1KgIdx <- fetchFile(
-          "references",
-          runConfiguration.vqsrMillsAnd1Kg.get + ".tbi")
-        oneKg <- fetchFile("references",
-                           runConfiguration.vqsrOneKgHighConfidenceSnps.get)
-        oneKgIdx <- fetchFile(
-          "references",
-          runConfiguration.vqsrOneKgHighConfidenceSnps.get + ".tbi")
-        hapmap <- fetchFile("references", runConfiguration.vqsrHapmap.get)
-        hapmapIdx <- fetchFile("references",
-                               runConfiguration.vqsrHapmap.get + ".tbi")
-        omni <- fetchFile("references", runConfiguration.vqsrOneKgOmni.get)
-        omniIdx <- fetchFile("references",
-                             runConfiguration.vqsrOneKgOmni.get + ".tbi")
-        dbSnp138 <- fetchFile("references", runConfiguration.vqsrDbSnp138.get)
-        dbSnp138Idx <- fetchFile("references",
-                                 runConfiguration.vqsrDbSnp138.get + ".tbi")
+        millsAnd1Kg <- fetchFileAsReference(
+          runConfiguration.vqsrMillsAnd1Kg.get,
+          runConfiguration)
+        millsAnd1KgIdx <- fetchFileAsReference(
+          runConfiguration.vqsrMillsAnd1Kg.get + ".tbi",
+          runConfiguration)
+        oneKg <- fetchFileAsReference(
+          runConfiguration.vqsrOneKgHighConfidenceSnps.get,
+          runConfiguration)
+        oneKgIdx <- fetchFileAsReference(
+          runConfiguration.vqsrOneKgHighConfidenceSnps.get + ".tbi",
+          runConfiguration)
+        hapmap <- fetchFileAsReference(runConfiguration.vqsrHapmap.get,
+                                       runConfiguration)
+        hapmapIdx <- fetchFileAsReference(
+          runConfiguration.vqsrHapmap.get + ".tbi",
+          runConfiguration)
+        omni <- fetchFileAsReference(runConfiguration.vqsrOneKgOmni.get,
+                                     runConfiguration)
+        omniIdx <- fetchFileAsReference(
+          runConfiguration.vqsrOneKgOmni.get + ".tbi",
+          runConfiguration)
+        dbSnp138 <- fetchFileAsReference(runConfiguration.vqsrDbSnp138.get,
+                                         runConfiguration)
+        dbSnp138Idx <- fetchFileAsReference(
+          runConfiguration.vqsrDbSnp138.get + ".tbi",
+          runConfiguration)
       } yield
         Some(
           VQSRTrainingFiles(
@@ -581,9 +593,9 @@ object ProtoPipelineStages extends StrictLogging {
           ))
     else Future.successful(None)
 
-  def fetchFile(folderName: String, path: String)(
+  def fetchFile(folderName: Seq[String], path: String)(
       implicit tsc: TaskSystemComponents) = {
-    tsc.withFilePrefix(Seq(folderName)) { implicit tsc =>
+    tsc.withFilePrefix(folderName) { implicit tsc =>
       val file = new File(path)
       val fileName = file.getName
       logger.debug(s"Fetching $file")
@@ -591,20 +603,36 @@ object ProtoPipelineStages extends StrictLogging {
     }
   }
 
+  // This replacement is because old data is referring to referencec/ without
+  // the analysis id
+  private def migrateAnalysisId(analysisId: AnalysisId) =
+    if (analysisId == "hg19") "" else analysisId
+
+  private def referenceFolder(analysisId: AnalysisId): Seq[String] =
+    Seq("references", migrateAnalysisId(analysisId))
+
+  def fetchFileAsReference(path: String, runConfiguration: WESConfiguration)(
+      implicit tsc: TaskSystemComponents) =
+    fetchFile(referenceFolder(runConfiguration.analysisId), path)
+  def fetchFileAsReference(path: String, runConfiguration: RNASeqConfiguration)(
+      implicit tsc: TaskSystemComponents) =
+    fetchFile(referenceFolder(runConfiguration.analysisId), path)
+
   def fetchTargetIntervals(runConfiguration: WESConfiguration)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) = {
-    tsc.withFilePrefix(Seq("references")) { implicit tsc =>
-      val file = new File(runConfiguration.targetIntervals)
-      val fileName = file.getName
-      logger.debug(s"Fetching target interval file $file")
-      SharedFile(file, fileName).map(BedFile(_)).andThen {
-        case Success(_) =>
-          logger.debug(s"Fetched target intervals (capture kit definition)")
-        case Failure(e) =>
-          logger.error(s"Failed to target intervals $file", e)
+    tsc.withFilePrefix(referenceFolder(runConfiguration.analysisId)) {
+      implicit tsc =>
+        val file = new File(runConfiguration.targetIntervals)
+        val fileName = file.getName
+        logger.debug(s"Fetching target interval file $file")
+        SharedFile(file, fileName).map(BedFile(_)).andThen {
+          case Success(_) =>
+            logger.debug(s"Fetched target intervals (capture kit definition)")
+          case Failure(e) =>
+            logger.error(s"Failed to target intervals $file", e)
 
-      }
+        }
     }
   }
 

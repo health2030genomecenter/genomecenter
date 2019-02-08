@@ -302,7 +302,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
                   previousUncalibratedBam: Option[Bam])(
       implicit tsc: TaskSystemComponents) =
     for {
-      reference <- ProtoPipelineStages.fetchReference(conf.referenceFasta)
+      reference <- ProtoPipelineStages.fetchReferenceFasta(conf.referenceFasta,
+                                                           conf.analysisId)
       knownSites <- ProtoPipelineStages.fetchKnownSitesFiles(conf)
 
       selectionTargetIntervals <- ProtoPipelineStages.fetchTargetIntervals(conf)
@@ -344,7 +345,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       readLengths: Map[ReadType, Int])(implicit tsc: TaskSystemComponents) =
     for {
       gtf <- ProtoPipelineStages.fetchGenemodel(conf)
-      reference <- ProtoPipelineStages.fetchReference(conf.referenceFasta)
+      reference <- ProtoPipelineStages.fetchReferenceFasta(conf.referenceFasta,
+                                                           conf.analysisId)
       perSampleResultsRNA <- ProtoPipelineStages.singleSampleRNA(
         SingleSamplePipelineInputRNASeq(
           conf.analysisId,
