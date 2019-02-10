@@ -307,9 +307,9 @@ object ProtoPipelineStages extends StrictLogging {
     }
 
   def selectConfiguration[A](selectors: List[(Selector, A)],
-                             sample: PerSamplePerRunFastQ): Option[A] =
+                             sample: PerSamplePerRunFastQ): Seq[A] =
     selectors
-      .find {
+      .filter {
         case (selector, _) =>
           val lanes = sample.lanes.map { fqLane =>
             Metadata(fqLane.runId, fqLane.lane, sample.sampleId, sample.project)
