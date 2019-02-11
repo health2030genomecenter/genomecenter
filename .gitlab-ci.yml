@@ -24,6 +24,20 @@ sbt-unit-test:
   except:
     - master
 
+sbt-it-test:
+  script:
+    - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-1.tar | tar xf - 2> /dev/null
+    - GC_TESTFOLDER=testdata sbt -Dsbt.repository.config=repositories -Dsbt.override.build.repos=true -batch 'coverage' 'it:test' 'coverageReport' 'coverageAggregate'
+  artifacts:
+    reports:
+      junit:
+       - '*/target/test-reports/*xml'
+    paths:
+      - target/scala-2.12/scoverage-report/*
+  coverage: '/Coverage was \[(\d+\.\d+)\]/'
+  except:
+    - master
+
 sbt-unit-it-test:
   script:
     - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-1.tar | tar xf - 2> /dev/null
