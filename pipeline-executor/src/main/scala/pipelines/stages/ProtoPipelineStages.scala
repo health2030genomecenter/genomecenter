@@ -443,7 +443,9 @@ object ProtoPipelineStages extends StrictLogging {
                         demultiplexingConfig.extraBcl2FastqArguments,
                         globalIndexSet,
                         partitionByLane = demultiplexingConfig.partitionByLane,
-                        noPartition = demultiplexingConfig.tenX
+                        noPartition = demultiplexingConfig.tenX,
+                        partitionByTileCount =
+                          demultiplexingConfig.partitionByTileCount
                       ))(ResourceConfig.minimal,
                          labels = ResourceConfig.projectLabel(
                            parsedSampleSheet.projects: _*))

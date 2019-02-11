@@ -17,7 +17,8 @@ case class DemultiplexingConfiguration(
     umi: Option[Int],
     extraBcl2FastqArguments: Seq[String],
     tenX: Option[Boolean],
-    partitionByLane: Option[Boolean]
+    partitionByLane: Option[Boolean],
+    partitionByTileCount: Option[Int]
 ) {
   def isTenX = tenX.exists(identity)
 }

@@ -25,7 +25,8 @@ case class DemultiplexingInput(
     extraBcl2FastqCliArguments: Seq[String],
     globalIndexSet: Option[SharedFile],
     partitionByLane: Option[Boolean],
-    noPartition: Option[Boolean]
+    noPartition: Option[Boolean],
+    partitionByTileCount: Option[Int]
 ) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*)
 
 case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
@@ -121,7 +122,9 @@ object Demultiplexing {
                 lanes.map(l => List(l.toString)).toSeq
               else
                 // process by groups of tiles
-                tiles.grouped(30).toSeq
+                tiles
+                  .grouped(runFolder.partitionByTileCount.getOrElse(60))
+                  .toSeq
             }
           }
 
@@ -180,6 +183,7 @@ object Demultiplexing {
           DemultiplexingInput(runFolderPath,
                               sampleSheet,
                               extraArguments,
+                              _,
                               _,
                               _,
                               _),

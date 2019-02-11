@@ -47,6 +47,10 @@ object RunConfigurationDTO {
           partitionByLane =
             if (config.hasPath("partitionByLane"))
               Some(config.getBoolean("partitionByLane"))
+            else None,
+          partitionByTileCount =
+            if (config.hasPath("partitionByTileCount"))
+              Some(config.getInt("partitionByTileCount"))
             else None
         )
 
