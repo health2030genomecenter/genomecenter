@@ -20,7 +20,7 @@ import org.gc.pipelines.util.StableSet
 
 import scala.concurrent.Await
 
-class ProtopipelineTestSuite
+class ProtopipelineIntegrationTestSuite
     extends FunSuite
     with Matchers
     with GivenWhenThen
