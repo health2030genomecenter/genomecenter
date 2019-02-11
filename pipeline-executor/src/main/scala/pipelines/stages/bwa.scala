@@ -64,7 +64,10 @@ object BWAAlignment {
                       onError = Exec.ThrowIfNonZero)(
               s"$bwaExecutable index  -a bwtsw $pathToFasta")
 
-            val dictionaryPath = pathToFasta.stripSuffix("fasta") + "dict"
+            val dictionaryPath = pathToFasta
+              .split('.')
+              .dropRight(1)
+              .mkString(".") + ".dict"
             new File(dictionaryPath).delete
 
             Exec.bash(logDiscriminator = "fasta.dict",
