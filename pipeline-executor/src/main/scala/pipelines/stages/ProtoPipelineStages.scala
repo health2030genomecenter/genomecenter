@@ -137,13 +137,13 @@ object ProtoPipelineStages extends StrictLogging {
             _ <- coordinateSorted.bam.delete
             _ <- coordinateSorted.bai.delete
 
-            alignmentQC <- intoQCFolder { implicit computationEnvironment =>
+            alignmentQC = intoQCFolder { implicit computationEnvironment =>
               AlignmentQC.general(
                 AlignmentQCInput(recalibrated, indexedReference))(
                 ResourceConfig.minimal,
                 priorityBam)
             }
-            targetSelectionQC <- intoQCFolder {
+            targetSelectionQC = intoQCFolder {
               implicit computationEnvironment =>
                 AlignmentQC.hybridizationSelection(
                   SelectionQCInput(recalibrated,
@@ -152,12 +152,14 @@ object ProtoPipelineStages extends StrictLogging {
                   ResourceConfig.collectHSMetrics,
                   priorityBam)
             }
-            wgsQC <- intoQCFolder { implicit computationEnvironment =>
+            wgsQC = intoQCFolder { implicit computationEnvironment =>
               AlignmentQC.wholeGenomeMetrics(
                 CollectWholeGenomeMetricsInput(recalibrated, indexedReference))(
                 ResourceConfig.minimal,
                 priorityBam)
             }
+
+            wgsQC <- wgsQC
 
             _ <- intoCoverageFolder { implicit computationEnvironment =>
               AlignmentQC.parseWholeGenomeMetrics(
@@ -169,6 +171,9 @@ object ProtoPipelineStages extends StrictLogging {
                 ResourceConfig.minimal,
                 priorityBam)
             }
+
+            targetSelectionQC <- targetSelectionQC
+            alignmentQC <- alignmentQC
 
             wgsMeanCoverage <- AlignmentQC.getWGSMeanCoverage(
               wgsQC,
