@@ -14,7 +14,60 @@ case class RunQCTableRNAInput(fileName: String,
                               samples: StableSet[(AnalysisId, StarResult)])
     extends WithSharedFiles(samples.toSeq.flatMap(_._2.files): _*)
 
+case class RunQCTableRNAResult(html: SharedFile, csv: SharedFile)
+    extends WithSharedFiles(html, csv)
+
 object RunQCRNA {
+
+  def makeCsvTable(metrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
+    def mkHeader(elems: Seq[String]) =
+      elems
+        .mkString(",")
+
+    def line(elems: Seq[String]) =
+      elems.mkString(",")
+
+    val lines = metrics
+      .sortBy(_._2.project.toString)
+      .sortBy(_._2.sampleId.toString)
+      .map {
+        case (analysisId, starMetrics) =>
+          import starMetrics._
+          import starMetrics.metrics._
+
+          line(
+            Seq(
+              project,
+              sampleId,
+              runId,
+              analysisId,
+              f"${numberOfReads / 1E6}%10.2fM",
+              f"$meanReadLength%13.2f",
+              f"${uniquelyMappedReads / 1E6}%10.2fM",
+              f"${uniquelyMappedPercentage * 100}%6.2f%%",
+              f"${multiplyMappedReads / 1E6}%10.2fM",
+              f"${multiplyMappedReadsPercentage * 100}%6.2f%%"
+            ))
+
+      }
+      .mkString("\n")
+
+    val header = mkHeader(
+      List("Proj",
+           "Sample",
+           "Run",
+           "AnalysisId",
+           "TotalReads",
+           "MeanReadLength",
+           "UniquelyMapped",
+           "UniquelyMapped%",
+           "Multimapped",
+           "Multimapped%")
+    )
+
+    header + "\n" + lines + "\n"
+
+  }
 
   def makeHtmlTable(metrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
     def mkHeader(elems1: Seq[String], elems: Seq[(String, Boolean)]) =
@@ -100,7 +153,7 @@ object RunQCRNA {
   }
 
   val runQCTable =
-    AsyncTask[RunQCTableRNAInput, SharedFile]("__runqctable_rna", 1) {
+    AsyncTask[RunQCTableRNAInput, RunQCTableRNAResult]("__runqctable_rna", 1) {
       case RunQCTableRNAInput(fileName, samples) =>
         implicit computationEnvironment =>
           implicit val materializer =
@@ -121,11 +174,21 @@ object RunQCRNA {
                   }
             }
             html = makeHtmlTable(parsedMetrics)
+            csv = makeCsvTable(parsedMetrics)
             file <- SharedFile(
               Source.single(ByteString(html.getBytes("UTF-8"))),
               fileName + ".star.qc.table.html")
-          } yield file
+            filecsv <- SharedFile(
+              Source.single(ByteString(csv.getBytes("UTF-8"))),
+              fileName + ".star.qc.table.csv")
+          } yield RunQCTableRNAResult(file, filecsv)
     }
+}
+object RunQCTableRNAResult {
+  implicit val encoder: Encoder[RunQCTableRNAResult] =
+    deriveEncoder[RunQCTableRNAResult]
+  implicit val decoder: Decoder[RunQCTableRNAResult] =
+    deriveDecoder[RunQCTableRNAResult]
 }
 object RunQCTableRNAInput {
   implicit val encoder: Encoder[RunQCTableRNAInput] =

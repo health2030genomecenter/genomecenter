@@ -189,7 +189,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
         val files =
           (jointCallVcfFileSet ++ Set(project -> wes.htmlTable,
-                                      project -> rna,
+                                      project -> rna.html,
+                                      project -> rna.csv,
                                       project -> reads.plots)).toStable
 
         Delivery.collectDeliverables(
