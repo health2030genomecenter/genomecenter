@@ -75,6 +75,9 @@ object ResourceConfig {
   def minimal(implicit tsc: TaskSystemComponents) =
     parse("minimal")
 
+  def collectHSMetrics(implicit tsc: TaskSystemComponents) =
+    parse("collectHSMetrics")
+
   val picardSamSortRecordPerMegabyteHeap =
     config.getDouble("picardSamSortRecordPerMegabyteHeap")
 

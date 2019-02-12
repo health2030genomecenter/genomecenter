@@ -149,7 +149,7 @@ object ProtoPipelineStages extends StrictLogging {
                   SelectionQCInput(recalibrated,
                                    indexedReference,
                                    selectionTargetIntervals))(
-                  ResourceConfig.minimal,
+                  ResourceConfig.collectHSMetrics,
                   priorityBam)
             }
             wgsQC <- intoQCFolder { implicit computationEnvironment =>
