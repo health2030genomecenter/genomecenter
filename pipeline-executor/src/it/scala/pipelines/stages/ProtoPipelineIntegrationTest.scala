@@ -14,7 +14,9 @@ import org.gc.pipelines.application.{
   DemultiplexingConfiguration,
   RunConfiguration,
   Selector,
-  WESConfiguration
+  WESConfiguration,
+  InputFastQPerLane,
+  InputSampleAsFastQ
 }
 import org.gc.pipelines.util.StableSet
 
@@ -34,7 +36,46 @@ class ProtopipelineIntegrationTestSuite
     }
   }
 
-  test("Prototype pipeline should create bam files per sample") {
+  test("Prototype pipelien should accept fastq file") {
+    new Fixture {
+      Given("a runfolder and a reference file")
+      When("the pipeline executes a run ")
+      withTaskSystem(testConfig) { implicit ts =>
+        import scala.concurrent.ExecutionContext.Implicits.global
+
+        val run =
+          RunfolderReadyForProcessing(
+            runId,
+            None,
+            Some(
+              List(
+                InputSampleAsFastQ(
+                  lanes = Set(
+                    InputFastQPerLane(Lane(1), read1, read2, None)
+                  ),
+                  project = Project("project1"),
+                  sampleId = SampleId("sample1")
+                ))),
+            runConfiguration
+          )
+        val pipeline = new ProtoPipeline()
+        import scala.concurrent.duration._
+        val demultiplexedSamples =
+          Await.result(pipeline.demultiplex(run), atMost = 400000 seconds)
+
+        Then("Demultiplexing should happen")
+        demultiplexedSamples.nonEmpty shouldBe true
+        demultiplexedSamples.size shouldBe 1
+        demultiplexedSamples.toString shouldBe "List(PerSamplePerRunFastQ(StableSet(Set(FastQPerLane(whateverRunId,1,FastQ(SharedFile(/premade_fastqs/project1/papa.read1.fq.gz, size=275795, hash=1811967660),5000),FastQ(SharedFile(/premade_fastqs/project1/papa.read2.fq.gz, size=276137, hash=1388589452),5000),None,0))),project1,sample1,whateverRunId))"
+        demultiplexedSamples.map(dm => (dm.project, dm.sampleId)).toSet shouldBe
+          Set(("project1", "sample1"))
+
+      }
+    }
+
+  }
+
+  ignore("Prototype pipeline should create bam files per sample") {
     new Fixture {
 
       Given("a runfolder and a reference file")
@@ -207,6 +248,14 @@ class ProtopipelineIntegrationTestSuite
         s"cd ${tmpFolder.getAbsolutePath} && tar xf $testDataTarFile ")
       new File(tmpFolder, "180622_M04914_0002_000000000-BWHDL").getAbsolutePath
     }
+
+    val read1 = getClass
+      .getResource("/tutorial_8017/papa.read1.fq.gz")
+      .getFile
+
+    val read2 = getClass
+      .getResource("/tutorial_8017/papa.read2.fq.gz")
+      .getFile
 
     val referenceFasta = getClass
       .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta")
