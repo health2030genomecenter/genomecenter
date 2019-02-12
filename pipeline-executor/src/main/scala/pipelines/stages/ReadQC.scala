@@ -10,6 +10,8 @@ import org.gc.readqc
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.{ResourceConfig, ReadQCPlot, Exec, JVM, StableSet}
 import org.gc.pipelines.util.StableSet.syntax
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
 
 case class ReadQCPerUnitInput(fastqs: StableSet[FastQ])
     extends WithSharedFiles(fastqs.toSeq.flatMap(_.files): _*)
@@ -17,7 +19,8 @@ case class ReadQCPerUnitInput(fastqs: StableSet[FastQ])
 case class ReadQCMetrics(metrics: readqc.Metrics)
 
 case class ReadQCResult(metrics: EValue[PerSamplePerLanePerReadMetrics],
-                        plots: SharedFile)
+                        plots: SharedFile,
+                        gcFractionTable: SharedFile)
     extends WithSharedFiles(plots)
 
 case class ReadQCInput(samples: StableSet[PerSampleFastQ], title: String)
@@ -29,6 +32,25 @@ object ReadQC {
     fileutils.TempFile
       .getExecutableFromJar("/readqc", "readqc")
       .getAbsolutePath
+
+  def makeGCTable(
+      metrics: Seq[
+        (Project, SampleId, RunId, Lane, ReadType, readqc.Metrics)]) = {
+    val body = metrics
+      .map {
+        case (project, sampleId, runId, lane, readType, metrics) =>
+          Seq(project,
+              sampleId,
+              runId,
+              lane,
+              readType,
+              metrics.gcFraction,
+              metrics.readNumber).mkString(",")
+      }
+      .mkString("\n")
+    val header = "project,sample,run,lane,read_type,gc_fraction,read_number"
+    header + "\n" + body + "\n"
+  }
 
   val readQC = AsyncTask[ReadQCInput, ReadQCResult]("__readqc", 1) {
     case ReadQCInput(samples, title) =>
@@ -75,7 +97,9 @@ object ReadQC {
           metricsPlots <- plotMetricsFile(metrics)
           metricsFile <- EValue(PerSamplePerLanePerReadMetrics(metrics),
                                 title + ".readqc.js")
-        } yield ReadQCResult(metricsFile, metricsPlots)
+          gcTable <- SharedFile(Source.single(ByteString(makeGCTable(metrics))),
+                                title + ".gcfraction.txt")
+        } yield ReadQCResult(metricsFile, metricsPlots, gcTable)
 
   }
 
