@@ -261,6 +261,10 @@ object ProtoPipelineStages extends StrictLogging {
                                            readLengths) =>
         implicit computationEnvironment =>
           releaseResources
+
+          val priorityBam = Priority(10000)
+          val priorityPostBam = Priority(20000)
+
           computationEnvironment.withFilePrefix(Seq("projects")) {
             implicit computationEnvironment =>
               def inProjectFolder[T] =
@@ -286,15 +290,16 @@ object ProtoPipelineStages extends StrictLogging {
                           reference = indexedFasta,
                           gtf = gtf.file,
                           readLength = readLengths.map(_._2).toSeq.max
-                        ))(ResourceConfig.starAlignment)
+                        ))(ResourceConfig.starAlignment, priorityBam)
                       coordinateSorted <- BWAAlignment.sortByCoordinateAndIndex(
-                        starResult.bam.bam)(ResourceConfig.sortBam)
+                        starResult.bam.bam)(ResourceConfig.sortBam, priorityBam)
                       counts <- QTLToolsQuantification.quantify(
                         QTLToolsQuantificationInput(
                           coordinateSorted,
                           gtf,
                           Nil
-                        ))(ResourceConfig.qtlToolsQuantification)
+                        ))(ResourceConfig.qtlToolsQuantification,
+                           priorityPostBam)
                     } yield
                       SingleSamplePipelineResultRNA(analysisId,
                                                     starResult,
