@@ -75,7 +75,7 @@ class ProtopipelineIntegrationTestSuite
 
   }
 
-  ignore("Prototype pipeline should create bam files per sample") {
+  test("Prototype pipeline should create bam files per sample") {
     new Fixture {
 
       Given("a runfolder and a reference file")
