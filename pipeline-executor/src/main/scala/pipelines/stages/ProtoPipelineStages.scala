@@ -262,8 +262,10 @@ object ProtoPipelineStages extends StrictLogging {
       case SingleSamplePipelineInputRNASeq(analysisId,
                                            demultiplexed,
                                            referenceFasta,
-                                           gtf,
-                                           readLengths) =>
+                                           geneModelGtf,
+                                           readLengths,
+                                           qtlToolsArguments,
+                                           quantificationGtf) =>
         implicit computationEnvironment =>
           releaseResources
 
@@ -293,7 +295,7 @@ object ProtoPipelineStages extends StrictLogging {
                           sampleId = demultiplexed.sampleId,
                           runId = demultiplexed.lanes.toSeq.head.runId,
                           reference = indexedFasta,
-                          gtf = gtf.file,
+                          gtf = geneModelGtf.file,
                           readLength = readLengths.map(_._2).toSeq.max
                         ))(ResourceConfig.starAlignment, priorityBam)
                       coordinateSorted <- BWAAlignment.sortByCoordinateAndIndex(
@@ -301,8 +303,8 @@ object ProtoPipelineStages extends StrictLogging {
                       counts <- QTLToolsQuantification.quantify(
                         QTLToolsQuantificationInput(
                           coordinateSorted,
-                          gtf,
-                          Nil
+                          quantificationGtf,
+                          qtlToolsArguments
                         ))(ResourceConfig.qtlToolsQuantification,
                            priorityPostBam)
                     } yield

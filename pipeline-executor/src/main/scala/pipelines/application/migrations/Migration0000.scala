@@ -59,6 +59,8 @@ object Migration0000 extends Function1[Json, Json] {
         (parsed.rnaSelector,
          RNASeqConfiguration(analysisId = AnalysisId(""),
                              parsed.referenceFasta,
+                             parsed.geneModelGtf,
+                             Nil,
                              parsed.geneModelGtf))
       )
     )

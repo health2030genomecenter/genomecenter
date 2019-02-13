@@ -65,8 +65,10 @@ case class SingleSamplePipelineInputRNASeq(
     demultiplexed: PerSampleFastQ,
     reference: ReferenceFasta,
     gtf: GTFFile,
-    readLengths: StableSet[(ReadType, Int)])
-    extends WithSharedFiles(
+    readLengths: StableSet[(ReadType, Int)],
+    qtlToolsArguments: Seq[String],
+    quantificationGtf: GTFFile
+) extends WithSharedFiles(
       demultiplexed.files ++ reference.files ++ gtf.files: _*)
 
 case class SingleSamplePipelineInput(analysisId: AnalysisId,

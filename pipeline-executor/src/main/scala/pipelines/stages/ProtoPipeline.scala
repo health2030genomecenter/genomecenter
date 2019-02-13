@@ -346,6 +346,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       readLengths: Map[ReadType, Int])(implicit tsc: TaskSystemComponents) =
     for {
       gtf <- ProtoPipelineStages.fetchGenemodel(conf)
+      quantificationGtf <- ProtoPipelineStages
+        .fetchFileAsReference(conf.quantificationGtf, conf)
+        .map(GTFFile(_))
       reference <- ProtoPipelineStages.fetchReferenceFasta(conf.referenceFasta,
                                                            conf.analysisId)
       perSampleResultsRNA <- ProtoPipelineStages.singleSampleRNA(
@@ -354,7 +357,9 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           samplesForRNASeqAnalysis.withoutRunId,
           reference,
           gtf,
-          readLengths.toSeq.toSet.toStable
+          readLengths.toSeq.toSet.toStable,
+          conf.qtlToolsCommandLineArguments,
+          quantificationGtf = quantificationGtf
         ))(ResourceConfig.minimal,
            labels =
              ResourceConfig.projectLabel(samplesForRNASeqAnalysis.project))

@@ -53,7 +53,10 @@ object RunConfigurationDTO {
         def parseRNASeqConfiguration(config: Config) = RNASeqConfiguration(
           analysisId = AnalysisId(config.getString("analysisId")),
           referenceFasta = config.getString("referenceFasta"),
-          geneModelGtf = config.getString("geneModelGtf")
+          geneModelGtf = config.getString("geneModelGtf"),
+          qtlToolsCommandLineArguments =
+            config.getStringList("qtlToolsCommandLineArguments").asScala.toList,
+          quantificationGtf = config.getString("quantificationGtf")
         )
         def parseWESConfiguration(config: Config) = WESConfiguration(
           analysisId = AnalysisId(config.getString("analysisId")),

@@ -47,9 +47,11 @@ case class WESConfiguration(
 case class RNASeqConfiguration(
     analysisId: AnalysisId,
     referenceFasta: String,
-    geneModelGtf: String
+    geneModelGtf: String,
+    qtlToolsCommandLineArguments: Seq[String],
+    quantificationGtf: String
 ) {
-  def files = Set(referenceFasta, geneModelGtf)
+  def files = Set(referenceFasta, geneModelGtf, quantificationGtf)
 }
 
 case class RunConfiguration(
