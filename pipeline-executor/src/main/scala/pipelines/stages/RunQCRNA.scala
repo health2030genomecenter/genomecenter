@@ -41,12 +41,12 @@ object RunQCRNA {
               sampleId,
               runId,
               analysisId,
-              f"${numberOfReads / 1E6}%10.2fM",
-              f"$meanReadLength%13.2f",
-              f"${uniquelyMappedReads / 1E6}%10.2fM",
-              f"${uniquelyMappedPercentage * 100}%6.2f%%",
-              f"${multiplyMappedReads / 1E6}%10.2fM",
-              f"${multiplyMappedReadsPercentage * 100}%6.2f%%"
+              numberOfReads.toString,
+              meanReadLength.toString,
+              uniquelyMappedReads.toString,
+              uniquelyMappedPercentage.toString,
+              multiplyMappedReads.toString,
+              multiplyMappedReadsPercentage.toString
             ))
 
       }
