@@ -416,6 +416,26 @@
           },
           "byteSize" : 123,
           "hash" : 13
+        },
+        "geneRpkms" : {
+          "path" : {
+            "ManagedFilePath" : {
+              "pathElements" : [
+              ]
+            }
+          },
+          "byteSize" : 123,
+          "hash" : 13
+        },
+        "exonRpkms" : {
+          "path" : {
+            "ManagedFilePath" : {
+              "pathElements" : [
+              ]
+            }
+          },
+          "byteSize" : 123,
+          "hash" : 13
         }
       }
     }

@@ -19,15 +19,17 @@ case class QTLToolsQuantificationInput(
 case class QTLToolsQuantificationResult(
     exonCounts: SharedFile,
     geneCounts: SharedFile,
-    stats: SharedFile
-) extends WithSharedFiles(exonCounts, geneCounts, stats)
+    stats: SharedFile,
+    exonRpkms: SharedFile,
+    geneRpkms: SharedFile
+) extends WithSharedFiles(exonCounts, geneCounts, stats, exonRpkms, geneRpkms)
 
 object QTLToolsQuantification {
 
   val quantify =
     AsyncTask[QTLToolsQuantificationInput, QTLToolsQuantificationResult](
       "__qtltools-quant",
-      1) {
+      2) {
       case QTLToolsQuantificationInput(bam,
                                        gtf,
                                        additionalCommandLineArguments) =>
@@ -49,6 +51,7 @@ object QTLToolsQuantification {
      $qtltoolsExecutable quan \\
         --gtf ${localGtf.getAbsolutePath}\\
         --bam ${localBam.getAbsolutePath}\\
+        --rpkm \\
         --out $output \\
         ${additionalCommandLineArguments.mkString(" ")} \\
       \\
@@ -70,14 +73,24 @@ object QTLToolsQuantification {
                 exonCounts <- SharedFile(new File(output + ".exon.count.bed"),
                                          name = nameStub + ".exon.count.bed",
                                          deleteFile = true)
+                exonRpkms <- SharedFile(new File(output + ".exon.rpkm.bed"),
+                                        name = nameStub + ".exon.rpkm.bed",
+                                        deleteFile = true)
                 geneCounts <- SharedFile(new File(output + ".gene.count.bed"),
-                                         name = nameStub + "gene.count.bed",
+                                         name = nameStub + ".gene.count.bed",
                                          deleteFile = true)
+                geneRpkms <- SharedFile(new File(output + ".gene.rpkm.bed"),
+                                        name = nameStub + ".gene.rpkm.bed",
+                                        deleteFile = true)
                 stats <- SharedFile(new File(output + ".stats"),
                                     name = nameStub + ".stats",
                                     deleteFile = true)
               } yield
-                QTLToolsQuantificationResult(exonCounts, geneCounts, stats)
+                QTLToolsQuantificationResult(exonCounts,
+                                             geneCounts,
+                                             stats,
+                                             exonRpkms,
+                                             geneRpkms)
             }
           } yield result
 

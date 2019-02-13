@@ -74,7 +74,7 @@ class ProtopipelineTestSuite
                                       sampleId = SampleId("s1"),
                                       bam = Bam(sf))
         ),
-        quantification = QTLToolsQuantificationResult(sf, sf, sf)
+        quantification = QTLToolsQuantificationResult(sf, sf, sf, sf, sf)
       )
       val demux1: PerSamplePerRunFastQ = PerSamplePerRunFastQ(
         lanes = List(
