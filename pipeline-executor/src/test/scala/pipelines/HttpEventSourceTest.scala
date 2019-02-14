@@ -20,6 +20,7 @@ import akka.http.scaladsl.model.{
 }
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.util.StableSet
 import org.gc.pipelines.application.dto._
 import org.gc.pipelines.model._
 import fileutils._
@@ -35,8 +36,131 @@ class HttpEventSourceTest
     TestKit.shutdownActorSystem(system)
   }
 
+  test("v2/register should accept the configuration with runfolder") {
+    implicit val materializer = ActorMaterializer()
+    val watchedFolder = {
+      val tmpFile = TempFile.createTempFile("test")
+      tmpFile.delete
+      tmpFile.mkdir
+      tmpFile
+    }
+
+    val runId = "runid"
+    val runConfigurationFileContent =
+      s"""demultiplexing=[]
+      runFolder="$watchedFolder/$runId""""
+
+    val runFolder = new File(watchedFolder, runId)
+
+    Given("a folder watch event source")
+    val server = new HttpServer(port = 0)
+    val source =
+      server.commands
+
+    val probe = TestProbe()
+    source.to(Sink.actorRef(probe.ref, "completed")).run()
+    When("a run folder is created")
+    runFolder.mkdir
+    openFileWriter(new File(runFolder, "RunInfo.xml"))(_ => ())
+    When("a post request is made to /v2/register")
+    val request = HttpRequest(method = HttpMethods.POST,
+                              uri = Uri("/v2/register"),
+                              entity = HttpEntity(
+                                ContentTypes.`application/json`,
+                                runConfigurationFileContent
+                              ))
+    request ~> server.route ~> check {
+      status shouldEqual StatusCodes.OK
+      Then("the source should emit")
+      probe.expectMsg(
+        application.Append(RunfolderReadyForProcessing(
+          RunId(runId),
+          Some(runFolder.getAbsolutePath),
+          None,
+          RunConfiguration(
+            demultiplexingRuns = StableSet(),
+            globalIndexSet = None,
+            wesProcessing = StableSet(),
+            rnaProcessing = StableSet()
+          )
+        )))
+    }
+
+  }
+  test("v2/register should accept the configuration with fastq files") {
+    implicit val materializer = ActorMaterializer()
+    val watchedFolder = {
+      val tmpFile = TempFile.createTempFile("test")
+      tmpFile.delete
+      tmpFile.mkdir
+      tmpFile
+    }
+
+    val fqFile = new File(watchedFolder, "fq1")
+    openFileWriter(fqFile)(_ => ())
+
+    val runId = "runid"
+    val runConfigurationFileContent =
+      s"""demultiplexing=[]
+      runId=$runId
+      fastqs = [
+        {
+          project = project 
+          sampleId = s1
+          lanes = [
+            {
+              lane = 1
+              read1 = $fqFile
+              read2 = $fqFile
+            }
+          ]
+        } 
+      ]"""
+
+    Given("an http event source")
+    val server = new HttpServer(port = 0)
+    val source =
+      server.commands
+
+    val probe = TestProbe()
+    source.to(Sink.actorRef(probe.ref, "completed")).run()
+
+    When("a post request is made to /v2/register")
+    val request = HttpRequest(method = HttpMethods.POST,
+                              uri = Uri("/v2/register"),
+                              entity = HttpEntity(
+                                ContentTypes.`application/json`,
+                                runConfigurationFileContent
+                              ))
+    request ~> server.route ~> check {
+      status shouldEqual StatusCodes.OK
+      Then("the source should emit")
+      probe.expectMsg(
+        application.Append(RunfolderReadyForProcessing(
+          RunId(runId),
+          None,
+          Some(
+            Seq(
+              InputSampleAsFastQ(Set(InputFastQPerLane(Lane(1),
+                                                       fqFile.toString,
+                                                       fqFile.toString,
+                                                       None)),
+                                 Project("project"),
+                                 SampleId("s1"))
+            )),
+          RunConfiguration(
+            demultiplexingRuns = StableSet(),
+            globalIndexSet = None,
+            wesProcessing = StableSet(),
+            rnaProcessing = StableSet()
+          )
+        )))
+    }
+
+  }
+
   test(
-    "FolderWatcherEventSource should emit an event when the respective file is created") {
+    "HttpServer should emit an event when a post request to /runfolder is made") {
     implicit val materializer = ActorMaterializer()
     val watchedFolder = {
       val tmpFile = TempFile.createTempFile("test")
@@ -56,7 +180,7 @@ class HttpEventSourceTest
     val runFolder = new File(watchedFolder, runId)
 
     Given("a folder watch event source")
-    val server = new HttpServer
+    val server = new HttpServer(port = 0)
     val source =
       server.commands
 

@@ -24,11 +24,15 @@ case class RunConfigurationDTO(
 
 object RunConfigurationDTO {
 
-  def apply(content: String): Either[String, RunConfigurationDTO] =
+  def apply(file: File): Either[String, RunConfigurationDTO] =
+    apply(fileutils.openSource(file)(_.mkString))
+
+  def apply(s: String): Either[String, RunConfigurationDTO] =
+    RunConfigurationDTO(ConfigFactory.parseString(s))
+
+  def apply(config: Config): Either[String, RunConfigurationDTO] =
     scala.util
       .Try {
-
-        val config = ConfigFactory.parseString(content)
 
         def getDemultiplexings(config: Config) = DemultiplexingConfiguration(
           sampleSheet = config.getString("sampleSheet"),
@@ -124,6 +128,4 @@ object RunConfigurationDTO {
     if (config.hasPath(path)) Some(extract(config)(path))
     else None
 
-  def apply(file: File): Either[String, RunConfigurationDTO] =
-    apply(fileutils.openSource(file)(_.mkString))
 }

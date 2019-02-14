@@ -29,7 +29,13 @@ object Main extends App with StrictLogging {
     implicit val actorSystem = ActorSystem("Main")
     implicit val materializer = ActorMaterializer()
     import scala.concurrent.ExecutionContext.Implicits.global
-    val eventSource = new HttpServer
+    val eventSource = new HttpServer(port = 9099)
+    val httpBinding = eventSource.startServer
+    httpBinding.andThen {
+      case scala.util.Success(serverBinding) =>
+        logger.info(
+          s"Pipeline application's web server is listening on ${serverBinding.localAddress}")
+    }(actorSystem.dispatcher)
 
     val pipelineState = PipelineConfiguration.pipelineState
 

@@ -6,7 +6,10 @@ import java.io.File
 
 import org.gc.pipelines.model._
 import org.gc.pipelines.application.dto.RunConfigurationDTO
-import org.gc.pipelines.util.StableSet
+import org.gc.pipelines.util.{StableSet, sequenceEither}
+import com.typesafe.config.Config
+import scala.collection.JavaConverters._
+import scala.util.Try
 
 case class DemultiplexingConfiguration(
     sampleSheet: String,
@@ -144,6 +147,50 @@ object RunfolderReadyForProcessing {
                                     None,
                                     runConfigurationDTO.toRunConfiguration))
   }
+
+  def fromConfig(
+      runConfiguration: Config): Either[String, RunfolderReadyForProcessing] = {
+
+    val runConfigurationDTO = RunConfigurationDTO(runConfiguration)
+
+    if (runConfiguration.hasPath("runFolder")) {
+      val runFolder = new File(runConfiguration.getString("runFolder"))
+      val runId = RunId(runFolder.getName)
+      runConfigurationDTO.map { dto =>
+        RunfolderReadyForProcessing(runId,
+                                    Some(runFolder.getAbsolutePath),
+                                    None,
+                                    dto.toRunConfiguration)
+      }
+    } else {
+      val runId = Try(RunId(runConfiguration.getString("runId"))).toEither.left
+        .map(_.toString)
+      val demultiplexedSamples =
+        for {
+          configList <- Try(
+            runConfiguration
+              .getConfigList("fastqs")
+              .asScala).toEither.left
+            .map(_.toString)
+          parsed <- {
+            val eithers = configList.map(c => InputSampleAsFastQ(c))
+
+            sequenceEither(eithers).left.map(_.mkString(";"))
+          }
+        } yield parsed
+
+      for {
+        runId <- runId
+        dto <- runConfigurationDTO
+        demultiplexedSamples <- demultiplexedSamples
+      } yield
+        RunfolderReadyForProcessing(runId,
+                                    None,
+                                    Some(demultiplexedSamples),
+                                    dto.toRunConfiguration)
+    }
+
+  }
 }
 
 object RNASeqConfiguration {
@@ -178,11 +225,30 @@ object InputFastQPerLane {
   implicit val decoder: Decoder[InputFastQPerLane] =
     deriveDecoder[InputFastQPerLane]
 
+  def apply(config: Config): InputFastQPerLane = {
+    val lane = config.getInt("lane")
+    val read1 = config.getString("read1")
+    val read2 = config.getString("read2")
+    val umi = if (config.hasPath("umi")) Some(config.getString("umi")) else None
+    InputFastQPerLane(Lane(lane), read1, read2, umi)
+  }
+
 }
 object InputSampleAsFastQ {
   implicit val encoder: Encoder[InputSampleAsFastQ] =
     deriveEncoder[InputSampleAsFastQ]
   implicit val decoder: Decoder[InputSampleAsFastQ] =
     deriveDecoder[InputSampleAsFastQ]
+
+  def apply(config: Config): Either[String, InputSampleAsFastQ] =
+    (Try {
+      val project = config.getString("project")
+      val sampleId = config.getString("sampleId")
+      val lanes = config
+        .getConfigList("lanes")
+        .asScala
+        .map(config => InputFastQPerLane(config))
+      InputSampleAsFastQ(lanes.toSet, Project(project), SampleId(sampleId))
+    }).toEither.left.map(_.toString)
 
 }
