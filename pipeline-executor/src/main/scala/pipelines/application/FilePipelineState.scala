@@ -41,7 +41,12 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
 
   private def readToJson =
     fileutils.openSource(file)(_.getLines.toList.map { line =>
-      io.circe.parser.parse(line).right.get
+      val parsed = io.circe.parser.parse(line)
+
+      parsed.left.foreach { e =>
+        logger.error(s"Failed to parse json from $file \n$line", e)
+      }
+      parsed.right.get
     })
 
   private def migrateFromVersion(version: Int, json: Json): T =

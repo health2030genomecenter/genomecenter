@@ -25,7 +25,27 @@ class PipelinesApplicationTest
     extends FunSuite
     with GivenWhenThen
     with Matchers {
-
+  test("all migrations should get exercised") {
+    scala.io.Source
+      .fromInputStream(
+        this.getClass.getResourceAsStream("/migration_test_data"))
+      .getLines
+      .map { line =>
+        io.circe.parser
+          .parse(line)
+          .right
+          .get
+          .hcursor
+          .downField("schemaVersion")
+          .as[Int]
+          .right
+          .get
+      }
+      .toSeq
+      .distinct
+      .sorted
+      .toList shouldBe (0 to PipelineStateMigrations.migrations.size).toList
+  }
   test("file based state logging should work") {
     import better.files.File._
     Given("a file with run data serialized")
@@ -75,6 +95,7 @@ class PipelinesApplicationTest
     result2.map(_.runId) shouldBe List("", "fake")
     result2.map(_.runFolderPath) shouldBe List(Some("raw_data//"),
                                                Some("fakePath2"))
+
   }
 
   test(
