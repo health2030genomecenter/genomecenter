@@ -21,7 +21,8 @@ class QTLToolsTest
             bam = CoordinateSortedBam(await(SharedFile(bam, "some.bam")),
                                       await(SharedFile(bai, "some.bam.bai"))),
             gtf = GTFFile(await(SharedFile(gtfFile, "gtf"))),
-            additionalCommandLineArguments = Nil
+            additionalCommandLineArguments =
+              List("--filter-mapping-quality", "255")
           )
 
         When("executing the general alignment qc step")
@@ -37,6 +38,11 @@ class QTLToolsTest
       Then(
         "at least the hybridication selection metrics file should be generated")
       result.get.canRead shouldBe true
+      val stdout =
+        new File(result.get.getParentFile, "some.bam.qtltools.quant.stdout")
+      fileutils
+        .openSource(stdout)(_.mkString)
+        .contains("Minimum mapping quality: 255") shouldBe true
 
     }
   }
