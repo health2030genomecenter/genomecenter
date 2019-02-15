@@ -568,7 +568,7 @@ object ProtoPipelineStages extends StrictLogging {
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) =
     if (runConfiguration.vqsrMillsAnd1Kg.isDefined)
-      for {
+      (for {
         millsAnd1Kg <- fetchFileAsReference(
           runConfiguration.vqsrMillsAnd1Kg.get,
           runConfiguration)
@@ -604,8 +604,11 @@ object ProtoPipelineStages extends StrictLogging {
             hapmap = VCF(hapmap, Some(hapmapIdx)),
             oneKgOmni = VCF(omni, Some(omniIdx)),
             dbSnp138 = VCF(dbSnp138, Some(dbSnp138Idx))
-          ))
-    else Future.successful(None)
+          ))).recover {
+        case e =>
+          logger.error("Failed to fetch VQSR training files. Using None. ", e)
+          None
+      } else Future.successful(None)
 
   def fetchFile(folderName: Seq[String], path: String)(
       implicit tsc: TaskSystemComponents) = {
