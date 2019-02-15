@@ -15,6 +15,7 @@ import org.gc.pipelines.application.{
   RunConfiguration,
   Selector,
   WESConfiguration,
+  RNASeqConfiguration,
   InputFastQPerLane,
   InputSampleAsFastQ
 }
@@ -396,7 +397,18 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
             variantCallingContigs = None
           )
       ),
-      rnaProcessing = StableSet.empty
+      rnaProcessing = StableSet(
+        Selector(runIds = StableSet(RunId(runId)),
+                 samples = StableSet.empty,
+                 lanes = StableSet.empty,
+                 projects = StableSet.empty) -> RNASeqConfiguration(
+          analysisId = AnalysisId("default"),
+          referenceFasta = referenceFasta,
+          geneModelGtf = gtfFile.getAbsolutePath,
+          qtlToolsCommandLineArguments = Nil,
+          quantificationGtf = gtfFile.getAbsolutePath
+        )
+      )
     )
 
     val (testConfig, basePath) = makeTestConfig
