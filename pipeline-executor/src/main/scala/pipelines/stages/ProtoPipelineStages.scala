@@ -606,7 +606,9 @@ object ProtoPipelineStages extends StrictLogging {
             dbSnp138 = VCF(dbSnp138, Some(dbSnp138Idx))
           ))).recover {
         case e =>
-          logger.error("Failed to fetch VQSR training files. Using None. ", e)
+          logger.error(
+            "Failed to fetch VQSR training files. Using None. Configuration: " + runConfiguration,
+            e)
           None
       } else Future.successful(None)
 
