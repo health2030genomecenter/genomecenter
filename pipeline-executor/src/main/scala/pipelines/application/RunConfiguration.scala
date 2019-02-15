@@ -42,7 +42,16 @@ case class WESConfiguration(
     variantCallingContigs: Option[String]
 ) {
   def files =
-    Set(referenceFasta, targetIntervals, dbSnpVcf, variantEvaluationIntervals) ++ bqsrKnownSites.toSeq ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet ++ variantCallingContigs.toSet
+    Set(referenceFasta, targetIntervals, dbSnpVcf, variantEvaluationIntervals) ++ bqsrKnownSites.toSeq.toSet ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet ++ variantCallingContigs.toSet ++
+      vqsrMillsAnd1Kg.map(_ + ".tbi").toSet ++ vqsrHapmap
+      .map(_ + ".tbi")
+      .toSet ++ vqsrOneKgOmni
+      .map(_ + ".tbi")
+      .toSet ++ vqsrOneKgHighConfidenceSnps
+      .map(_ + ".tbi")
+      .toSet ++ vqsrDbSnp138.map(_ + ".tbi").toSet ++ dbSnpVcf
+      .map(_ + ".tbi")
+      .toSet ++ bqsrKnownSites.toSeq.map(_ + ".tbi").toSet
 }
 
 case class RNASeqConfiguration(
