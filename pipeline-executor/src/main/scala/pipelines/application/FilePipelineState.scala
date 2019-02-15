@@ -55,7 +55,7 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
     else {
       val migrated = migrations(version)(json)
       logger.debug(s"Migrated ${json.noSpaces} to ${migrated.noSpaces}")
-      migrateFromVersion(version + 1, migrated)
+      migrateFromVersion(currentVersion, migrated)
     }
 
   def read = {
