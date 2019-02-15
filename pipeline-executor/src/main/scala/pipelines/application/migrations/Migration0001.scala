@@ -2,7 +2,7 @@ package org.gc.pipelines.application.migrations
 
 import io.circe.Json
 import org.gc.pipelines.util.StableSet._
-import org.gc.pipelines.application.{Selector, RNASeqConfiguration}
+import org.gc.pipelines.application.{Selector}
 import org.gc.pipelines.model.AnalysisId
 import io.circe.syntax._
 
@@ -29,12 +29,7 @@ object Migration0001 extends Function1[Json, Json] {
     val migrated = parsed
       .map {
         case (selector, parsed) =>
-          (selector,
-           RNASeqConfiguration(parsed.analysisId,
-                               parsed.referenceFasta,
-                               geneModelGtf = parsed.geneModelGtf,
-                               Nil,
-                               quantificationGtf = parsed.geneModelGtf))
+          (selector, parsed.migrate)
       }
       .toSet
       .toStable
@@ -50,7 +45,15 @@ object Migration0001 extends Function1[Json, Json] {
         analysisId: AnalysisId,
         referenceFasta: String,
         geneModelGtf: String
-    )
+    ) {
+      def migrate = org.gc.pipelines.application.RNASeqConfiguration(
+        analysisId = this.analysisId,
+        referenceFasta = this.referenceFasta,
+        geneModelGtf = this.geneModelGtf,
+        qtlToolsCommandLineArguments = Nil,
+        quantificationGtf = this.geneModelGtf
+      )
+    }
 
     object RNASeqConfiguration {
       import io.circe.generic.semiauto._
