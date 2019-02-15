@@ -85,13 +85,18 @@ class FilePipelineState(logFile: File)
   val storage =
     new Storage[Event](logFile, PipelineStateMigrations.migrations)
 
-  private def recover() =
+  private def recover() = {
     storage.read
       .map { e =>
         logger.debug(s"Recovered migrated event as $e")
         e
       }
       .foreach(updateState)
+
+    past.foreach { runFolder =>
+      logger.info(s"State after recovery: $runFolder")
+    }
+  }
 
   val writer = new java.io.FileWriter(logFile, true) // append = true
 
