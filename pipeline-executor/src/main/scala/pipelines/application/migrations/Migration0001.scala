@@ -30,11 +30,11 @@ object Migration0001 extends Function1[Json, Json] {
       .map {
         case (selector, parsed) =>
           (selector,
-           RNASeqConfiguration(analysisId = AnalysisId(""),
+           RNASeqConfiguration(parsed.analysisId,
                                parsed.referenceFasta,
-                               parsed.geneModelGtf,
+                               geneModelGtf = parsed.geneModelGtf,
                                Nil,
-                               parsed.geneModelGtf))
+                               quantificationGtf = parsed.geneModelGtf))
       }
       .toSet
       .toStable
