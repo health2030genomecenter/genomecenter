@@ -313,24 +313,28 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       variantEvaluationIntervals <- ProtoPipelineStages
         .fetchVariantEvaluationIntervals(conf)
       vqsrTrainingFiles <- ProtoPipelineStages.fetchVqsrTrainingFiles(conf)
-      perSampleResultsWES <- ProtoPipelineStages.singleSampleWES(
-        SingleSamplePipelineInput(
-          conf.analysisId,
-          samplesForWESAnalysis.withoutRunId,
-          reference,
-          knownSites.toSet.toStable,
-          selectionTargetIntervals,
-          dbSnpVcf,
-          variantEvaluationIntervals,
-          previousUncalibratedBam,
-          !conf.doVariantCalls.exists(_ == false),
-          minimumWGSCoverage = conf.minimumWGSCoverage,
-          minimumTargetCoverage = conf.minimumTargetCoverage,
-          contigsFile = contigsFile
-        ))(ResourceConfig.minimal,
-           labels = ResourceConfig.projectAndSampleLabel(
-             samplesForWESAnalysis.project,
-             samplesForWESAnalysis.sampleId))
+      perSampleResultsWES <- {
+        logger.info(
+          s"Start main wes task of ${samplesForWESAnalysis.project} ${samplesForWESAnalysis.sampleId}")
+        ProtoPipelineStages.singleSampleWES(
+          SingleSamplePipelineInput(
+            conf.analysisId,
+            samplesForWESAnalysis.withoutRunId,
+            reference,
+            knownSites.toSet.toStable,
+            selectionTargetIntervals,
+            dbSnpVcf,
+            variantEvaluationIntervals,
+            previousUncalibratedBam,
+            !conf.doVariantCalls.exists(_ == false),
+            minimumWGSCoverage = conf.minimumWGSCoverage,
+            minimumTargetCoverage = conf.minimumTargetCoverage,
+            contigsFile = contigsFile
+          ))(ResourceConfig.minimal,
+             labels = ResourceConfig.projectAndSampleLabel(
+               samplesForWESAnalysis.project,
+               samplesForWESAnalysis.sampleId))
+      }
 
     } yield
       (perSampleResultsWES,
