@@ -61,10 +61,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
           pipelineState.invalidated(runId).map(_ => None)
         case Append(run) =>
           logger.info(s"Got run ${run.runId}")
-          val valid = run.isValid
+          val validationErrors = run.validationErrors
+          val valid = validationErrors.isEmpty
 
           if (!valid) {
-            logger.info(s"$run is not valid (readable?)")
+            logger.info(
+              s"$run is not valid (readable?). Validation errors: $validationErrors")
             Future.successful(None)
           } else
             for {

@@ -102,17 +102,28 @@ case class RunfolderReadyForProcessing(
     demultiplexedSamples: Option[Seq[InputSampleAsFastQ]],
     runConfiguration: RunConfiguration) {
 
-  private def filesCanRead(files: Set[String]) =
-    files.forall(s => new File(s).canRead)
+  private def unreadableFiles(files: Set[String]) =
+    files.filterNot(s => new File(s).canRead)
 
-  def isValid =
-    runFolderPath.forall(
-      runFolderPath =>
-        new File(runFolderPath).canRead &&
-          new File(runFolderPath, "RunInfo.xml").canRead) &&
-      filesCanRead(runConfiguration.files) &&
-      demultiplexedSamples.toSeq.flatten.forall(demultiplexedSample =>
-        filesCanRead(demultiplexedSample.files))
+  def validationErrors: List[String] = {
+
+    val unreadableRunfolder = runFolderPath match {
+      case None => Nil
+      case Some(runFolderPath) =>
+        unreadableFiles(
+          Set(runFolderPath,
+              new File(runFolderPath, "RunInfo.xml").getAbsolutePath)).toList
+    }
+
+    val unreadableConfigurationFiles = unreadableFiles(runConfiguration.files).toList
+
+    val unreadableFastqs = unreadableFiles(
+      demultiplexedSamples.toSeq.flatten.flatMap(_.files).toSet).toList
+
+    (unreadableRunfolder ++
+      unreadableConfigurationFiles ++
+      unreadableFastqs).map(path => s"Can't read: $path")
+  }
 
 }
 
