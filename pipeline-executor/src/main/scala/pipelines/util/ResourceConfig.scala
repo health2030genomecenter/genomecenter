@@ -3,6 +3,7 @@ package org.gc.pipelines.util
 import com.typesafe.config.ConfigFactory
 import tasks._
 import org.gc.pipelines.model.{Project, SampleId}
+import scala.collection.JavaConverters._
 
 object ResourceConfig {
 
@@ -83,5 +84,21 @@ object ResourceConfig {
 
   val uncompressedBamSizeBytePerRead =
     config.getDouble("uncompressedBamSizeBytePerRead")
+
+  val projectPriorities: Map[Project, Int] =
+    if (config.hasPath("projectPriorities"))
+      config
+        .getConfigList("projectPriorities")
+        .asScala
+        .map { c =>
+          val project = c.getString("project")
+          val value = c.getInt("priority")
+          (Project(project), value)
+        }
+        .toMap
+    else Map.empty
+
+  def projectPriority(project: Project) =
+    projectPriorities.get(project).getOrElse(1000000)
 
 }

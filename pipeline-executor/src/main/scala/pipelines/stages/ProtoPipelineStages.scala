@@ -56,8 +56,11 @@ object ProtoPipelineStages extends StrictLogging {
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
 
-          val priorityBam = Priority(10000)
-          val priorityVcf = Priority(20000)
+          val projectPriority =
+            ResourceConfig.projectPriority(demultiplexed.project)
+
+          val priorityBam = Priority(10000 + projectPriority)
+          val priorityVcf = Priority(20000 + projectPriority)
 
           val runIdTag =
             demultiplexed.runIdTag
@@ -269,8 +272,11 @@ object ProtoPipelineStages extends StrictLogging {
         implicit computationEnvironment =>
           releaseResources
 
-          val priorityBam = Priority(10000)
-          val priorityPostBam = Priority(20000)
+          val projectPriority =
+            ResourceConfig.projectPriority(demultiplexed.project)
+
+          val priorityBam = Priority(10000 + projectPriority)
+          val priorityPostBam = Priority(20000 + projectPriority)
 
           computationEnvironment.withFilePrefix(Seq("projects")) {
             implicit computationEnvironment =>
