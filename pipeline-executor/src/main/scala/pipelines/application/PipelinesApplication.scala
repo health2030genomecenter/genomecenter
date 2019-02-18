@@ -607,6 +607,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
             getKeysOfSampleResult(lastFinished))
           val existRemaining =
             keysOfUnfinishedSamples.contains(keyOfLastFinishedSample)
+          logger.debug(
+            s"Finished $keyOfLastFinishedSample . Remaining unfinished: $keysOfUnfinishedSamples")
           if (!existRemaining)
             finished.filter { sampleResult =>
               extractKey(getKeysOfSampleResult(sampleResult)) == keyOfLastFinishedSample
