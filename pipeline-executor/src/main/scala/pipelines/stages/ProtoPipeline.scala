@@ -134,47 +134,66 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       } yield (wes, rna, reads)
     }
 
-    def assertUniqueAndGet[T](s: Seq[T]) = {
-      require(s.distinct.size == 1, s"Unicity failed on $s")
-      s.head
-    }
+    def assertUniqueAndGet[T](s: Seq[T]) =
+      if (s.distinct.size == 1) Right(s.head)
+      else {
+        Left(s"Unicity failed on configuration settings of $project $s")
+      }
 
     def jointCalls =
       Future
         .traverse(wesResultsByAnalysisId) {
           case (analysisId, wesResults) =>
-            val indexedReference =
-              assertUniqueAndGet(wesResults.map(_._1.referenceFasta))
-            val dbSnpVcf = assertUniqueAndGet(wesResults.map(_._2.dbSnpVcf))
-            val vqsrTrainingFiles =
-              assertUniqueAndGet(wesResults.map(_._2.vqsrTrainingFiles))
-            val jointCall = assertUniqueAndGet(
-              wesResults.map(
-                _._2.wesConfiguration.doJointCalls.getOrElse(false)
+            val configuration = for {
+              indexedReference <- assertUniqueAndGet(
+                wesResults.map(_._1.referenceFasta))
+              dbSnpVcf <- assertUniqueAndGet(wesResults.map(_._2.dbSnpVcf))
+              vqsrTrainingFiles <- assertUniqueAndGet(
+                wesResults.map(_._2.vqsrTrainingFiles))
+              jointCall <- assertUniqueAndGet(
+                wesResults.map(
+                  _._2.wesConfiguration.doJointCalls.getOrElse(false)
+                )
               )
-            )
+              contigs <- assertUniqueAndGet(
+                wesResults.map(_._2.variantCallingContigs))
+            } yield
+              (indexedReference,
+               dbSnpVcf,
+               vqsrTrainingFiles,
+               jointCall,
+               contigs)
 
-            val contigs =
-              assertUniqueAndGet(wesResults.map(_._2.variantCallingContigs))
-
-            inProjectJointCallFolder(project, analysisId) { implicit tsc =>
-              if (jointCall)
-                HaplotypeCaller
-                  .jointCall(JointCallInput(
-                    wesResults
-                      .filter(_._2.wesConfiguration.doJointCalls
-                        .getOrElse(false))
-                      .flatMap(_._1.haplotypeCallerReferenceCalls.toSeq)
-                      .toSet
-                      .toStable,
-                    indexedReference,
-                    dbSnpVcf,
-                    vqsrTrainingFiles,
-                    project + "." + analysisId,
-                    contigs
-                  ))(ResourceConfig.minimal)
-                  .map(Some(_))
-              else Future.successful(None)
+            configuration match {
+              case Left(error) =>
+                logger.error(
+                  "Skip joint call due to configuration error: " + error)
+                Future.successful(None)
+              case Right(
+                  (indexedReference,
+                   dbSnpVcf,
+                   vqsrTrainingFiles,
+                   jointCall,
+                   contigs)) =>
+                inProjectJointCallFolder(project, analysisId) { implicit tsc =>
+                  if (jointCall)
+                    HaplotypeCaller
+                      .jointCall(JointCallInput(
+                        wesResults
+                          .filter(_._2.wesConfiguration.doJointCalls
+                            .getOrElse(false))
+                          .flatMap(_._1.haplotypeCallerReferenceCalls.toSeq)
+                          .toSet
+                          .toStable,
+                        indexedReference,
+                        dbSnpVcf,
+                        vqsrTrainingFiles,
+                        project + "." + analysisId,
+                        contigs
+                      ))(ResourceConfig.minimal)
+                      .map(Some(_))
+                  else Future.successful(None)
+                }
             }
         }
         .map(_.collect { case Some(calls) => calls })
