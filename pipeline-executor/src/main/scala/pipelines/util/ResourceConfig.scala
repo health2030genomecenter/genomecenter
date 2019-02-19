@@ -3,6 +3,7 @@ package org.gc.pipelines.util
 import com.typesafe.config.ConfigFactory
 import tasks._
 import org.gc.pipelines.model.{Project, SampleId}
+import org.gc.pipelines.stages.PerSamplePerRunFastQ
 import scala.collection.JavaConverters._
 
 object ResourceConfig {
@@ -35,7 +36,17 @@ object ResourceConfig {
   def qtlToolsQuantification(implicit tsc: TaskSystemComponents) =
     parse("qtlToolsQuantification")
 
-  def fastp(implicit tsc: TaskSystemComponents) = parse("fastp")
+  def fastp(fastqs: PerSamplePerRunFastQ)(
+      implicit tsc: TaskSystemComponents) = {
+    val originalRequest = parse("fastp")
+    val totalReads = fastqs.lanes.toSeq.toList
+      .flatMap(lane => List(lane.read1, lane.read2) ++ lane.umi.toList)
+      .map(_.numberOfReads.toDouble)
+      .sum
+    originalRequest.copy(
+      cpuMemoryRequest = originalRequest.cpuMemoryRequest.copy(scratch =
+        (uncompressedBamSizeBytePerRead * totalReads * 1.1 * 1E-6).toInt))
+  }
 
   def bwa(implicit tsc: TaskSystemComponents) = parse("bwa")
 

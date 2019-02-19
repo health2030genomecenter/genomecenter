@@ -397,7 +397,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           perSampleFastQs.sampleId,
           "fastp",
           perSampleFastQs.runId)) { implicit tsc =>
-      Fastp.report(perSampleFastQs)(ResourceConfig.fastp)
+      Fastp.report(perSampleFastQs)(ResourceConfig.fastp(perSampleFastQs))
     }
 
   private def inRunQCFolder[T](runId: RunId)(f: TaskSystemComponents => T)(
