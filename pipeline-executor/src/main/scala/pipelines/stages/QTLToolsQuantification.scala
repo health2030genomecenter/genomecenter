@@ -1,13 +1,12 @@
 package org.gc.pipelines.stages
 
-import org.gc.pipelines.util.{Exec}
+import org.gc.pipelines.util.{Exec, Files}
 import org.gc.pipelines.util
 
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import tasks._
 import tasks.circesupport._
-import fileutils.TempFile
 import java.io.File
 
 case class QTLToolsQuantificationInput(
@@ -36,10 +35,10 @@ object QTLToolsQuantification {
         implicit computationEnvironment =>
           val qtltoolsExecutable = extractQTLToolsExecutable()
 
-          val tmpStdOut = TempFile.createTempFile(".stdout")
-          val tmpStdErr = TempFile.createTempFile(".stderr")
+          val tmpStdOut = Files.createTempFile(".stdout")
+          val tmpStdErr = Files.createTempFile(".stderr")
 
-          val output = TempFile.createTempFile(".out").getAbsolutePath
+          val output = Files.createTempFile(".out").getAbsolutePath
 
           val resultF = for {
 

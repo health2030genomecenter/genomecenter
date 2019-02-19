@@ -5,7 +5,6 @@ import tasks.circesupport._
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.Future
-import fileutils.TempFile
 import org.gc.pipelines.util.{Exec, GATK, JVM, ResourceConfig, Files, StableSet}
 import java.io.File
 
@@ -168,10 +167,10 @@ object HaplotypeCaller {
             result <- {
 
               val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
-              val tmpVcf = TempFile.createTempFile(".tmp.vcf.gz")
-              val finalVcf = TempFile.createTempFile(".vcf.gz")
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
+              val tmpVcf = Files.createTempFile(".tmp.vcf.gz")
+              val finalVcf = Files.createTempFile(".vcf.gz")
               val javaTmpDir =
                 s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
@@ -212,6 +211,7 @@ object HaplotypeCaller {
               tmpVcf.delete
 
               val expectVcfIndex = new File(finalVcf.getAbsolutePath + ".tbi")
+              expectVcfIndex.deleteOnExit
 
               for {
                 _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
@@ -241,10 +241,10 @@ object HaplotypeCaller {
             result <- {
               val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
 
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
-              val recalOutput = TempFile.createTempFile(".recal")
-              val trancheOutput = TempFile.createTempFile(".tranches")
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
+              val recalOutput = Files.createTempFile(".recal")
+              val trancheOutput = Files.createTempFile(".tranches")
               val javaTmpDir =
                 s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
@@ -308,10 +308,10 @@ object HaplotypeCaller {
             result <- {
               val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
 
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
-              val recalOutput = TempFile.createTempFile(".recal")
-              val trancheOutput = TempFile.createTempFile(".tranches")
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
+              val recalOutput = Files.createTempFile(".recal")
+              val trancheOutput = Files.createTempFile(".tranches")
               val javaTmpDir =
                 s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
@@ -482,15 +482,15 @@ object HaplotypeCaller {
               val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
               val picardJar = BWAAlignment.extractPicardJar()
 
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
-              val vcfOutput = TempFile.createTempFile(".vcf.gz")
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
+              val vcfOutput = Files.createTempFile(".vcf.gz")
               val vcfOutputFiltered =
-                TempFile.createTempFile(".vcf.gz").getAbsolutePath
+                Files.createTempFile(".vcf.gz").getAbsolutePath
               val vcfOutputFilteredSitesOnly =
-                TempFile.createTempFile(".vcf.gz").getAbsolutePath
+                Files.createTempFile(".vcf.gz").getAbsolutePath
 
-              val genomeDbWorkfolder = TempFile.createTempFile(".gdb")
+              val genomeDbWorkfolder = Files.createTempFile(".gdb")
               genomeDbWorkfolder.delete
 
               val javaTmpDir =
@@ -559,11 +559,18 @@ object HaplotypeCaller {
 
               val nameStub = name + "." + interval + ".vcf.gz"
 
+              val vcfOutputFilteredIndex = new File(vcfOutputFiltered + ".tbi")
+              vcfOutputFilteredIndex.deleteOnExit
+
+              val vcfOutputFilteredSitesOnlyIndex =
+                new File(vcfOutputFilteredSitesOnly + ".tbi")
+              vcfOutputFilteredSitesOnlyIndex.deleteOnExit
+
               for {
                 _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
                 _ <- SharedFile(tmpStdErr, nameStub + ".stderr", true)
                 vcf <- SharedFile(new File(vcfOutputFiltered), nameStub, true)
-                vcfIndex <- SharedFile(new File(vcfOutputFiltered + ".tbi"),
+                vcfIndex <- SharedFile(vcfOutputFilteredIndex,
                                        nameStub + ".tbi",
                                        true)
                 sitesOnlyVcf <- SharedFile(
@@ -571,7 +578,7 @@ object HaplotypeCaller {
                   nameStub.stripSuffix("vcf.gz") + "sites_only.vcf.gz",
                   true)
                 sitesOnlyVcfIdx <- SharedFile(
-                  new File(vcfOutputFilteredSitesOnly + ".tbi"),
+                  vcfOutputFilteredSitesOnlyIndex,
                   nameStub.stripSuffix("vcf.gz") + "sites_only.vcf.gz.tbi",
                   true)
 
@@ -625,9 +632,9 @@ object HaplotypeCaller {
           merged <- {
 
             val picardJar = BWAAlignment.extractPicardJar()
-            val tmpStdOut = TempFile.createTempFile(".stdout")
-            val tmpStdErr = TempFile.createTempFile(".stderr")
-            val vcfOutput = TempFile.createTempFile(".vcf.gz").getAbsolutePath
+            val tmpStdOut = Files.createTempFile(".stdout")
+            val tmpStdErr = Files.createTempFile(".stderr")
+            val vcfOutput = Files.createTempFile(".vcf.gz").getAbsolutePath
 
             val javaTmpDir =
               s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
@@ -645,6 +652,7 @@ object HaplotypeCaller {
                         """)
 
             val expectedIndex = new File(vcfOutput + ".tbi")
+            expectedIndex.deleteOnExit
 
             for {
               _ <- SharedFile(tmpStdOut, gatheredFileName + ".stdout", true)
@@ -671,9 +679,9 @@ object HaplotypeCaller {
             vcf <- {
               val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
 
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
-              val vcfOutput = TempFile.createTempFile(".vcf.gz").getAbsolutePath
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
+              val vcfOutput = Files.createTempFile(".vcf.gz").getAbsolutePath
 
               val maxHeap = s"-Xmx${resourceAllocated.memory}m"
 
@@ -695,12 +703,14 @@ object HaplotypeCaller {
 
               val nameStub = bam.bam.name + "." + interval + ".hc.gvcf.vcf.gz"
 
+              val vcfOutputIndex = new File(vcfOutput + ".tbi")
+              vcfOutputIndex.deleteOnExit
+
               for {
-                _ <- SharedFile(tmpStdOut, nameStub + ".stdout")
-                _ <- SharedFile(tmpStdErr, nameStub + ".stderr")
-                vcf <- SharedFile(new File(vcfOutput), nameStub)
-                vcfIndex <- SharedFile(new File(vcfOutput + ".tbi"),
-                                       nameStub + ".tbi")
+                _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
+                _ <- SharedFile(tmpStdErr, nameStub + ".stderr", true)
+                vcf <- SharedFile(new File(vcfOutput), nameStub, true)
+                vcfIndex <- SharedFile(vcfOutputIndex, nameStub + ".tbi", true)
 
               } yield VCF(vcf, Some(vcfIndex))
             }
@@ -727,10 +737,10 @@ object HaplotypeCaller {
             result <- {
 
               val picardJar = BWAAlignment.extractPicardJar()
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
-              val tmpOut = TempFile.createTempFile(".metrics").getAbsolutePath
-              val picardStyleInterval = TempFile.createTempFile("")
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
+              val tmpOut = Files.createTempFile(".metrics").getAbsolutePath
+              val picardStyleInterval = Files.createTempFile("")
 
               val javaTmpDir =
                 s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
@@ -755,20 +765,24 @@ object HaplotypeCaller {
                    > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
                         """)
 
+              picardStyleInterval.delete
+
               val expectedDetails =
                 new File(tmpOut + ".variant_calling_detail_metrics")
               val expectedSummary =
                 new File(tmpOut + ".variant_calling_summary_metrics")
               val nameStub = targetVcf.vcf.name + ".qc"
               for {
-                _ <- SharedFile(tmpStdOut, nameStub + ".stdout")
-                _ <- SharedFile(tmpStdErr, nameStub + ".stderr")
+                _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
+                _ <- SharedFile(tmpStdErr, nameStub + ".stderr", true)
                 detail <- SharedFile(
                   expectedDetails,
-                  nameStub + ".variant_calling_detail_metrics")
+                  nameStub + ".variant_calling_detail_metrics",
+                  true)
                 summary <- SharedFile(
                   expectedSummary,
-                  nameStub + ".variant_calling_summary_metrics")
+                  nameStub + ".variant_calling_summary_metrics",
+                  true)
 
               } yield VariantCallingMetricsResult(detail, summary)
 

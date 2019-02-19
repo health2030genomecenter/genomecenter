@@ -170,9 +170,9 @@ object BWAAlignment {
             TempFile
               .createTempFolder(".sortTempFolder")
               .getAbsolutePath
-          val tmpSorted = TempFile.createTempFile(".bam")
-          val tmpStdOut = TempFile.createTempFile(".stdout")
-          val tmpStdErr = TempFile.createTempFile(".stderr")
+          val tmpSorted = Files.createTempFile(".bam")
+          val tmpStdOut = Files.createTempFile(".stdout")
+          val tmpStdErr = Files.createTempFile(".stderr")
 
           for {
             localBam <- bam.file
@@ -199,6 +199,7 @@ object BWAAlignment {
                 new File(
                   tmpSorted.getAbsolutePath
                     .stripSuffix(".bam") + ".bai")
+              expectedBai.deleteOnExit
 
               val nameStub = bam.name.stripSuffix(".bam")
 
@@ -236,10 +237,10 @@ object BWAAlignment {
               .createTempFolder(".markDuplicateTempFolder")
               .getAbsolutePath
 
-          val tmpDuplicateMarkedBam = TempFile.createTempFile(".bam")
-          val tmpMetricsFile = TempFile.createTempFile(".metrics")
-          val tmpStdOut = TempFile.createTempFile(".stdout")
-          val tmpStdErr = TempFile.createTempFile(".stderr")
+          val tmpDuplicateMarkedBam = Files.createTempFile(".bam")
+          val tmpMetricsFile = Files.createTempFile(".metrics")
+          val tmpStdOut = Files.createTempFile(".stdout")
+          val tmpStdErr = Files.createTempFile(".stderr")
 
           val maxHeap = s"-Xmx${(resourceAllocated.memory * 0.8).toInt}m"
           val tmpDir =
@@ -325,7 +326,7 @@ object BWAAlignment {
           val bwaNumberOfThreads = math.max(1, resourceAllocated.cpu)
 
           val markAdapterMetricsFileOutput =
-            TempFile.createTempFile(".markAdapterMetrics").getAbsolutePath
+            Files.createTempFile(".markAdapterMetrics").getAbsolutePath
 
           val markAdapterTempFolder =
             TempFile.createTempFolder(".markAdapterTempFolder").getAbsolutePath
@@ -339,12 +340,12 @@ object BWAAlignment {
           val unmappedBamTempFolder =
             TempFile.createTempFolder(".unmappedBamFastqToSamTempFolder")
 
-          val tmpCleanBam = TempFile.createTempFile(".bam")
+          val tmpCleanBam = Files.createTempFile(".bam")
           val tmpIntermediateUnmappedBam =
             Files.createTempFile(".unmappedBam")
 
-          val tmpStdOut = TempFile.createTempFile(".stdout")
-          val tmpStdErr = TempFile.createTempFile(".stderr")
+          val tmpStdOut = Files.createTempFile(".stdout")
+          val tmpStdErr = Files.createTempFile(".stderr")
 
           val readGroupName = project + "." + sampleId + "." + runId + "." + lane
           val uniqueSampleName = project + "." + sampleId

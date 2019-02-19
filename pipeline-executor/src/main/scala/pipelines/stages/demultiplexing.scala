@@ -291,12 +291,12 @@ object Demultiplexing {
             fastQAndStatFiles <- inPartFolder {
               implicit computationEnvironment =>
                 val outputFolder =
-                  fileutils.TempFile.createTempFile(
-                    s".$partitionIndex.bcl2fastq")
+                  Files.createTempFile(s".$partitionIndex.bcl2fastq")
                 outputFolder.delete
                 outputFolder.mkdirs
                 val stdout = new File(outputFolder, "stdout").getAbsolutePath
                 val stderr = new File(outputFolder, "stderr").getAbsolutePath
+
                 val bashCommand = {
                   val commandLine = Seq(
                     executable.getAbsolutePath,
@@ -329,6 +329,8 @@ object Demultiplexing {
 
                 val files = Files.list(outputFolder, "**.fastq.gz") :+ statsFile :+ new File(
                   stdout) :+ new File(stderr)
+
+                files.foreach(_.deleteOnExit)
 
                 Future.traverse(files) { file =>
                   SharedFile(file,

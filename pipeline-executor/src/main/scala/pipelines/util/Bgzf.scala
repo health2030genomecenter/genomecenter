@@ -27,7 +27,7 @@ object Bgzf {
     def openNewPartition() = {
       currentSize = 0L
       val idx = files.size
-      val file = fileutils.TempFile.createTempFile(".part" + idx)
+      val file = Files.createTempFile(".part" + idx)
       files.lastOption.foreach(_._2.close)
       val os = new BufferedOutputStream(new FileOutputStream(file))
       files.append(file -> os)

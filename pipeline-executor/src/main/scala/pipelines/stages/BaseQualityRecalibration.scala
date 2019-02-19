@@ -5,8 +5,15 @@ import tasks.circesupport._
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.Future
-import fileutils.TempFile
-import org.gc.pipelines.util.{Exec, GATK, JVM, ResourceConfig, Fasta, StableSet}
+import org.gc.pipelines.util.{
+  Exec,
+  GATK,
+  JVM,
+  ResourceConfig,
+  Fasta,
+  StableSet,
+  Files
+}
 import scala.collection.JavaConverters._
 import java.io.File
 
@@ -67,10 +74,10 @@ object BaseQualityScoreRecalibration {
             localTables <- Future.traverse(scattered)(_.file.file)
             gatheredTables <- {
 
-              val output = TempFile.createTempFile(".bsqr.report")
+              val output = Files.createTempFile(".bsqr.report")
               val gatkJar: String = extractGatkJar()
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
               val input = " -I " + localTables.mkString(" -I ")
 
               Exec.bash(logDiscriminator = "bqsr.train",
@@ -113,13 +120,13 @@ object BaseQualityScoreRecalibration {
             knownSites <- Future.traverse(knownSites.toSeq)(_.localFile)
             result <- {
 
-              val output = TempFile.createTempFile(".bsqr.report")
+              val output = Files.createTempFile(".bsqr.report")
               val gatkJar: String = extractGatkJar()
               val knownSitesArguments = knownSites
                 .map(_.getAbsolutePath)
                 .mkString(" --known-sites ", " --known-sites ", "")
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
               val bashScript = s""" \\
               java ${JVM.g1} $maxHeap ${GATK
                 .javaArguments(compressionLevel = 1)} -jar $gatkJar  BaseRecalibrator \\
@@ -177,10 +184,10 @@ object BaseQualityScoreRecalibration {
             localBams <- Future.traverse(scattered)(_.localFile)
             gathered <- {
 
-              val output = TempFile.createTempFile(".bsqr.bam")
+              val output = Files.createTempFile(".bsqr.bam")
               val picardJar: String = BWAAlignment.extractPicardJar()
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
               val input = " --INPUT " + localBams.mkString(" -INPUT ")
 
               val javaTmpDir =
@@ -199,6 +206,7 @@ object BaseQualityScoreRecalibration {
                 new File(
                   output.getAbsolutePath
                     .stripSuffix(".bam") + ".bai")
+              expectedBai.deleteOnExit
 
               for {
                 _ <- SharedFile(
@@ -236,12 +244,13 @@ object BaseQualityScoreRecalibration {
             bqsrTable <- bqsrTable.file.file
             result <- {
 
-              val outputBam = TempFile.createTempFile(".bam")
+              val outputBam = Files.createTempFile(".bam")
               val expectedBai =
                 new File(outputBam.getAbsolutePath.stripSuffix("bam") + "bai")
+              expectedBai.deleteOnExit
               val gatkJar: String = extractGatkJar()
-              val tmpStdOut = TempFile.createTempFile(".stdout")
-              val tmpStdErr = TempFile.createTempFile(".stderr")
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
               val bashScript = s""" \\
               java ${JVM.g1} $maxHeap ${GATK.javaArguments(compressionLevel = 5)} -jar $gatkJar ApplyBQSR \\
                 -R ${reference.getAbsolutePath} \\

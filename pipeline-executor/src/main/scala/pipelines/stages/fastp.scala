@@ -4,7 +4,6 @@ import tasks._
 import tasks.circesupport._
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import fileutils.TempFile
 import org.gc.pipelines.util.{Exec, Files}
 import org.gc.pipelines.util
 import org.gc.pipelines.model._
@@ -65,9 +64,9 @@ object Fastp {
                   }
                 }
               }
-              val tmpHtml = TempFile.createTempFile(".html")
+              val tmpHtml = Files.createTempFile(".html")
               tmpHtml.delete
-              val tmpJson = TempFile.createTempFile(".json")
+              val tmpJson = Files.createTempFile(".json")
               tmpJson.delete
 
               val bashScript = s""" \\
