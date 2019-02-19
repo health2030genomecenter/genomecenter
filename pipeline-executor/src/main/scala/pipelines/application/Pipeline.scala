@@ -21,6 +21,7 @@ trait Pipeline[DemultiplexedSample, SampleResult, DeliverableList] {
     : Future[(Project, Boolean, Option[DeliverableList])]
 
   def processSample(runConfiguration: RunfolderReadyForProcessing,
+                    analysisAssignments: AnalysisAssignments,
                     pastSampleResult: Option[SampleResult],
                     demultiplexedSample: DemultiplexedSample)(
       implicit tsc: TaskSystemComponents): Future[Option[SampleResult]]

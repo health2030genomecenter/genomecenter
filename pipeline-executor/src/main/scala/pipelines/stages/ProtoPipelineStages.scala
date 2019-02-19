@@ -8,8 +8,7 @@ import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   RunConfiguration,
   WESConfiguration,
-  RNASeqConfiguration,
-  Selector
+  RNASeqConfiguration
 }
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.ResourceConfig
@@ -323,18 +322,6 @@ object ProtoPipelineStages extends StrictLogging {
           }
 
     }
-
-  def selectConfiguration[A](selectors: List[(Selector, A)],
-                             sample: PerSamplePerRunFastQ): Seq[A] =
-    selectors
-      .filter {
-        case (selector, _) =>
-          val lanes = sample.lanes.map { fqLane =>
-            Metadata(fqLane.runId, fqLane.lane, sample.sampleId, sample.project)
-          }
-          lanes.toSeq.exists(selector.isSelected)
-      }
-      .map(_._2)
 
   def parseReadLengthFromRunInfo(
       run: RunfolderReadyForProcessing): Either[String, Map[ReadType, Int]] = {

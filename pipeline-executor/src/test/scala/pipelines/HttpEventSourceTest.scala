@@ -21,7 +21,6 @@ import akka.http.scaladsl.model.{
 
 import org.gc.pipelines.application._
 import org.gc.pipelines.util.StableSet
-import org.gc.pipelines.application.dto._
 import org.gc.pipelines.model._
 import fileutils._
 
@@ -62,9 +61,9 @@ class HttpEventSourceTest
     When("a run folder is created")
     runFolder.mkdir
     openFileWriter(new File(runFolder, "RunInfo.xml"))(_ => ())
-    When("a post request is made to /v2/register")
+    When("a post request is made to /v2/run/append")
     val request = HttpRequest(method = HttpMethods.POST,
-                              uri = Uri("/v2/register"),
+                              uri = Uri("/v2/run/append"),
                               entity = HttpEntity(
                                 ContentTypes.`application/json`,
                                 runConfigurationFileContent
@@ -73,17 +72,16 @@ class HttpEventSourceTest
       status shouldEqual StatusCodes.OK
       Then("the source should emit")
       probe.expectMsg(
-        application.Append(RunfolderReadyForProcessing(
-          RunId(runId),
-          Some(runFolder.getAbsolutePath),
-          None,
-          RunConfiguration(
-            demultiplexingRuns = StableSet(),
-            globalIndexSet = None,
-            wesProcessing = StableSet(),
-            rnaProcessing = StableSet()
-          )
-        )))
+        application.Append(
+          RunfolderReadyForProcessing(
+            RunId(runId),
+            Some(runFolder.getAbsolutePath),
+            None,
+            RunConfiguration(
+              demultiplexingRuns = StableSet(),
+              globalIndexSet = None
+            )
+          )))
     }
 
   }
@@ -125,9 +123,9 @@ class HttpEventSourceTest
     val probe = TestProbe()
     source.to(Sink.actorRef(probe.ref, "completed")).run()
 
-    When("a post request is made to /v2/register")
+    When("a post request is made to /v2/run/append")
     val request = HttpRequest(method = HttpMethods.POST,
-                              uri = Uri("/v2/register"),
+                              uri = Uri("/v2/run/append"),
                               entity = HttpEntity(
                                 ContentTypes.`application/json`,
                                 runConfigurationFileContent
@@ -150,9 +148,7 @@ class HttpEventSourceTest
             )),
           RunConfiguration(
             demultiplexingRuns = StableSet(),
-            globalIndexSet = None,
-            wesProcessing = StableSet(),
-            rnaProcessing = StableSet()
+            globalIndexSet = None
           )
         )))
     }
@@ -175,7 +171,7 @@ class HttpEventSourceTest
       "demultiplexing=[]"
 
     val runConfiguration =
-      RunConfigurationDTO(runConfigurationFileContent).map(_.toRunConfiguration)
+      RunConfiguration(runConfigurationFileContent)
     val runId = "runid"
     val runFolder = new File(watchedFolder, runId)
 

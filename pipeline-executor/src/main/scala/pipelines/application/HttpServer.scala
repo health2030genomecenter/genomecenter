@@ -2,7 +2,7 @@ package org.gc.pipelines.application
 
 import com.typesafe.scalalogging.StrictLogging
 import org.gc.pipelines.util.ActorSource
-import org.gc.pipelines.model.RunId
+import org.gc.pipelines.model.{RunId, Project, AnalysisId}
 import akka.stream.Materializer
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -98,7 +98,43 @@ class HttpServer(port: Int)(implicit AS: ActorSystem, MAT: Materializer)
             }
 
           } ~
-          path("v2" / "register") {
+          path("v2" / "analysis" / "assign" / Segment) { project =>
+            entity(as[String]) { analysisConfigurationAsString =>
+              val maybeParsed = AnalysisConfiguration.fromConfig(
+                ConfigFactory.parseString(analysisConfigurationAsString))
+
+              maybeParsed match {
+                case Left(error) =>
+                  logger.error(error.toString)
+                  complete(HttpResponse(StatusCodes.BadRequest,
+                                        entity = HttpEntity(error)))
+                case Right(configuration)
+                    if configuration.validationErrors.nonEmpty =>
+                  logger.error(s"Can't read $configuration")
+                  complete(HttpResponse(
+                    StatusCodes.BadRequest,
+                    entity = HttpEntity(
+                      s"can't read: ${configuration.validationErrors.mkString(";")}")))
+                case Right(configuration) =>
+                  logger.info(s"Assign ${configuration.analysisId} - $project")
+                  sourceActor ! Assign(Project(project), configuration)
+                  complete(akka.http.scaladsl.model.StatusCodes.OK)
+              }
+
+            }
+          } ~
+          path("v2" / "analysis" / "unassign" / Segment / Segment) {
+            case (project, analysisId) =>
+              logger.info(s"Unassign $analysisId - $project")
+              sourceActor ! Unassign(Project(project), AnalysisId(analysisId))
+              complete(akka.http.scaladsl.model.StatusCodes.OK)
+
+          } ~
+          path("v2" / "run" / "delete" / Segment) { runId =>
+            sourceActor ! Delete(RunId(runId))
+            complete(akka.http.scaladsl.model.StatusCodes.OK)
+          } ~
+          path("v2" / "run" / "append") {
             entity(as[String]) { runFolderConfigurationAsString =>
               val maybeRunFolderReadyEvent = for {
                 parsed <- Try(ConfigFactory.parseString(

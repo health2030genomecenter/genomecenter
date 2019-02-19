@@ -17,6 +17,8 @@ import org.gc.pipelines.application._
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.StableSet
 
+import java.io.File
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object MyTestKit extends akka.testkit.TestKit(ActorSystem())
@@ -44,58 +46,80 @@ class PipelinesApplicationTest
       .toSeq
       .distinct
       .sorted
-      .toList shouldBe (0 to PipelineStateMigrations.migrations.size).toList
+      .toList shouldBe (0 to PipelineStateMigrations.migrations.size - 1).toList
   }
   test("file based state logging should work") {
-    import better.files.File._
-    Given("a file with run data serialized")
-    val file = fileutils.TempFile.createTempFile("state")
-    val source = new java.io.File(
-      this.getClass.getResource("/migration_test_data").getFile).toPath
-    better.files.Dsl.cp(source, file.toPath)
-    And("loaded into a FilePipelineState")
-    val pipelineState = new FilePipelineState(file)
+    new Fixture {
+      import better.files.File._
+      Given("a file with run data serialized")
+      val file = fileutils.TempFile.createTempFile("state")
+      val source = new java.io.File(
+        this.getClass.getResource("/migration_test_data").getFile).toPath
+      better.files.Dsl.cp(source, file.toPath)
+      And("loaded into a FilePipelineState")
+      val pipelineState = new FilePipelineState(file)
 
-    And("two runs with the same ids ")
-    val run = RunfolderReadyForProcessing(
-      RunId("fake"),
-      Some("fakePath"),
-      None,
-      RunConfiguration(StableSet.empty, None, StableSet.empty, StableSet.empty)
-    )
-    val run2 = RunfolderReadyForProcessing(
-      RunId("fake"),
-      Some("fakePath2"),
-      None,
-      RunConfiguration(StableSet.empty, None, StableSet.empty, StableSet.empty)
-    )
-    When("the first run is registered")
-    pipelineState.registered(run)
+      And("two runs with the same ids ")
+      val run = RunfolderReadyForProcessing(
+        RunId("fake"),
+        Some("fakePath"),
+        None,
+        RunConfiguration(StableSet.empty, None)
+      )
+      val run2 = RunfolderReadyForProcessing(
+        RunId("fake"),
+        Some("fakePath2"),
+        None,
+        RunConfiguration(StableSet.empty, None)
+      )
+      When("the first run is registered")
+      pipelineState.registered(run)
 
-    Then(
-      "the FilePipelineState's pastRuns method should return 2 runs, first the one in the file")
-    val result = Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
-    result.size shouldBe 2
-    result.takeRight(1) shouldBe List(run)
-    result.map(_.runId) shouldBe List("", "fake")
+      Then(
+        "the FilePipelineState's pastRuns method should return 2 runs, first the one in the file")
+      val result =
+        Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
+      result.size shouldBe 2
+      result.takeRight(1) shouldBe List(
+        RunWithAnalyses(run, AnalysisAssignments.empty))
+      result.map(_.runId) shouldBe List("", "fake")
 
-    When("The second is invalidated")
-    pipelineState.invalidated(run.runId)
-    Then("the pastRuns method should return 1 run")
-    Await
-      .result((new FilePipelineState(file)).pastRuns, 5 seconds)
-      .size shouldBe 1
+      When("The second is invalidated")
+      pipelineState.invalidated(run.runId)
+      Then("the pastRuns method should return 1 run")
+      Await
+        .result((new FilePipelineState(file)).pastRuns, 5 seconds)
+        .size shouldBe 1
 
-    When("a new run with the same runId as the second is registered")
-    pipelineState.registered(run2)
-    val result2 =
-      Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
-    Then("pastRuns should return two runs")
-    result2.size shouldBe 2
-    result2.map(_.runId) shouldBe List("", "fake")
-    result2.map(_.runFolderPath) shouldBe List(Some("raw_data//"),
-                                               Some("fakePath2"))
+      When("a new run with the same runId as the second is registered")
+      pipelineState.registered(run2)
+      val result2 =
+        Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
+      Then("pastRuns should return two runs")
+      result2.size shouldBe 2
+      result2.map(_.runId) shouldBe List("", "fake")
+      result2.map(_.run.runFolderPath) shouldBe List(Some("raw_data//"),
+                                                     Some("fakePath2"))
 
+      When("a project is assigned to a configuration")
+      pipelineState.assigned(Project("project1"), rnaConfiguration)
+      Then("the state should zip the analysis configuration with future runs")
+      Await
+        .result(pipelineState.registered(run2), 5 seconds)
+        .get shouldBe RunWithAnalyses(
+        run2,
+        AnalysisAssignments(Map(Project("project1") -> Seq(rnaConfiguration))))
+
+      When("a project is unassigned")
+      pipelineState.unassigned(Project("project1"), rnaConfiguration.analysisId)
+      Then(
+        "the state should not zip the analysis configuration with future runs")
+      Await
+        .result(pipelineState.registered(run2), 5 seconds)
+        .get shouldBe RunWithAnalyses(
+        run2,
+        AnalysisAssignments(Map(Project("project1") -> Seq())))
+    }
   }
 
   test("pipelines application should respect the blacklist") {
@@ -649,6 +673,26 @@ class PipelinesApplicationTest
 
   }
 
+  trait Fixture {
+
+    val referenceFasta = getClass
+      .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta")
+      .getFile
+
+    val gtfFile = new File(
+      getClass
+        .getResource("/short.gtf")
+        .getFile)
+
+    val rnaConfiguration = RNASeqConfiguration(
+      analysisId = AnalysisId("default"),
+      referenceFasta = referenceFasta,
+      geneModelGtf = gtfFile.getAbsolutePath,
+      qtlToolsCommandLineArguments = Nil,
+      quantificationGtf = gtfFile.getAbsolutePath
+    )
+  }
+
   def samplesFinished2(waitFor: Set[FakeSampleResult])(s: Seq[Any]): Boolean = {
     val r =
       (s find {
@@ -693,10 +737,7 @@ class FakeSequencingCompleteEventSource(take: Int,
           RunId("fake"),
           Some(runFolder.getAbsolutePath),
           None,
-          RunConfiguration(StableSet.empty,
-                           None,
-                           StableSet.empty,
-                           StableSet.empty)
+          RunConfiguration(StableSet.empty, None)
         )
       )
       .take(take.toLong)
@@ -772,6 +813,7 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult, Unit] {
     }
 
   def processSample(runConfiguration: RunfolderReadyForProcessing,
+                    analysisAssignments: AnalysisAssignments,
                     pastSampleResult: Option[FakeSampleResult],
                     demultiplexedSample: FakeDemultiplexed)(
       implicit tsc: TaskSystemComponents): Future[Option[FakeSampleResult]] =
@@ -821,6 +863,7 @@ object TestPipelineWhichFails extends FakePipeline {
   }
 
   override def processSample(runConfiguration: RunfolderReadyForProcessing,
+                             analysisAssignments: AnalysisAssignments,
                              pastSampleResult: Option[FakeSampleResult],
                              demultiplexedSample: FakeDemultiplexed)(
       implicit tsc: TaskSystemComponents): Future[Option[FakeSampleResult]] =

@@ -10,7 +10,6 @@ import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   DemultiplexingConfiguration,
   RunConfiguration,
-  Selector,
   WESConfiguration,
   InputFastQPerLane,
   InputSampleAsFastQ
@@ -61,7 +60,7 @@ class ProtopipelineTestSuite
                             hapmap = VCF(sf, None),
                             oneKgOmni = VCF(sf, None),
                             dbSnp138 = VCF(sf, None))),
-        wesConfiguration = runConfiguration.wesProcessing.toSeq.head._2,
+        wesConfiguration = wesConfiguration,
         variantCallingContigs = Some(ContigsFile(sf))
       )
 
@@ -184,6 +183,25 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
 
     val runId = RunId("whateverRunId")
 
+    val wesConfiguration = WESConfiguration(
+      analysisId = AnalysisId("default"),
+      referenceFasta = "file",
+      targetIntervals = "file",
+      bqsrKnownSites = StableSet("file"),
+      dbSnpVcf = "file",
+      variantEvaluationIntervals = "file",
+      vqsrMillsAnd1Kg = None,
+      vqsrHapmap = None,
+      vqsrOneKgOmni = None,
+      vqsrOneKgHighConfidenceSnps = None,
+      vqsrDbSnp138 = None,
+      doVariantCalls = Some(true),
+      doJointCalls = Some(true),
+      minimumTargetCoverage = None,
+      minimumWGSCoverage = None,
+      variantCallingContigs = None
+    )
+
     val runConfiguration = RunConfiguration(
       demultiplexingRuns = StableSet(
         DemultiplexingConfiguration(
@@ -213,32 +231,7 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
           partitionByTileCount = None
         )
       ),
-      globalIndexSet = Some("file"),
-      wesProcessing = StableSet(
-        Selector(runIds = StableSet(RunId(runId)),
-                 samples = StableSet.empty,
-                 lanes = StableSet.empty,
-                 projects = StableSet.empty) ->
-          WESConfiguration(
-            analysisId = AnalysisId("default"),
-            referenceFasta = "file",
-            targetIntervals = "file",
-            bqsrKnownSites = StableSet("file"),
-            dbSnpVcf = "file",
-            variantEvaluationIntervals = "file",
-            vqsrMillsAnd1Kg = None,
-            vqsrHapmap = None,
-            vqsrOneKgOmni = None,
-            vqsrOneKgHighConfidenceSnps = None,
-            vqsrDbSnp138 = None,
-            doVariantCalls = Some(true),
-            doJointCalls = Some(true),
-            minimumTargetCoverage = None,
-            minimumWGSCoverage = None,
-            variantCallingContigs = None
-          )
-      ),
-      rnaProcessing = StableSet.empty
+      globalIndexSet = Some("file")
     )
 
     val runInfoContent =

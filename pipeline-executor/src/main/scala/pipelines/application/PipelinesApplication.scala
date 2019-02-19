@@ -30,6 +30,124 @@ case class SampleFinished[T](project: Project,
                              success: Boolean,
                              result: Option[T])
 
+object PipelinesApplication extends StrictLogging {
+  def persistCommands(pipelineState: PipelineState)(
+      implicit ec: ExecutionContext)
+    : PartialFunction[Command, Future[Option[RunWithAnalyses]]] = {
+    case Delete(runId) =>
+      logger.info(s"Deleting $runId")
+      pipelineState.invalidated(runId).map(_ => None)
+    case Append(run) =>
+      logger.info(s"Got run ${run.runId}")
+      val validationErrors = run.validationErrors
+      val valid = validationErrors.isEmpty
+
+      if (!valid) {
+        logger.info(
+          s"$run is not valid (readable?). Validation errors: $validationErrors")
+        Future.successful(None)
+      } else
+        for {
+          r <- {
+            logger.debug(s"New run received ${run.runId}")
+            pipelineState.registered(run)
+          }
+        } yield r
+    case Assign(project, analysisConfiguration) =>
+      val validationErrors = analysisConfiguration.validationErrors
+      val valid = validationErrors.isEmpty
+
+      if (!valid) {
+        logger.info(
+          s"Configuration is not valid. Validation errors: $validationErrors")
+        Future.successful(None)
+      } else {
+        logger.info(s"Assign $project to ${analysisConfiguration.analysisId}")
+        pipelineState
+          .assigned(project, analysisConfiguration)
+          .map(_ => None)
+      }
+
+    case Unassign(project, analysisId) =>
+      logger.info(s"Unassign $project to $analysisId")
+      pipelineState
+        .unassigned(project, analysisId)
+        .map(_ => None)
+  }
+
+  def foldSample[SampleResult, DemultiplexedSample](
+      pipeline: Pipeline[DemultiplexedSample, SampleResult, _],
+      processingFinishedListener: akka.actor.ActorRef,
+      currentRunConfiguration: RunWithAnalyses,
+      pastResultsOfThisSample: Option[SampleResult],
+      currentDemultiplexedSample: DemultiplexedSample)(
+      implicit tsc: TaskSystemComponents,
+      ec: ExecutionContext) =
+    pipeline
+      .processSample(currentRunConfiguration.run,
+                     currentRunConfiguration.analyses,
+                     pastResultsOfThisSample,
+                     currentDemultiplexedSample)
+      .map { result =>
+        val (project, sampleId, runId) =
+          pipeline.getKeysOfDemultiplexedSample(currentDemultiplexedSample)
+
+        processingFinishedListener ! SampleFinished(project,
+                                                    sampleId,
+                                                    runId,
+                                                    true,
+                                                    result)
+        result
+      }
+      .recover {
+        case error =>
+          logger.error(s"$pipeline failed on $currentDemultiplexedSample",
+                       error)
+
+          val (project, sampleId, runId) =
+            pipeline.getKeysOfDemultiplexedSample(currentDemultiplexedSample)
+
+          processingFinishedListener ! SampleFinished(project,
+                                                      sampleId,
+                                                      runId,
+                                                      false,
+                                                      None)
+
+          pastResultsOfThisSample
+      }
+
+  def processSamplesOfCompletedProject[SampleResult](
+      pipeline: Pipeline[_, SampleResult, _],
+      samples: Seq[SampleResult])(implicit tsc: TaskSystemComponents,
+                                  ec: ExecutionContext) = {
+    val (project, _, _) = pipeline.getKeysOfSampleResult(samples.head)
+
+    val lastRunOfEachSample = samples.zipWithIndex
+      .groupBy {
+        case (sample, _) =>
+          val (_, sampleId, _) = pipeline.getKeysOfSampleResult(sample)
+          sampleId
+      }
+      .toSeq
+      .map {
+        case (_, group) =>
+          group.last
+      }
+      .sortBy { case (_, idx) => idx }
+      .map { case (sample, _) => sample }
+
+    logger.info(
+      s"Project finished with ${lastRunOfEachSample.size} samples: $project .")
+    pipeline.processCompletedProject(lastRunOfEachSample).recover {
+      case error =>
+        logger.error(
+          s"$pipeline failed on $project while processing completed project",
+          error)
+        (project, false, None)
+    }
+  }
+}
+
 class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     val eventSource: SequencingCompleteEventSource,
     val pipelineState: PipelineState,
@@ -39,49 +157,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     blacklist: Set[(Project, SampleId)]
 )(implicit EC: ExecutionContext)
     extends StrictLogging {
-
-  import pipeline.getKeysOfDemultiplexedSample
-  import pipeline.getKeysOfSampleResult
-
-  private def getSampleId(s: DemultiplexedSample) = {
-    val (project, sampleId, _) = getKeysOfDemultiplexedSample(s)
-    (project, sampleId)
-  }
-
-  private val previousUnfinishedRuns =
-    Source.fromFuture(pipelineState.pastRuns).map { runs =>
-      runs.foreach { run =>
-        logger.info(s"Recovered past runs ${run.runId}")
-      }
-      runs
-    }
-
-  private val futureRuns =
-    eventSource.commands
-      .mapAsync(1) {
-        case Delete(runId) =>
-          logger.info(s"Deleting $runId")
-          pipelineState.invalidated(runId).map(_ => None)
-        case Append(run) =>
-          logger.info(s"Got run ${run.runId}")
-          val validationErrors = run.validationErrors
-          val valid = validationErrors.isEmpty
-
-          if (!valid) {
-            logger.info(
-              s"$run is not valid (readable?). Validation errors: $validationErrors")
-            Future.successful(None)
-          } else
-            for {
-              r <- {
-                logger.debug(s"New run received ${run.runId}")
-                pipelineState.registered(run)
-              }
-            } yield r
-
-      }
-      .filter(_.isDefined)
-      .map(_.get)
 
   private val (processingFinishedListener,
                _processingFinishedSource,
@@ -95,11 +170,44 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     */
   val processingFinishedSource = _processingFinishedSource
 
+  import pipeline.getKeysOfDemultiplexedSample
+  import pipeline.getKeysOfSampleResult
+
+  private def getSampleId(s: DemultiplexedSample) = {
+    val (project, sampleId, _) = getKeysOfDemultiplexedSample(s)
+    (project, sampleId)
+  }
+
+  private val previousRuns =
+    Source
+      .fromFuture(pipelineState.pastRuns)
+      .map { runs =>
+        runs.foreach { run =>
+          logger.info(s"Recovered past runs ${run.runId}")
+        }
+        runs
+      }
+      .mapConcat(identity)
+
+  private val persistCommandsFunction =
+    PipelinesApplication.persistCommands(pipelineState)
+
+  private def validateCommandAndPersistEvents
+    : Flow[Command, RunWithAnalyses, _] =
+    Flow[Command]
+      .mapAsync(1)(persistCommandsFunction)
+      .filter(_.isDefined)
+      .map(_.get)
+
+  def futureRuns =
+    eventSource.commands
+      .via(validateCommandAndPersistEvents)
+
   implicit val taskSystemComponents = taskSystem.components
   implicit val materializer = taskSystemComponents.actorMaterializer
 
-  (previousUnfinishedRuns.mapConcat(identity) ++ futureRuns)
-    .filter(pipeline.canProcess)
+  (previousRuns ++ futureRuns)
+    .filter(runWithAnalyses => pipeline.canProcess(runWithAnalyses.run))
     .via(accountAndProcess)
     .via(processCompletedRunsAndProjects)
     .via(watchTermination)
@@ -143,64 +251,61 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    *                                                           |
    *                                                           OUT [Completeds]
    */
-  def accountAndProcess: Flow[RunfolderReadyForProcessing, Completeds, _] =
-    Flow.fromGraph(
-      GraphDSL
-        .create(accountWorkDone, demultiplex, sampleProcessing)((_, _, _)) {
-          implicit builder =>
-            (accountWorkDone, demultiplex, sampleProcessing) =>
-              import GraphDSL.Implicits._
+  def accountAndProcess: Flow[RunWithAnalyses, Completeds, _] =
+    Flow.fromGraph(GraphDSL
+      .create(accountWorkDone, demultiplex, sampleProcessing)((_, _, _)) {
+        implicit builder => (accountWorkDone, demultiplex, sampleProcessing) =>
+          import GraphDSL.Implicits._
 
-              type DM = (RunfolderReadyForProcessing, Seq[DemultiplexedSample])
+          type DM = (RunWithAnalyses, Seq[DemultiplexedSample])
 
-              val broadcastDemultiplexed =
-                builder.add(Broadcast[DM](2))
-              val merge =
-                builder.add(Merge[Stage](3))
+          val broadcastDemultiplexed =
+            builder.add(Broadcast[DM](2))
+          val merge =
+            builder.add(Merge[Stage](3))
 
-              /* This Zip maintains the lockstep between the sample processor and the accounting
-               * It will only send the demultiplexed sample inside the sample processor after
-               * the accounting module updated its state
-               */
-              val zip = builder.add(Zip[DM, Unit])
+          /* This Zip maintains the lockstep between the sample processor and the accounting
+           * It will only send the demultiplexed sample inside the sample processor after
+           * the accounting module updated its state
+           */
+          val zip = builder.add(Zip[DM, Unit])
 
-              val mapToRaw =
-                builder.add(Flow[RunfolderReadyForProcessing].map(runFolder =>
-                  Raw(runFolder)))
-              mapToRaw.out ~> merge.in(2)
+          val mapToRaw =
+            builder.add(Flow[RunWithAnalyses].map(runFolder => Raw(runFolder)))
+          mapToRaw.out ~> merge.in(2)
 
-              broadcastDemultiplexed.out(0) ~> zip.in0
+          broadcastDemultiplexed.out(0) ~> zip.in0
 
-              broadcastDemultiplexed.out(1) ~> Flow[DM].map {
-                case (run, demultiplexedSamples) =>
-                  Demultiplexed(run, demultiplexedSamples)
-              } ~> merge.in(0)
+          broadcastDemultiplexed.out(1) ~> Flow[DM].map {
+            case (run, demultiplexedSamples) =>
+              Demultiplexed(run.run, demultiplexedSamples)
+          } ~> merge.in(0)
 
-              zip.out ~> Flow[(DM, Unit)]
-                .mapConcat {
-                  case ((run, samples), _) =>
-                    samples.map(s => (run, s)).toList
-                } ~> sampleProcessing ~> Flow[SampleResult]
-                .map(ProcessedSample(_)) ~> merge.in(1)
+          zip.out ~> Flow[(DM, Unit)]
+            .mapConcat {
+              case ((run, samples), _) =>
+                samples.map(s => (run, s)).toList
+            } ~> sampleProcessing ~> Flow[SampleResult]
+            .map(ProcessedSample(_)) ~> merge.in(1)
 
-              merge.out ~> accountWorkDone.in
+          merge.out ~> accountWorkDone.in
 
-              accountWorkDone.out0 ~> zip.in1
-              accountWorkDone.out2 ~> demultiplex ~> broadcastDemultiplexed.in
+          accountWorkDone.out0 ~> zip.in1
+          accountWorkDone.out2 ~> demultiplex ~> broadcastDemultiplexed.in
 
-              FlowShape(mapToRaw.in, accountWorkDone.out1)
-        })
+          FlowShape(mapToRaw.in, accountWorkDone.out1)
+      })
 
   def isOnBlacklist(sample: DemultiplexedSample): Boolean = {
     val (project, sampleId, _) = getKeysOfDemultiplexedSample(sample)
     blacklist.contains((project, sampleId))
   }
 
-  def demultiplex: Flow[RunfolderReadyForProcessing,
-                        (RunfolderReadyForProcessing, Seq[DemultiplexedSample]),
-                        _] =
-    Flow[RunfolderReadyForProcessing]
-      .mapAsync(1000) { run =>
+  def demultiplex
+    : Flow[RunWithAnalyses, (RunWithAnalyses, Seq[DemultiplexedSample]), _] =
+    Flow[RunWithAnalyses]
+      .mapAsync(1000) { runWithAnalyses =>
+        val run = runWithAnalyses.run
         logger.info(s"Demultiplex run ${run.runId}")
         for {
           samples <- pipeline.demultiplex(run).recover {
@@ -212,13 +317,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           val samplesPassingBlacklist = samples.filterNot(isOnBlacklist)
           logger.info(
             s"Demultiplexing of ${run.runId} with ${samplesPassingBlacklist.size} (${samples.size} before blacklist) done.")
-          run -> samplesPassingBlacklist
+          runWithAnalyses -> samplesPassingBlacklist
         }
       }
 
   def accountWorkDone
-    : Graph[FanOutShape3[Stage, Unit, Completeds, RunfolderReadyForProcessing],
-            NotUsed] = {
+    : Graph[FanOutShape3[Stage, Unit, Completeds, RunWithAnalyses], NotUsed] = {
 
     val state = Flow[Stage]
       .scan(StateOfUnfinishedSamples.empty) {
@@ -237,9 +341,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             s"Finishing ${pipeline.getKeysOfSampleResult(processedSample)}")
           state.finish(processedSample)
 
-        case (state, Raw(runFolder)) =>
-          logger.info(s"Got new run ${runFolder.runId}")
-          state.addNewRun(runFolder)
+        case (state, Raw(runWithAnalyses)) =>
+          logger.info(s"Got new run ${runWithAnalyses.run.runId}")
+          state.addNewRun(runWithAnalyses)
       }
 
     GraphDSL
@@ -329,31 +433,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .buffer(1, OverflowStrategy.dropHead)
       .mapAsync(1000) {
         case CompletedProject(samples) =>
-          val (project, _, _) = getKeysOfSampleResult(samples.head)
-
-          val lastRunOfEachSample = samples.zipWithIndex
-            .groupBy {
-              case (sample, _) =>
-                val (_, sampleId, _) = getKeysOfSampleResult(sample)
-                sampleId
-            }
-            .toSeq
-            .map {
-              case (_, group) =>
-                group.last
-            }
-            .sortBy { case (_, idx) => idx }
-            .map { case (sample, _) => sample }
-
-          logger.info(
-            s"Project finished with ${lastRunOfEachSample.size} samples: $project .")
-          pipeline.processCompletedProject(lastRunOfEachSample).recover {
-            case error =>
-              logger.error(
-                s"$pipeline failed on $project while processing completed project",
-                error)
-              (project, false, None)
-          }
+          PipelinesApplication.processSamplesOfCompletedProject(pipeline,
+                                                                samples)
       }
       .map {
         case (project, success, deliverables) =>
@@ -365,13 +446,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           project
       }
 
-  def sampleProcessing: Flow[(RunfolderReadyForProcessing, DemultiplexedSample),
-                             SampleResult,
-                             _] = {
+  def sampleProcessing
+    : Flow[(RunWithAnalyses, DemultiplexedSample), SampleResult, _] = {
 
     val maxConcurrentlyProcessedSamples = 10000
 
-    Flow[(RunfolderReadyForProcessing, DemultiplexedSample)]
+    Flow[(RunWithAnalyses, DemultiplexedSample)]
       .map {
         case value @ (runFolder, demultiplexedSample) =>
           val keys = getKeysOfDemultiplexedSample(demultiplexedSample)
@@ -389,15 +469,14 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             s"SampleProcessor received sample (after groupby) ${runFolder.runId} $keys")
           value
       }
-      .scanAsync(List.empty[(SampleResult,
-                             RunfolderReadyForProcessing,
-                             DemultiplexedSample)]) {
+      .scanAsync(
+        List.empty[(SampleResult, RunWithAnalyses, DemultiplexedSample)]) {
         case (pastResultsOfThisSample,
               (currentRunConfiguration, currentDemultiplexedSample)) =>
           val (runsBeforeThis, runsAfterInclusive) =
             pastResultsOfThisSample.span {
               case (_, pastRunFolder, _) =>
-                pastRunFolder.runId != currentRunConfiguration.runId
+                pastRunFolder.run.runId != currentRunConfiguration.run.runId
             }
 
           val runsAfterThis = runsAfterInclusive.drop(1).map {
@@ -410,7 +489,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
           logger.info(
             s"Processing sample: ${getSampleId(currentDemultiplexedSample)}. RunsBefore: ${runsBeforeThis
-              .map(_._2.runId)}. RunsToReapply: ${runsToReApply.map(_._1.runId)}.")
+              .map(_._2.run.runId)}. RunsToReapply: ${runsToReApply.map(_._1.run.runId)}.")
 
           runsToReApply.foldLeft(Future.successful(runsBeforeThis)) {
             case (pastIntermediateResults,
@@ -422,9 +501,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
                   case (sampleResult, _, _) => sampleResult
                 }
 
-                newSampleResult <- foldSample(currentRunConfiguration,
-                                              lastSampleResult,
-                                              currentDemultiplexedSample)
+                newSampleResult <- PipelinesApplication.foldSample(
+                  pipeline,
+                  processingFinishedListener,
+                  currentRunConfiguration,
+                  lastSampleResult,
+                  currentDemultiplexedSample)
               } yield
                 newSampleResult match {
                   case None => pastIntermediateResults
@@ -443,41 +525,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .map(_.last._1)
 
   }
-
-  private def foldSample(currentRunConfiguration: RunfolderReadyForProcessing,
-                         pastResultsOfThisSample: Option[SampleResult],
-                         currentDemultiplexedSample: DemultiplexedSample) =
-    pipeline
-      .processSample(currentRunConfiguration,
-                     pastResultsOfThisSample,
-                     currentDemultiplexedSample)
-      .map { result =>
-        val (project, sampleId, runId) =
-          pipeline.getKeysOfDemultiplexedSample(currentDemultiplexedSample)
-
-        processingFinishedListener ! SampleFinished(project,
-                                                    sampleId,
-                                                    runId,
-                                                    true,
-                                                    result)
-        result
-      }
-      .recover {
-        case error =>
-          logger.error(s"$pipeline failed on $currentDemultiplexedSample",
-                       error)
-
-          val (project, sampleId, runId) =
-            pipeline.getKeysOfDemultiplexedSample(currentDemultiplexedSample)
-
-          processingFinishedListener ! SampleFinished(project,
-                                                      sampleId,
-                                                      runId,
-                                                      false,
-                                                      None)
-
-          pastResultsOfThisSample
-      }
 
   def watchTermination[T] =
     Flow[T].watchTermination() {
@@ -504,7 +551,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   case class CompletedRun(samples: Seq[SampleResult])
 
   sealed trait Stage
-  case class Raw(run: RunfolderReadyForProcessing) extends Stage
+  case class Raw(run: RunWithAnalyses) extends Stage
   case class Demultiplexed(run: RunfolderReadyForProcessing,
                            demultiplexed: Seq[DemultiplexedSample])
       extends Stage
@@ -515,12 +562,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   }
 
   case class StateOfUnfinishedSamples(
-      runFoldersOnHold: Seq[RunfolderReadyForProcessing],
+      runFoldersOnHold: Seq[RunWithAnalyses],
       unfinishedDemultiplexingOfRunIds: Set[RunId],
       unfinished: Set[(Project, SampleId, RunId)],
       finished: Seq[SampleResult],
       registeredDemultiplexedSamples: Boolean,
-      sendToDemultiplexing: Seq[RunfolderReadyForProcessing])
+      sendToDemultiplexing: Seq[RunWithAnalyses])
       extends StrictLogging {
 
     private def removeSamplesOfCompletedRuns = {
@@ -588,7 +635,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
     }
 
-    def addNewRun(run: RunfolderReadyForProcessing) =
+    def addNewRun(run: RunWithAnalyses) =
       if (unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
         logger.info(s"Put run on hold: ${run.runId}.")
         copy(runFoldersOnHold = runFoldersOnHold :+ run,

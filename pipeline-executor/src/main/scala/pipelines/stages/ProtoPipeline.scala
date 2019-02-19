@@ -6,7 +6,8 @@ import org.gc.pipelines.application.{
   Pipeline,
   RunfolderReadyForProcessing,
   WESConfiguration,
-  RNASeqConfiguration
+  RNASeqConfiguration,
+  AnalysisAssignments
 }
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.ResourceConfig
@@ -227,6 +228,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     }
 
   def processSample(r: RunfolderReadyForProcessing,
+                    analysisAssignments: AnalysisAssignments,
                     pastSampleResult: Option[SampleResult],
                     demultiplexedSample: PerSamplePerRunFastQ)(
       implicit tsc: TaskSystemComponents): Future[Option[SampleResult]] = {
@@ -240,17 +242,19 @@ class ProtoPipeline(implicit EC: ExecutionContext)
 
         val fastpReport = startFastpReports(demultiplexedSample)
 
-        val selectedWESConfigurations =
-          ProtoPipelineStages
-            .selectConfiguration(r.runConfiguration.wesProcessing.toSeq.toList,
-                                 demultiplexedSample)
-            .toList
+        val selectedWESConfigurations = analysisAssignments.assignments
+          .get(demultiplexedSample.project)
+          .getOrElse(Nil)
+          .collect {
+            case conf: WESConfiguration => conf
+          }
 
-        val selectedRNASeqConfigurations =
-          ProtoPipelineStages
-            .selectConfiguration(r.runConfiguration.rnaProcessing.toSeq.toList,
-                                 demultiplexedSample)
-            .toList
+        val selectedRNASeqConfigurations = analysisAssignments.assignments
+          .get(demultiplexedSample.project)
+          .getOrElse(Nil)
+          .collect {
+            case conf: RNASeqConfiguration => conf
+          }
 
         val perSampleResultsWES =
           Future.traverse(selectedWESConfigurations) { conf =>

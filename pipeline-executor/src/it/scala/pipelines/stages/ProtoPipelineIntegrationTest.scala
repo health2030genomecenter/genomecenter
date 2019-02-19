@@ -10,11 +10,11 @@ import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   DemultiplexingConfiguration,
   RunConfiguration,
-  Selector,
   WESConfiguration,
   RNASeqConfiguration,
   InputFastQPerLane,
-  InputSampleAsFastQ
+  InputSampleAsFastQ,
+  AnalysisAssignments
 }
 import org.gc.pipelines.util.StableSet
 
@@ -105,8 +105,14 @@ class ProtopipelineIntegrationTestSuite
           demultiplexedSamples.filter(_.project == "project1").map {
             demultiplexedSample =>
               Await.result(
-                pipeline.processSample(run, None, demultiplexedSample),
-                atMost = 400000 seconds)
+                pipeline.processSample(
+                  run,
+                  analysisAssignment,
+                  None,
+                  demultiplexedSample
+                ),
+                atMost = 400000 seconds
+              )
           }
 
         Then("Complete run")
@@ -126,6 +132,7 @@ class ProtopipelineIntegrationTestSuite
           .find(_.sampleId == processedSamples.head.get.sampleId)
           .map { demultiplexedSample =>
             Await.result(pipeline.processSample(run,
+                                                analysisAssignment,
                                                 Some(processedSamples.head.get),
                                                 demultiplexedSample),
                          atMost = 400000 seconds)
@@ -238,6 +245,33 @@ class ProtopipelineIntegrationTestSuite
 
   trait Fixture {
 
+    val wesConfiguration = WESConfiguration(
+      analysisId = AnalysisId("default"),
+      referenceFasta = referenceFasta,
+      targetIntervals = targetIntervals,
+      bqsrKnownSites = StableSet(knownSitesVCF.getAbsolutePath),
+      dbSnpVcf = knownSitesVCF.getAbsolutePath,
+      variantEvaluationIntervals = targetIntervals,
+      vqsrMillsAnd1Kg = None,
+      vqsrHapmap = None,
+      vqsrOneKgOmni = None,
+      vqsrOneKgHighConfidenceSnps = None,
+      vqsrDbSnp138 = None,
+      doVariantCalls = Some(true),
+      doJointCalls = Some(true),
+      minimumTargetCoverage = None,
+      minimumWGSCoverage = None,
+      variantCallingContigs = None
+    )
+
+    val rnaConfiguration = RNASeqConfiguration(
+      analysisId = AnalysisId("default"),
+      referenceFasta = referenceFasta,
+      geneModelGtf = gtfFile.getAbsolutePath,
+      qtlToolsCommandLineArguments = Nil,
+      quantificationGtf = gtfFile.getAbsolutePath
+    )
+
     val runConfiguration = RunConfiguration(
       demultiplexingRuns = StableSet(
         DemultiplexingConfiguration(
@@ -267,44 +301,11 @@ class ProtopipelineIntegrationTestSuite
           partitionByTileCount = None
         )
       ),
-      globalIndexSet = Some(globalIndexSetFilePath),
-      wesProcessing = StableSet(
-        Selector(runIds = StableSet(RunId(runId)),
-                 samples = StableSet.empty,
-                 lanes = StableSet.empty,
-                 projects = StableSet.empty) ->
-          WESConfiguration(
-            analysisId = AnalysisId("default"),
-            referenceFasta = referenceFasta,
-            targetIntervals = targetIntervals,
-            bqsrKnownSites = StableSet(knownSitesVCF.getAbsolutePath),
-            dbSnpVcf = knownSitesVCF.getAbsolutePath,
-            variantEvaluationIntervals = targetIntervals,
-            vqsrMillsAnd1Kg = None,
-            vqsrHapmap = None,
-            vqsrOneKgOmni = None,
-            vqsrOneKgHighConfidenceSnps = None,
-            vqsrDbSnp138 = None,
-            doVariantCalls = Some(true),
-            doJointCalls = Some(true),
-            minimumTargetCoverage = None,
-            minimumWGSCoverage = None,
-            variantCallingContigs = None
-          )
-      ),
-      rnaProcessing = StableSet(
-        Selector(runIds = StableSet(RunId(runId)),
-                 samples = StableSet.empty,
-                 lanes = StableSet.empty,
-                 projects = StableSet.empty) -> RNASeqConfiguration(
-          analysisId = AnalysisId("default"),
-          referenceFasta = referenceFasta,
-          geneModelGtf = gtfFile.getAbsolutePath,
-          qtlToolsCommandLineArguments = Nil,
-          quantificationGtf = gtfFile.getAbsolutePath
-        )
-      )
+      globalIndexSet = Some(globalIndexSetFilePath)
     )
+
+    val analysisAssignment = AnalysisAssignments(
+      Map(Project("project1") -> Seq(wesConfiguration, rnaConfiguration)))
 
     val (testConfig, basePath) = makeTestConfig
 

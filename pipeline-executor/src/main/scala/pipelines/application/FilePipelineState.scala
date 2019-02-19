@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.StrictLogging
 import java.io.File
 import io.circe.{Encoder, Decoder, Json, Printer}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import org.gc.pipelines.model.RunId
+import org.gc.pipelines.model.{RunId, AnalysisId, Project}
 
 class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
     extends StrictLogging {
@@ -71,9 +71,13 @@ class FilePipelineState(logFile: File)
     extends PipelineState
     with StrictLogging {
   private var past = Vector[RunfolderReadyForProcessing]()
+  private var analyses = AnalysisAssignments.empty
   sealed trait Event
   case class Registered(run: RunfolderReadyForProcessing) extends Event
   case class Deleted(runId: RunId) extends Event
+  case class Assigned(project: Project, analysis: AnalysisConfiguration)
+      extends Event
+  case class Unassigned(project: Project, analysis: AnalysisId) extends Event
 
   object Event {
     implicit val encoder: Encoder[Event] =
@@ -111,6 +115,10 @@ class FilePipelineState(logFile: File)
     case Deleted(runId) =>
       past =
         past.filterNot(runFolder => (runFolder.runId: RunId) == (runId: RunId))
+    case Assigned(project, analysis) =>
+      analyses = analyses.assigned(project, analysis)
+    case Unassigned(project, analysis) =>
+      analyses = analyses.unassigned(project, analysis)
   }
 
   def registered(r: RunfolderReadyForProcessing) = synchronized {
@@ -118,7 +126,7 @@ class FilePipelineState(logFile: File)
     val event = Registered(r)
     appendEvent(event)
     updateState(event)
-    Future.successful(Some(r))
+    Future.successful(Some(RunWithAnalyses(r, analyses)))
   }
 
   def invalidated(runId: RunId) = synchronized {
@@ -128,9 +136,25 @@ class FilePipelineState(logFile: File)
   }
 
   def pastRuns =
-    Future.successful(past.toList)
+    Future.successful(past.toList.map(run => RunWithAnalyses(run, analyses)))
 
   def contains(runId: RunId) =
     Future.successful(past.exists(_.runId == runId))
+
+  def assigned(project: Project,
+               analysisConfiguration: AnalysisConfiguration): Future[Unit] = {
+    logger.info(s"Assigning $project to $analysisConfiguration")
+    val event = Assigned(project, analysisConfiguration)
+    appendEvent(event)
+    updateState(event)
+    Future.successful(())
+  }
+  def unassigned(project: Project, analysisId: AnalysisId): Future[Unit] = {
+    logger.info(s"Unassigning $project to $analysisId")
+    val event = Unassigned(project, analysisId)
+    appendEvent(event)
+    updateState(event)
+    Future.successful(())
+  }
 
 }

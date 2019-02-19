@@ -5,11 +5,12 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import java.io.File
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.application.dto.RunConfigurationDTO
 import org.gc.pipelines.util.{StableSet, sequenceEither}
-import com.typesafe.config.Config
+import org.gc.pipelines.util.Config.option
+import com.typesafe.config.{Config, ConfigFactory}
 import scala.collection.JavaConverters._
 import scala.util.Try
+import org.gc.pipelines.util.StableSet.syntax
 
 case class DemultiplexingConfiguration(
     sampleSheet: String,
@@ -24,6 +25,15 @@ case class DemultiplexingConfiguration(
     partitionByTileCount: Option[Int]
 ) {
   def isTenX = tenX.exists(identity)
+}
+
+sealed trait AnalysisConfiguration {
+  def analysisId: AnalysisId
+  def files: Set[String]
+  def validationErrors: List[String] =
+    files.toList
+      .filterNot(path => new File(path).canRead)
+      .map(path => s"Can't read $path")
 }
 
 case class WESConfiguration(
@@ -43,7 +53,8 @@ case class WESConfiguration(
     minimumWGSCoverage: Option[Double],
     minimumTargetCoverage: Option[Double],
     variantCallingContigs: Option[String]
-) {
+) extends AnalysisConfiguration {
+
   def files =
     Set(referenceFasta, targetIntervals, dbSnpVcf, variantEvaluationIntervals) ++ bqsrKnownSites.toSeq.toSet ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet ++ variantCallingContigs.toSet ++
       vqsrMillsAnd1Kg.map((_: String) + ".tbi").toSet ++ vqsrHapmap
@@ -63,24 +74,44 @@ case class RNASeqConfiguration(
     geneModelGtf: String,
     qtlToolsCommandLineArguments: Seq[String],
     quantificationGtf: String
-) {
+) extends AnalysisConfiguration {
   def files = Set(referenceFasta, geneModelGtf, quantificationGtf)
+}
+
+case class AnalysisAssignments(
+    assignments: Map[Project, Seq[AnalysisConfiguration]]
+) {
+  def assigned(project: Project, conf: AnalysisConfiguration) = {
+    val updatedMap = assignments.get(project) match {
+      case None       => assignments.updated(project, Seq(conf))
+      case Some(list) => assignments.updated(project, (list :+ conf).distinct)
+    }
+    copy(updatedMap)
+  }
+  def unassigned(project: Project, analysisId: AnalysisId) = {
+    val updated = assignments.map {
+      case (project1, list) =>
+        if (project1 == project)
+          (project, list.filterNot(_.analysisId == analysisId))
+        else (project1, list)
+    }
+    copy(updated)
+  }
+}
+
+object AnalysisAssignments {
+  val empty = AnalysisAssignments(Map.empty)
 }
 
 case class RunConfiguration(
     demultiplexingRuns: StableSet[DemultiplexingConfiguration],
-    globalIndexSet: Option[String],
-    wesProcessing: StableSet[(Selector, WESConfiguration)],
-    rnaProcessing: StableSet[(Selector, RNASeqConfiguration)]
+    globalIndexSet: Option[String]
 ) {
-  def files = {
-    val sampleSheets = demultiplexingRuns.toSeq
+  def files =
+    demultiplexingRuns.toSeq
       .map(conf => conf.sampleSheet)
-    val wesFiles = wesProcessing.toSeq.flatMap(_._2.files.toSeq)
-    val rnaFiles = rnaProcessing.toSeq
-      .flatMap(_._2.files.toSeq)
-    (sampleSheets ++ wesFiles ++ rnaFiles).toSet
-  }
+      .toSet
+
 }
 
 case class InputSampleAsFastQ(
@@ -149,35 +180,35 @@ object RunfolderReadyForProcessing {
     : Either[String, RunfolderReadyForProcessing] = {
 
     val runId = runFolder.getAbsoluteFile.getName
-    RunConfigurationDTO(runConfigurationFile).map(
-      runConfigurationDTO =>
+    RunConfiguration(runConfigurationFile).map(
+      runConfiguration =>
         RunfolderReadyForProcessing(RunId(runId),
                                     Some(runFolder.getAbsolutePath),
                                     None,
-                                    runConfigurationDTO.toRunConfiguration))
+                                    runConfiguration))
   }
 
   def fromConfig(
-      runConfiguration: Config): Either[String, RunfolderReadyForProcessing] = {
+      config: Config): Either[String, RunfolderReadyForProcessing] = {
 
-    val runConfigurationDTO = RunConfigurationDTO(runConfiguration)
+    val runConfiguration = RunConfiguration(config)
 
-    if (runConfiguration.hasPath("runFolder")) {
-      val runFolder = new File(runConfiguration.getString("runFolder"))
+    if (config.hasPath("runFolder")) {
+      val runFolder = new File(config.getString("runFolder"))
       val runId = RunId(runFolder.getName)
-      runConfigurationDTO.map { dto =>
+      runConfiguration.map { runConfiguration =>
         RunfolderReadyForProcessing(runId,
                                     Some(runFolder.getAbsolutePath),
                                     None,
-                                    dto.toRunConfiguration)
+                                    runConfiguration)
       }
     } else {
-      val runId = Try(RunId(runConfiguration.getString("runId"))).toEither.left
+      val runId = Try(RunId(config.getString("runId"))).toEither.left
         .map(_.toString)
       val demultiplexedSamples =
         for {
           configList <- Try(
-            runConfiguration
+            config
               .getConfigList("fastqs")
               .asScala).toEither.left
             .map(_.toString)
@@ -190,13 +221,13 @@ object RunfolderReadyForProcessing {
 
       for {
         runId <- runId
-        dto <- runConfigurationDTO
+        runConfiguration <- runConfiguration
         demultiplexedSamples <- demultiplexedSamples
       } yield
         RunfolderReadyForProcessing(runId,
                                     None,
                                     Some(demultiplexedSamples),
-                                    dto.toRunConfiguration)
+                                    runConfiguration)
     }
 
   }
@@ -207,12 +238,47 @@ object RNASeqConfiguration {
     deriveEncoder[RNASeqConfiguration]
   implicit val decoder: Decoder[RNASeqConfiguration] =
     deriveDecoder[RNASeqConfiguration]
+
+  def fromConfig(config: Config) = RNASeqConfiguration(
+    analysisId = AnalysisId(config.getString("analysisId")),
+    referenceFasta = config.getString("referenceFasta"),
+    geneModelGtf = config.getString("geneModelGtf"),
+    qtlToolsCommandLineArguments =
+      config.getStringList("qtlToolsCommandLineArguments").asScala.toList,
+    quantificationGtf = config.getString("quantificationGtf")
+  )
+
 }
 object WESConfiguration {
   implicit val encoder: Encoder[WESConfiguration] =
     deriveEncoder[WESConfiguration]
   implicit val decoder: Decoder[WESConfiguration] =
     deriveDecoder[WESConfiguration]
+
+  def fromConfig(config: Config) = WESConfiguration(
+    analysisId = AnalysisId(config.getString("analysisId")),
+    referenceFasta = config.getString("referenceFasta"),
+    targetIntervals = config.getString("targetIntervals"),
+    bqsrKnownSites =
+      config.getStringList("bqsr.knownSites").asScala.toSet.toStable,
+    dbSnpVcf = config.getString("dbSnpVcf"),
+    variantEvaluationIntervals = config.getString("variantEvaluationIntervals"),
+    vqsrMillsAnd1Kg =
+      option(config, "vqsrMillsAnd1Kg")(c => p => c.getString(p)),
+    vqsrHapmap = option(config, "vqsrHapmap")(c => p => c.getString(p)),
+    vqsrOneKgOmni = option(config, "vqsrOneKgOmni")(c => p => c.getString(p)),
+    vqsrOneKgHighConfidenceSnps =
+      option(config, "vqsrOneKgHighConfidenceSnps")(c => p => c.getString(p)),
+    vqsrDbSnp138 = option(config, "vqsrDbSnp138")(c => p => c.getString(p)),
+    doVariantCalls = option(config, "variantCalls")(c => p => c.getBoolean(p)),
+    doJointCalls = option(config, "jointCalls")(c => p => c.getBoolean(p)),
+    minimumWGSCoverage =
+      option(config, "minimumWGSCoverage")(c => p => c.getDouble(p)),
+    minimumTargetCoverage =
+      option(config, "minimumTargetCoverage")(c => p => c.getDouble(p)),
+    variantCallingContigs =
+      option(config, "variantCallingContigs")(c => p => c.getString(p))
+  )
 }
 object DemultiplexingConfiguration {
   implicit val encoder: Encoder[DemultiplexingConfiguration] =
@@ -226,6 +292,58 @@ object RunConfiguration {
     deriveEncoder[RunConfiguration]
   implicit val decoder: Decoder[RunConfiguration] =
     deriveDecoder[RunConfiguration]
+
+  def apply(file: File): Either[String, RunConfiguration] =
+    apply(fileutils.openSource(file)(_.mkString))
+
+  def apply(s: String): Either[String, RunConfiguration] =
+    RunConfiguration(ConfigFactory.parseString(s))
+
+  def apply(config: Config): Either[String, RunConfiguration] =
+    scala.util
+      .Try {
+
+        def getDemultiplexings(config: Config) = DemultiplexingConfiguration(
+          sampleSheet = config.getString("sampleSheet"),
+          demultiplexingId = DemultiplexingId(config.getString("id")),
+          readAssignment = {
+            val list = config.getIntList("readAssignment").asScala
+            (list(0), list(1))
+          },
+          umi =
+            config.getIntList("umiReadNumber").asScala.headOption.map(_.toInt),
+          extraBcl2FastqArguments =
+            config.getStringList("extraBcl2FastqArguments").asScala,
+          tenX =
+            if (config.hasPath("tenX")) Some(config.getBoolean("tenX"))
+            else None,
+          partitionByLane =
+            if (config.hasPath("partitionByLane"))
+              Some(config.getBoolean("partitionByLane"))
+            else None,
+          partitionByTileCount =
+            if (config.hasPath("partitionByTileCount"))
+              Some(config.getInt("partitionByTileCount"))
+            else None
+        )
+
+        RunConfiguration(
+          demultiplexingRuns = config
+            .getConfigList("demultiplexing")
+            .asScala
+            .map(getDemultiplexings)
+            .toSet
+            .toStable,
+          globalIndexSet =
+            if (config.hasPath("globalIndexSet"))
+              Some(config.getString("globalIndexSet"))
+            else None
+        )
+
+      }
+      .toEither
+      .left
+      .map(_.toString)
 
 }
 object InputFastQPerLane {
@@ -259,5 +377,30 @@ object InputSampleAsFastQ {
         .map(config => InputFastQPerLane(config))
       InputSampleAsFastQ(lanes.toSet, Project(project), SampleId(sampleId))
     }).toEither.left.map(_.toString)
+
+}
+
+object AnalysisConfiguration {
+  implicit val encoder: Encoder[AnalysisConfiguration] =
+    deriveEncoder[AnalysisConfiguration]
+  implicit val decoder: Decoder[AnalysisConfiguration] =
+    deriveDecoder[AnalysisConfiguration]
+
+  def fromConfig(config: Config) = {
+    val rna =
+      if (config.hasPath("rna"))
+        Some(
+          Try(RNASeqConfiguration.fromConfig(config.getConfig("rna"))).toEither.left
+            .map(_.toString))
+      else None
+    val wes =
+      if (config.hasPath("wes"))
+        Some(
+          Try(WESConfiguration.fromConfig(config.getConfig("wes"))).toEither.left
+            .map(_.toString))
+      else None
+
+    rna.getOrElse(wes.getOrElse(Left("expected 'rna' or 'wes' objects")))
+  }
 
 }

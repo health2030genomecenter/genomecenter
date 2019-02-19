@@ -36,7 +36,7 @@ object AkkaStreamComponents {
         FlowShape(unzipper.in, merge.out)
     })
 
-  def deduplicate[T]: Flow[T, T, _] =
+  def deduplicateBy[T, K](fun: T => K): Flow[T, T, _] =
     Flow[T]
       .mapConcat(t => List(t, t))
       .zipWithIndex
@@ -46,8 +46,11 @@ object AkkaStreamComponents {
         val current = list(1)._1
         if (idx == 0)
           List(previous)
-        else if (previous == current) Nil
+        else if (fun(previous) == fun(current)) Nil
         else List(current)
+
       }
+  def deduplicate[T]: Flow[T, T, _] =
+    deduplicateBy(identity)
 
 }

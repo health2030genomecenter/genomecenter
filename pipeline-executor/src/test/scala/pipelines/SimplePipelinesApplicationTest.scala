@@ -123,10 +123,7 @@ class FakeSequencingCompleteEvents(take: Int,
           RunId("fake"),
           Some(runFolder.getAbsolutePath),
           None,
-          RunConfiguration(StableSet.empty,
-                           None,
-                           StableSet.empty,
-                           StableSet.empty)
+          RunConfiguration(StableSet.empty, None)
         )
       }
       .zipWithIndex
