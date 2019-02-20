@@ -208,6 +208,8 @@ object AlignmentQC {
 
           val totalReads = alignment.pairMetrics.totalReads
 
+          val coveragePerRead = meanTargetCoverage / totalReads.toDouble
+
           Html.line(
             Seq(
               project -> left,
@@ -225,7 +227,8 @@ object AlignmentQC {
               f"${pctChimeras * 100}%8.2f%%" -> right,
               f"${pctTargetBases10 * 100}%11.2f%%" -> right,
               f"${pctTargetBases30 * 100}%11.2f%%" -> right,
-              f"${pctTargetBases50 * 100}%11.2f%%" -> right
+              f"${pctTargetBases50 * 100}%11.2f%%" -> right,
+              f"${coveragePerRead * 1E6}%11.3f" -> right,
             ))
 
       }
@@ -243,7 +246,8 @@ object AlignmentQC {
         "Chimera" -> right,
         "TargetBase10" -> right,
         "Targetbase30" -> right,
-        "TargetBase50" -> right
+        "TargetBase50" -> right,
+        "CoveragePerMillionRead" -> right
       )
     )
 
@@ -254,7 +258,7 @@ object AlignmentQC {
         // "TotalReads" -> right,
         "MeanCoverage" -> right,
         "Dup" -> right,
-        "DupReadPairss" -> right,
+        "DupReadPairs" -> right,
         "OptDupReadPairs" -> right,
         "GC" -> right,
         "InsertSizePeak" -> right,
