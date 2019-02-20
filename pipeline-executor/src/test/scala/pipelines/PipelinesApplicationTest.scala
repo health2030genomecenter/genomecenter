@@ -668,7 +668,7 @@ case class FakeSampleResult(
     accumulator: String
 )
 
-trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult] {
+trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult, Unit] {
 
   val counter = scala.collection.mutable.Map[FakeDemultiplexed, Int]()
   val runCounter = scala.collection.mutable.Map[RunId, Int]()
@@ -706,12 +706,13 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult] {
   lazy val completedProjects =
     scala.collection.mutable.ArrayBuffer[Seq[FakeSampleResult]]()
   def processCompletedProject(samples: Seq[FakeSampleResult])(
-      implicit tsc: TaskSystemComponents): Future[(Project, Boolean)] =
+      implicit tsc: TaskSystemComponents)
+    : Future[(Project, Boolean, Option[Nothing])] =
     Future.successful {
       synchronized {
         completedProjects.append(samples)
       }
-      samples.head.project -> true
+      (samples.head.project, true, None)
     }
 
   def processSample(runConfiguration: RunfolderReadyForProcessing,

@@ -8,6 +8,8 @@
 
     <logger name="tasks" level="WARN"/>
     <logger name="tasks.boot" level="INFO"/>
+    <logger name="akka" level="INFO"/>
+    <logger name="com.typesafe.sslconfig" level="INFO"/>
 
   <root level="DEBUG">
     <appender-ref ref="STDOUT" />

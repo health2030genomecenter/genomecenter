@@ -5,7 +5,7 @@ import tasks._
 
 import org.gc.pipelines.model.{Project, SampleId, RunId}
 
-trait Pipeline[DemultiplexedSample, SampleResult] {
+trait Pipeline[DemultiplexedSample, SampleResult, DeliverableList] {
   def canProcess(r: RunfolderReadyForProcessing): Boolean
   def demultiplex(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents): Future[Seq[DemultiplexedSample]]
@@ -17,7 +17,8 @@ trait Pipeline[DemultiplexedSample, SampleResult] {
   def processCompletedRun(samples: Seq[SampleResult])(
       implicit tsc: TaskSystemComponents): Future[(RunId, Boolean)]
   def processCompletedProject(samples: Seq[SampleResult])(
-      implicit tsc: TaskSystemComponents): Future[(Project, Boolean)]
+      implicit tsc: TaskSystemComponents)
+    : Future[(Project, Boolean, Option[DeliverableList])]
 
   def processSample(runConfiguration: RunfolderReadyForProcessing,
                     pastSampleResult: Option[SampleResult],

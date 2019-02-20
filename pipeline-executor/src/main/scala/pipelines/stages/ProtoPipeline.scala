@@ -14,7 +14,7 @@ import org.gc.pipelines.util.StableSet.syntax
 import com.typesafe.scalalogging.StrictLogging
 
 class ProtoPipeline(implicit EC: ExecutionContext)
-    extends Pipeline[PerSamplePerRunFastQ, SampleResult]
+    extends Pipeline[PerSamplePerRunFastQ, SampleResult, DeliverableList]
     with StrictLogging {
 
   def canProcess(r: RunfolderReadyForProcessing) = true
@@ -65,7 +65,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
   }
 
   def processCompletedProject(samples0: Seq[SampleResult])(
-      implicit tsc: TaskSystemComponents): Future[(Project, Boolean)] = {
+      implicit tsc: TaskSystemComponents)
+    : Future[(Project, Boolean, Option[DeliverableList])] = {
     require(samples0.map(_.project).distinct.size == 1, samples0.toString)
     val project = samples0.head.project
 
@@ -201,7 +202,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     for {
       (qcTables, reads) <- projectQC
       jointCallsVCF <- jointCalls
-      _ <- inDeliverablesFolder { implicit tsc =>
+      deliverables <- inDeliverablesFolder { implicit tsc =>
         val jointCallVcfFileSet = jointCallsVCF
           .map(vcfWithIndex => project -> vcfWithIndex.vcf)
           .toSet
@@ -215,7 +216,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           CollectDeliverablesInput(samples.toSet.toStable, files))(
           ResourceConfig.minimal)
       }
-    } yield (project, true)
+    } yield (project, true, Some(deliverables))
   }
 
   def demultiplex(r: RunfolderReadyForProcessing)(

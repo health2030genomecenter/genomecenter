@@ -21,19 +21,21 @@ import org.gc.pipelines.util.AkkaStreamComponents.{unzipThenMerge, deduplicate}
 import org.gc.pipelines.model.{Project, SampleId, RunId}
 
 case class RunFinished(runId: RunId, success: Boolean)
-case class ProjectFinished(project: Project, success: Boolean)
+case class ProjectFinished[T](project: Project,
+                              success: Boolean,
+                              deliverables: Option[T])
 case class SampleFinished[T](project: Project,
                              sample: SampleId,
                              runId: RunId,
                              success: Boolean,
                              result: Option[T])
 
-class PipelinesApplication[DemultiplexedSample, SampleResult](
-    eventSource: SequencingCompleteEventSource,
-    pipelineState: PipelineState,
-    actorSystem: ActorSystem,
-    taskSystem: TaskSystem,
-    pipeline: Pipeline[DemultiplexedSample, SampleResult]
+class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
+    val eventSource: SequencingCompleteEventSource,
+    val pipelineState: PipelineState,
+    val actorSystem: ActorSystem,
+    val taskSystem: TaskSystem,
+    val pipeline: Pipeline[DemultiplexedSample, SampleResult, Deliverables]
 )(implicit EC: ExecutionContext)
     extends StrictLogging {
 
@@ -343,12 +345,14 @@ class PipelinesApplication[DemultiplexedSample, SampleResult](
               logger.error(
                 s"$pipeline failed on $project while processing completed project",
                 error)
-              (project, false)
+              (project, false, None)
           }
       }
       .map {
-        case (project, success) =>
-          processingFinishedListener ! ProjectFinished(project, success)
+        case (project, success, deliverables) =>
+          processingFinishedListener ! ProjectFinished(project,
+                                                       success,
+                                                       deliverables)
           logger.debug(
             s"Processing of completed project $project finished (with or without error). Success: $success.")
           project
