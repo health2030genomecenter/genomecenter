@@ -69,10 +69,13 @@ case class SampleMetrics(analysisId: AnalysisId,
            fastpReport.json,
            insertSizeMetrics) ++ gvcfQCMetrics.toList: _*)
 
-case class RunQCTableInput(fileName: String, samples: StableSet[SampleMetrics])
+case class RunQCTableInput(fileName: String,
+                           samples: StableSet[SampleMetrics],
+                           rnaSeqAnalyses: StableSet[(AnalysisId, StarResult)])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
-case class RunQCTable(htmlTable: SharedFile) extends WithSharedFiles(htmlTable)
+case class RunQCTable(htmlTable: SharedFile, rnaCsvTable: SharedFile)
+    extends WithSharedFiles(htmlTable, rnaCsvTable)
 
 case class ParseWholeGenomeCoverageInput(
     qc: CollectWholeGenomeMetricsResult,
@@ -145,7 +148,8 @@ object AlignmentQC {
          WgsMetrics.Root,
          Option[VariantCallingMetrics.Root],
          InsertSizeMetrics.Root,
-         AnalysisId)]): String = {
+         AnalysisId)],
+      rnaSeqMetrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
 
     val left = true
     val right = false
@@ -277,13 +281,54 @@ object AlignmentQC {
       )
     )
 
-    """<!DOCTYPE html><head></head><body><table style="border-collapse: collapse;">""" + laneHeader + "\n<tbody>" + laneLines + """</tbody></table><table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table></body>"
+    val rnaLines = rnaSeqMetrics
+      .sortBy(_._2.project.toString)
+      .sortBy(_._2.sampleId.toString)
+      .map {
+        case (analysisId, starMetrics) =>
+          import starMetrics._
+          import starMetrics.metrics._
+
+          Html.line(
+            Seq(
+              project -> left,
+              sampleId -> left,
+              runId -> left,
+              analysisId -> left,
+              f"${numberOfReads / 1E6}%10.2fM" -> right,
+              f"$meanReadLength%13.2f" -> right,
+              f"${uniquelyMappedReads / 1E6}%10.2fM" -> right,
+              f"${uniquelyMappedPercentage * 100}%6.2f%%" -> right,
+              f"${multiplyMappedReads / 1E6}%10.2fM" -> right,
+              f"${multiplyMappedReadsPercentage * 100}%6.2f%%" -> right
+            ))
+
+      }
+      .mkString("\n")
+
+    val rnaHeader = Html.mkHeader(
+      List("Proj", "Sample", "Run", "AnalysisId"),
+      List(
+        "TotalReads" -> right,
+        "MeanReadLength" -> right,
+        "UniquelyMapped" -> right,
+        "UniquelyMapped%" -> right,
+        "Multimapped" -> right,
+        "Multimapped%" -> right
+      )
+    )
+
+    val rnaTable = """<table style="border-collapse: collapse;">""" + rnaHeader + "\n<tbody>" + rnaLines + "</tbody></table>"
+    val laneTable = """<table style="border-collapse: collapse;">""" + laneHeader + "\n<tbody>" + laneLines + "</tbody></table>"
+    val sampleTable = """<table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table>"
+
+    """<!DOCTYPE html><head></head><body>""" + laneTable + sampleTable + rnaTable + "</body>"
 
   }
 
   val runQCTable =
     AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 1) {
-      case RunQCTableInput(fileName, sampleMetrics) =>
+      case RunQCTableInput(fileName, sampleMetrics, rnaAnalyses) =>
         implicit computationEnvironment =>
           def read(f: File) = fileutils.openSource(f)(_.mkString)
           def parseAlignmentSummaries(m: SampleMetrics) =
@@ -366,15 +411,36 @@ object AlignmentQC {
               .traverse(sampleMetrics.toSeq)(parse)
               .map(pair => (pair.flatMap(_._1), pair.map(_._2)))
 
+          val parsedRNAResults = Future.traverse(rnaAnalyses.toSeq) {
+            case (analysisId,
+                  StarResult(log,
+                             run,
+                             BamWithSampleMetadata(project, sample, _))) =>
+              implicit val mat =
+                computationEnvironment.components.actorMaterializer
+              log.source
+                .runFold(ByteString.empty)(_ ++ _)
+                .map(_.utf8String)
+                .map { content =>
+                  (analysisId, StarMetrics.Root(content, project, sample, run))
+                }
+          }
+
           for {
             (laneMetrics, sampleMetrics) <- parsedFiles
+            parsedRNAMetrics <- parsedRNAResults
+            csv = RunQCRNA.makeCsvTable(parsedRNAMetrics)
+            rnaCSVTable <- SharedFile(
+              Source.single(ByteString(csv.getBytes("UTF-8"))),
+              fileName + ".star.qc.table.csv")
 
             htmlTable <- {
-              val table = makeHtmlTable(laneMetrics, sampleMetrics)
+              val table =
+                makeHtmlTable(laneMetrics, sampleMetrics, parsedRNAMetrics)
               SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
                          fileName + ".wes.qc.table.html")
             }
-          } yield RunQCTable(htmlTable)
+          } yield RunQCTable(htmlTable, rnaCSVTable)
 
     }
 

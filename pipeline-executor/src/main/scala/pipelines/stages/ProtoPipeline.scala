@@ -45,16 +45,17 @@ class ProtoPipeline(implicit EC: ExecutionContext)
       for {
 
         _ <- AlignmentQC.runQCTable(
-          RunQCTableInput(runId + "." + samples.size,
-                          sampleQCsWES.toSet.toStable))(ResourceConfig.minimal)
-        _ <- RunQCRNA.runQCTable(
-          RunQCTableRNAInput(runId + "." + samples.size,
-                             samples
-                               .flatMap(sampleResult =>
-                                 sampleResult.rna.toSeq.map(rnaResult =>
-                                   (rnaResult.analysisId, rnaResult.star)))
-                               .toSet
-                               .toStable))(ResourceConfig.minimal)
+          RunQCTableInput(
+            runId + "." + samples.size,
+            sampleQCsWES.toSet.toStable,
+            samples
+              .flatMap(sampleResult =>
+                sampleResult.rna.toSeq.map(rnaResult =>
+                  (rnaResult.analysisId, rnaResult.star)))
+              .toSet
+              .toStable
+          ))(ResourceConfig.minimal)
+
         _ <- ReadQC.readQC(
           ReadQCInput(fastqsOfThisRun.toSet.toStable,
                       runId + "." + samples.size))(ResourceConfig.minimal)
@@ -115,23 +116,22 @@ class ProtoPipeline(implicit EC: ExecutionContext)
     def projectQC = inProjectQCFolder(project) { implicit tsc =>
       for {
 
-        wes <- AlignmentQC.runQCTable(
-          RunQCTableInput(project + "." + samples.size,
-                          sampleQCsWES.toSet.toStable))(ResourceConfig.minimal)
-
-        rna <- RunQCRNA.runQCTable(
-          RunQCTableRNAInput(project + "." + samples.size,
-                             samples
-                               .flatMap(_.rna.toSeq.map(rnaResult =>
-                                 (rnaResult.analysisId, rnaResult.star)))
-                               .toSet
-                               .toStable))(ResourceConfig.minimal)
+        qctables <- AlignmentQC.runQCTable(
+          RunQCTableInput(
+            project + "." + samples.size,
+            sampleQCsWES.toSet.toStable,
+            samples
+              .flatMap(_.rna.toSeq.map(rnaResult =>
+                (rnaResult.analysisId, rnaResult.star)))
+              .toSet
+              .toStable
+          ))(ResourceConfig.minimal)
 
         reads <- ReadQC.readQC(
           ReadQCInput(fastqsOfThisRun.toSet.toStable,
                       project + "." + samples.size))(ResourceConfig.minimal)
 
-      } yield (wes, rna, reads)
+      } yield (qctables, reads)
     }
 
     def assertUniqueAndGet[T](s: Seq[T]) =
@@ -199,7 +199,7 @@ class ProtoPipeline(implicit EC: ExecutionContext)
         .map(_.collect { case Some(calls) => calls })
 
     for {
-      (wes, rna, reads) <- projectQC
+      (qcTables, reads) <- projectQC
       jointCallsVCF <- jointCalls
       _ <- inDeliverablesFolder { implicit tsc =>
         val jointCallVcfFileSet = jointCallsVCF
@@ -207,9 +207,8 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           .toSet
 
         val files =
-          (jointCallVcfFileSet ++ Set(project -> wes.htmlTable,
-                                      project -> rna.html,
-                                      project -> rna.csv,
+          (jointCallVcfFileSet ++ Set(project -> qcTables.htmlTable,
+                                      project -> qcTables.rnaCsvTable,
                                       project -> reads.plots)).toStable
 
         Delivery.collectDeliverables(
