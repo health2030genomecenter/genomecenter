@@ -270,6 +270,7 @@ object BWAAlignment {
           --CREATE_INDEX false \\
           --COMPRESSION_LEVEL 1 \\
           --MAX_RECORDS_IN_RAM 0 \\
+          --SORTING_COLLECTION_SIZE_RATIO 0.125 \\
           --TMP_DIR $tempFolder \\
           > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
         """
