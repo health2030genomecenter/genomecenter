@@ -21,8 +21,23 @@ class SampleSheetTest extends FunSuite with Matchers {
                               Some(Index("TATAGCCT")))
       )
 
+      parsed.validationErrors shouldBe Nil
+
     }
 
+  }
+
+  test("Should detect duplicated indices") {
+    new Fixture {
+      val parsed = SampleSheet(duplicatedIndex).parsed
+      parsed.validationErrors.size shouldBe 1
+    }
+  }
+  test("Should detect duplicated sample") {
+    new Fixture {
+      val parsed = SampleSheet(duplicatedSample).parsed
+      parsed.validationErrors.size shouldBe 2
+    }
   }
 
   trait Fixture {
@@ -47,6 +62,54 @@ bcl2fastqArguments,["--flag","stuff,with,comma"]
 Sample_ID,Sample_Name,I7_Index_ID,index,I5_Index_ID,index2,Lane,Sample_Project
 A10001,Sample_A,D701,ATTACTCG,D501,TATAGCCT,1,proj
 A10002,Sample_B,D702,TCCGGAGA,D501,TATAGCCT,1,proj
+A10003,Sample_C,D703,CGCTCATT,D501,TATAGCCT,2,proj
+A10004,Sample_D,D704,GAGATTCC,D501,TATAGCCT,2,proj
+"""
+    val duplicatedIndex =
+      """[Header]
+Date,2017-04-05
+Workflow,GenerateFASTQ
+Application,FASTQ Only
+Assay,TruSeq HT
+Description,
+Chemistry,Amplicon
+[Reads]
+151
+151
+[Settings]
+Adapter,AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+AdapterRead2,AGATCGGAAGAGCGTCGTGTAGGGAAAGAGT
+[GenomeCenter]
+customKey,customValue
+bcl2fastqArguments,["--flag","stuff,with,comma"]
+[Data]
+Sample_ID,Sample_Name,I7_Index_ID,index,I5_Index_ID,index2,Lane,Sample_Project
+A10001,Sample_A,D701,ATTACTCG,D501,TATAGCCT,1,proj
+A10002,Sample_B,D702,ATTACTCG,D501,TATAGCCT,1,proj
+A10003,Sample_C,D703,CGCTCATT,D501,TATAGCCT,2,proj
+A10004,Sample_D,D704,GAGATTCC,D501,TATAGCCT,2,proj
+"""
+    val duplicatedSample =
+      """[Header]
+Date,2017-04-05
+Workflow,GenerateFASTQ
+Application,FASTQ Only
+Assay,TruSeq HT
+Description,
+Chemistry,Amplicon
+[Reads]
+151
+151
+[Settings]
+Adapter,AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+AdapterRead2,AGATCGGAAGAGCGTCGTGTAGGGAAAGAGT
+[GenomeCenter]
+customKey,customValue
+bcl2fastqArguments,["--flag","stuff,with,comma"]
+[Data]
+Sample_ID,Sample_Name,I7_Index_ID,index,I5_Index_ID,index2,Lane,Sample_Project
+A10001,Sample_A,D701,ATTACTCG,D501,TATAGCCT,1,proj
+A10001,Sample_B,D702,ATTACTCG,D501,TATAGCCT,1,proj
 A10003,Sample_C,D703,CGCTCATT,D501,TATAGCCT,2,proj
 A10004,Sample_D,D704,GAGATTCC,D501,TATAGCCT,2,proj
 """

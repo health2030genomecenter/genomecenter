@@ -123,9 +123,18 @@ case class RunfolderReadyForProcessing(
     val unreadableFastqs = unreadableFiles(
       demultiplexedSamples.toSeq.flatten.flatMap(_.files).toSet).toList
 
+    val sampleSheetErrors = runConfiguration.demultiplexingRuns.toSeq.flatMap {
+      dm =>
+        if (new File(dm.sampleSheet).canRead) {
+          val parsedSampleSheet = fileutils.openSource(dm.sampleSheet)(s =>
+            SampleSheet(s.mkString).parsed)
+          parsedSampleSheet.validationErrors
+        } else List(s"Can't read ${dm.sampleSheet}")
+    }
+
     (unreadableRunfolder ++
       unreadableConfigurationFiles ++
-      unreadableFastqs).map(path => s"Can't read: $path")
+      unreadableFastqs).map(path => s"Can't read: $path") ++ sampleSheetErrors
   }
 
 }
