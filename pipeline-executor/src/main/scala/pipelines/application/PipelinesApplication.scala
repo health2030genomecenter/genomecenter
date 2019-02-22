@@ -365,13 +365,26 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     val maxConcurrentlyProcessedSamples = 10000
 
     Flow[(RunfolderReadyForProcessing, DemultiplexedSample)]
+      .map {
+        case value @ (runFolder, demultiplexedSample) =>
+          val keys = getKeysOfDemultiplexedSample(demultiplexedSample)
+          logger.info(
+            s"SampleProcessor received sample (before groupby) ${runFolder.runId} $keys")
+          value
+      }
       .groupBy(maxSubstreams = maxConcurrentlyProcessedSamples, {
         case (_, demultiplexedSample) => getSampleId(demultiplexedSample)
       })
-      .scanAsync(
-        List.empty[(SampleResult,
-                    RunfolderReadyForProcessing,
-                    DemultiplexedSample)]) {
+      .map {
+        case value @ (runFolder, demultiplexedSample) =>
+          val keys = getKeysOfDemultiplexedSample(demultiplexedSample)
+          logger.info(
+            s"SampleProcessor received sample (after groupby) ${runFolder.runId} $keys")
+          value
+      }
+      .scanAsync(List.empty[(SampleResult,
+                             RunfolderReadyForProcessing,
+                             DemultiplexedSample)]) {
         case (pastResultsOfThisSample,
               (currentRunConfiguration, currentDemultiplexedSample)) =>
           val (runsBeforeThis, runsAfterInclusive) =
