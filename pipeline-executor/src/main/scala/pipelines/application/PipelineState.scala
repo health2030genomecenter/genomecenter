@@ -23,7 +23,7 @@ class InMemoryPipelineState extends PipelineState with StrictLogging {
   }
   def registered(r: RunfolderReadyForProcessing) = synchronized {
     logger.info(s"Registering run ${r.runId}")
-    past = r :: (past.filterNot(_.runId == r.runId))
+    past = (past.filterNot(_.runId == r.runId)) :+ r
     Future.successful(Some(r))
   }
   def invalidated(runId: RunId) = synchronized {

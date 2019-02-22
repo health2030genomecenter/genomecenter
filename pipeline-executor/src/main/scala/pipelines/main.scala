@@ -9,6 +9,9 @@ import tasks._
 import org.gc.pipelines.application._
 import org.gc.pipelines.stages.ProtoPipeline
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
+
 object Main extends App with StrictLogging {
   logger.info("Main thread started.")
 
@@ -42,11 +45,23 @@ object Main extends App with StrictLogging {
     val pipeline =
       new ProtoPipeline
 
-    new PipelinesApplication(eventSource,
-                             pipelineState,
-                             actorSystem,
-                             taskSystem,
-                             pipeline)
+    val useSimpleApplication = config.getBoolean("simpleApp")
+
+    if (useSimpleApplication) {
+      val pastRuns = Await.result(pipelineState.pastRuns, atMost = 15 seconds)
+
+      new PersistEventSource(eventSource, pipelineState)
+
+      new SimplePipelinesApplication(pastRuns,
+                                     actorSystem,
+                                     taskSystem,
+                                     pipeline)
+    } else
+      new PipelinesApplication(eventSource,
+                               pipelineState,
+                               actorSystem,
+                               taskSystem,
+                               pipeline)
   } else {
     logger.info("Worker started.")
   }
