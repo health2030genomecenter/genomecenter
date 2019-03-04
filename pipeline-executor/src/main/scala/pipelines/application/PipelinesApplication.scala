@@ -379,12 +379,17 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   def processCompletedRuns =
     Flow[CompletedRun]
       .filter(_.samples.nonEmpty)
-      .via(deduplicate)
-      .buffer(1, OverflowStrategy.dropHead)
-      .mapAsync(1000) {
+      .map {
         case CompletedRun(samples) =>
           val (_, _, runId) = getKeysOfSampleResult(samples.head)
           logger.info(s"Run finished with ${samples.size} samples: $runId")
+          (runId, samples)
+      }
+      .groupBy(maxSubstreams = 10000, { case (runId, _) => runId })
+      .via(deduplicate)
+      .buffer(1, OverflowStrategy.dropHead)
+      .mapAsync(1) {
+        case (runId, samples) =>
           pipeline.processCompletedRun(samples).recover {
             case error =>
               logger.error(
@@ -400,10 +405,17 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             s"Processing of completed run $runId finished (with or without error). Success: $success")
           runId
       }
+      .mergeSubstreams
 
   def processCompletedProjects =
     Flow[CompletedProject]
       .filter(_.samples.nonEmpty)
+      .map {
+        case CompletedProject(samples) =>
+          val (project, _, _) = getKeysOfSampleResult(samples.head)
+          (project, samples)
+      }
+      .groupBy(maxSubstreams = 10000, { case (project, _) => project })
       .via(deduplicate)
       // A buffer of size one with DropHead overflow strategy ensures
       // that the stream is always pulled and the latest element is processed.
@@ -411,7 +423,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       // because we care for the latest
       .buffer(1, OverflowStrategy.dropHead)
       .mapAsync(1000) {
-        case CompletedProject(samples) =>
+        case (_, samples) =>
           PipelinesApplication.processSamplesOfCompletedProject(pipeline,
                                                                 samples)
       }
@@ -424,6 +436,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             s"Processing of completed project $project finished (with or without error). Success: $success.")
           project
       }
+      .mergeSubstreams
 
   def sampleProcessing
     : Flow[(RunWithAnalyses, DemultiplexedSample), SampleResult, _] = {
