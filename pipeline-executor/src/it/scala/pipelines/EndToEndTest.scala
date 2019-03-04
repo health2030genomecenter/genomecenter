@@ -44,7 +44,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             ]
         """
         When("registering that runconfiguration to the application")
-        postString("/v2/register", runConfiguration)
+        postString("/v2/run/append", runConfiguration).status.intValue shouldBe 200
 
         Then("The sample's processing should finish")
         probe.expectMsgPF(timeout) {
@@ -78,7 +78,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
 
         When(
           "registering that runconfiguration to the application for a second time")
-        postString("/v2/register", runConfiguration)
+        postString("/v2/run/append", runConfiguration).status.intValue shouldBe 200
         Then("The sample's processing should finish immediately")
         probe.expectMsgPF(15 seconds) {
           case sample: SampleFinished[_] =>
