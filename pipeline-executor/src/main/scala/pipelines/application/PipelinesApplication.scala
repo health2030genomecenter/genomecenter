@@ -35,7 +35,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     val pipelineState: PipelineState,
     val actorSystem: ActorSystem,
     val taskSystem: TaskSystem,
-    val pipeline: Pipeline[DemultiplexedSample, SampleResult, Deliverables]
+    val pipeline: Pipeline[DemultiplexedSample, SampleResult, Deliverables],
+    blacklist: Set[(Project, SampleId)]
 )(implicit EC: ExecutionContext)
     extends StrictLogging {
 
@@ -190,6 +191,11 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
               FlowShape(mapToRaw.in, accountWorkDone.out1)
         })
 
+  def isOnBlacklist(sample: DemultiplexedSample): Boolean = {
+    val (project, sampleId, _) = getKeysOfDemultiplexedSample(sample)
+    blacklist.contains((project, sampleId))
+  }
+
   def demultiplex: Flow[RunfolderReadyForProcessing,
                         (RunfolderReadyForProcessing, Seq[DemultiplexedSample]),
                         _] =
@@ -203,9 +209,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
               Nil
           }
         } yield {
+          val samplesPassingBlacklist = samples.filterNot(isOnBlacklist)
           logger.info(
-            s"Demultiplexing of ${run.runId} with ${samples.size} done.")
-          run -> samples
+            s"Demultiplexing of ${run.runId} with ${samplesPassingBlacklist.size} (${samples.size} before blacklist) done.")
+          run -> samplesPassingBlacklist
         }
       }
 

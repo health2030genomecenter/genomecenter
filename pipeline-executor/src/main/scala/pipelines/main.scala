@@ -7,10 +7,12 @@ import akka.stream.ActorMaterializer
 import tasks._
 
 import org.gc.pipelines.application._
+import org.gc.pipelines.model.{Project, SampleId}
 import org.gc.pipelines.stages.ProtoPipeline
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.collection.JavaConverters._
 
 object Main extends App with StrictLogging {
   logger.info("Main thread started.")
@@ -47,6 +49,19 @@ object Main extends App with StrictLogging {
 
     val useSimpleApplication = config.getBoolean("simpleApp")
 
+    val blacklist =
+      config
+        .getStringList("blacklist")
+        .asScala
+        .grouped(2)
+        .toList
+        .map { list =>
+          (Project(list(0)), SampleId(list(1)))
+        }
+        .toSet
+
+      logger.info(s"Black list: $blacklist")
+
     if (useSimpleApplication) {
       val pastRuns = Await.result(pipelineState.pastRuns, atMost = 15 seconds)
 
@@ -55,13 +70,15 @@ object Main extends App with StrictLogging {
       new SimplePipelinesApplication(pastRuns,
                                      actorSystem,
                                      taskSystem,
-                                     pipeline)
+                                     pipeline,
+                                     blacklist)
     } else
       new PipelinesApplication(eventSource,
                                pipelineState,
                                actorSystem,
                                taskSystem,
-                               pipeline)
+                               pipeline,
+                               blacklist)
   } else {
     logger.info("Worker started.")
   }

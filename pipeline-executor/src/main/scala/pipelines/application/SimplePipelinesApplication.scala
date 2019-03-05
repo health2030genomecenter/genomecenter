@@ -6,6 +6,7 @@ import akka.actor.ActorSystem
 import scala.concurrent.{ExecutionContext, Future}
 
 import org.gc.pipelines.util.ActorSource
+import org.gc.pipelines.model.{Project, SampleId}
 import akka.stream.scaladsl.Sink
 import akka.stream.ActorMaterializer
 
@@ -50,7 +51,8 @@ class SimplePipelinesApplication[DemultiplexedSample, SampleResult](
     pastRuns: Seq[RunfolderReadyForProcessing],
     actorSystem: ActorSystem,
     taskSystem: TaskSystem,
-    pipeline: Pipeline[DemultiplexedSample, SampleResult]
+    pipeline: Pipeline[DemultiplexedSample, SampleResult],
+    blacklist: Set[(Project, SampleId)]
 )(implicit EC: ExecutionContext)
     extends StrictLogging {
 
@@ -88,7 +90,11 @@ class SimplePipelinesApplication[DemultiplexedSample, SampleResult](
               Nil
           }
           .map { samples =>
-            samples.map(s => run -> s)
+            val filteredSamples = samples.filterNot { sample =>
+              val (project, sampleId, _) = getKeysOfDemultiplexedSample(sample)
+              blacklist.contains((project, sampleId))
+            }
+            filteredSamples.map(s => run -> s)
           }
       }
       .map(_.flatten)
