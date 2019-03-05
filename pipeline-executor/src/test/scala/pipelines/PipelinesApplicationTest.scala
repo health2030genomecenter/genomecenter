@@ -98,6 +98,53 @@ class PipelinesApplicationTest
 
   }
 
+  test("pipelines application should respect the blacklist") {
+    implicit val AS = ActorSystem()
+    implicit val materializer = ActorMaterializer()
+    val config = ConfigFactory.parseString("""
+  tasks.cache.enabled = false
+    """)
+    val numberOfRuns = 3
+    val eventSource =
+      new FakeSequencingCompleteEventSource(numberOfRuns, uniform = false)
+    val pipelineState = new InMemoryPipelineState
+
+    val taskSystem = defaultTaskSystem(Some(config))
+
+    val app =
+      new PipelinesApplication(eventSource,
+                               pipelineState,
+                               implicitly[ActorSystem],
+                               taskSystem,
+                               new TestPipeline,
+                               Set((Project("project1"), SampleId("sample1"))))
+
+    val processedRuns = Await.result(
+      app.processingFinishedSource
+        .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+        .takeWhile(samplesFinished(
+                     FakeSampleResult(Project("project2"),
+                                      SampleId("sample1"),
+                                      RunId("fake2"),
+                                      "fake0_0fake1_0fake2_0")),
+                   true)
+        .runWith(Sink.last),
+      atMost = 60 seconds
+    )
+
+    processedRuns
+      .collect {
+        case SampleFinished(_, _, _, _, result) => result
+      }
+      .toSet
+      .filter(_.isDefined)
+      .map(_.get.asInstanceOf[FakeSampleResult])
+      .filter(_.project == "project1")
+      .filter(_.sampleId == "sample1")
+      .toSet shouldBe Set.empty
+    taskSystem.shutdown
+
+  }
   test(
     "pipelines application should react if a RunfolderReady event is received") {
     implicit val AS = ActorSystem()
@@ -116,7 +163,8 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       new TestPipeline)
+                                       new TestPipeline,
+                                       Set())
 
     val processedRuns = Await.result(
       app.processingFinishedSource
@@ -178,7 +226,8 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       testPipeline)
+                                       testPipeline,
+                                       Set())
 
     val processedRuns =
       Await.result(
@@ -236,7 +285,8 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       testPipeline)
+                                       testPipeline,
+                                       Set())
 
     intercept[Exception](
       Await.result(
@@ -276,7 +326,8 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       testPipeline)
+                                       testPipeline,
+                                       Set())
 
     Await.result(
       app.processingFinishedSource
@@ -359,7 +410,8 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       new TestPipeline)
+                                       new TestPipeline,
+                                       Set())
 
     val processedRuns =
       Await.result(
@@ -433,7 +485,8 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       testPipeline)
+                                       testPipeline,
+                                       Set())
 
     Then(
       "The first should be processed twice, after which the second should be processed.")
@@ -480,7 +533,8 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       new TestPipeline)
+                                       new TestPipeline,
+                                       Set())
 
     val processedRuns =
       Await.result(
@@ -532,7 +586,8 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       TestPipelineWhichNeverRuns)
+                                       TestPipelineWhichNeverRuns,
+                                       Set())
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .takeWithin(6 seconds)
@@ -564,7 +619,8 @@ class PipelinesApplicationTest
                                        pipelineState,
                                        implicitly[ActorSystem],
                                        taskSystem,
-                                       TestPipelineWhichFails)
+                                       TestPipelineWhichFails,
+                                       Set())
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .takeWithin(6 seconds)
