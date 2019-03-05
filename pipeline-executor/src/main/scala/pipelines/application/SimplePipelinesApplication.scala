@@ -47,11 +47,11 @@ class PersistEventSource(
     .runWith(Sink.ignore)
 }
 
-class SimplePipelinesApplication[DemultiplexedSample, SampleResult](
+class SimplePipelinesApplication[DemultiplexedSample, SampleResult, Delivery](
     pastRuns: Seq[RunfolderReadyForProcessing],
     actorSystem: ActorSystem,
     taskSystem: TaskSystem,
-    pipeline: Pipeline[DemultiplexedSample, SampleResult],
+    pipeline: Pipeline[DemultiplexedSample, SampleResult, Delivery],
     blacklist: Set[(Project, SampleId)]
 )(implicit EC: ExecutionContext)
     extends StrictLogging {

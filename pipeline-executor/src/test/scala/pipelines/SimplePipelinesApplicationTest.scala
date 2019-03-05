@@ -47,7 +47,8 @@ class SimplePipelinesApplicationTest
       Await.result(pipelineState.pastRuns, atMost = 5 seconds),
       implicitly[ActorSystem],
       taskSystem,
-      new TestPipeline)
+      new TestPipeline,
+      Set())
 
     val processedRuns =
       Await.result(
