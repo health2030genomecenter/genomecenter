@@ -60,7 +60,7 @@ object Main extends App with StrictLogging {
         }
         .toSet
 
-      logger.info(s"Black list: $blacklist")
+    logger.info(s"Black list: $blacklist")
 
     if (useSimpleApplication) {
       val pastRuns = Await.result(pipelineState.pastRuns, atMost = 15 seconds)
