@@ -92,7 +92,8 @@ object EndToEndHelpers {
                                        pipelineState,
                                        AS,
                                        taskSystem,
-                                       new ProtoPipeline)
+                                       new ProtoPipeline,
+                                       Set.empty)
 
     try {
       fun(app)
