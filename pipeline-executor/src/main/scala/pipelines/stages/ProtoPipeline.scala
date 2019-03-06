@@ -17,7 +17,8 @@ import org.gc.pipelines.util.StableSet.syntax
 import com.typesafe.scalalogging.StrictLogging
 import scala.util.{Success, Failure}
 
-class ProtoPipeline(progressServer: ProgressServer)(implicit EC: ExecutionContext)
+class ProtoPipeline(progressServer: ProgressServer)(
+    implicit EC: ExecutionContext)
     extends Pipeline[PerSamplePerRunFastQ, SampleResult, DeliverableList]
     with StrictLogging {
 
