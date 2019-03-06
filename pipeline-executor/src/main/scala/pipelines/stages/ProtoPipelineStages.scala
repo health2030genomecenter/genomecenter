@@ -11,6 +11,8 @@ import org.gc.pipelines.application.{
   RNASeqConfiguration
 }
 import org.gc.pipelines.model._
+import org.gc.pipelines.application.ProgressServer
+import org.gc.pipelines.application.ProgressData._
 import org.gc.pipelines.util.ResourceConfig
 import org.gc.pipelines.util.StableSet
 import org.gc.pipelines.util.FastQHelpers
@@ -139,6 +141,12 @@ object ProtoPipelineStages extends StrictLogging {
             _ <- coordinateSorted.bam.delete
             _ <- coordinateSorted.bai.delete
 
+            recalibratedPath <- recalibrated.bam.uri.map(_.toString)
+            _ = ProgressServer.send(
+              BamAvailable(demultiplexed.project,
+                           demultiplexed.sampleId,
+                           recalibratedPath))
+
             alignmentQC = intoQCFolder { implicit computationEnvironment =>
               AlignmentQC.general(
                 AlignmentQCInput(recalibrated, indexedReference))(
@@ -187,6 +195,11 @@ object ProtoPipelineStages extends StrictLogging {
               demultiplexed.sampleId
             )
 
+            _ = ProgressServer.send(
+              CoverageAvailable(demultiplexed.project,
+                                demultiplexed.sampleId,
+                                wgsMeanCoverage))
+
             variantCalls <- if (!executeVariantCalling(doVariantCalling,
                                                        wgsMeanCoverage,
                                                        targetedMeanCoverage,
@@ -225,6 +238,12 @@ object ProtoPipelineStages extends StrictLogging {
                       ResourceConfig.minimal,
                       priorityVcf)
                 }
+
+                genotypedVcfPath <- genotypedVcf.vcf.uri.map(_.toString)
+                _ = ProgressServer.send(
+                  VCFAvailable(demultiplexed.project,
+                               demultiplexed.sampleId,
+                               genotypedVcfPath))
 
                 gvcfQC <- intoQCFolder { implicit computationEnvironment =>
                   HaplotypeCaller.collectVariantCallingMetrics(

@@ -44,8 +44,10 @@ object Main extends App with StrictLogging {
 
     val pipelineState = PipelineConfiguration.pipelineState
 
+    val progressServer = new ProgressServer
+
     val pipeline =
-      new ProtoPipeline
+      new ProtoPipeline(progressServer)
 
     val useSimpleApplication = config.getBoolean("simpleApp")
 

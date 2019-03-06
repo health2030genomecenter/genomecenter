@@ -10,11 +10,14 @@ import org.gc.pipelines.application.{
   AnalysisAssignments
 }
 import org.gc.pipelines.model._
+import org.gc.pipelines.application.{ProgressServer}
+import org.gc.pipelines.application.ProgressData._
 import org.gc.pipelines.util.ResourceConfig
 import org.gc.pipelines.util.StableSet.syntax
 import com.typesafe.scalalogging.StrictLogging
+import scala.util.{Success, Failure}
 
-class ProtoPipeline(implicit EC: ExecutionContext)
+class ProtoPipeline(progressServer: ProgressServer)(implicit EC: ExecutionContext)
     extends Pipeline[PerSamplePerRunFastQ, SampleResult, DeliverableList]
     with StrictLogging {
 
@@ -221,21 +224,36 @@ class ProtoPipeline(implicit EC: ExecutionContext)
   }
 
   def demultiplex(r: RunfolderReadyForProcessing)(
-      implicit tsc: TaskSystemComponents): Future[Seq[PerSamplePerRunFastQ]] =
-    r.runFolderPath match {
+      implicit tsc: TaskSystemComponents): Future[Seq[PerSamplePerRunFastQ]] = {
+    progressServer.send(DemultiplexStarted(r.runId))
+    (r.runFolderPath match {
       case Some(_) => ProtoPipelineStages.executeDemultiplexing(r)
       case None    => ProtoPipelineStages.liftAlreadyDemultiplexedFastQs(r)
+    }).andThen {
+      case Success(samples) =>
+        progressServer.send(
+          Demultiplexed(r.runId,
+                        samples.map(s =>
+                          (s.project, s.sampleId, Set.empty[String]))))
+      case Failure(_) =>
+        progressServer.send(DemultiplexFailed(r.runId))
     }
+  }
 
   def processSample(r: RunfolderReadyForProcessing,
                     analysisAssignments: AnalysisAssignments,
                     pastSampleResult: Option[SampleResult],
                     demultiplexedSample: PerSamplePerRunFastQ)(
       implicit tsc: TaskSystemComponents): Future[Option[SampleResult]] = {
-
+    progressServer.send(
+      SampleProcessingStarted(demultiplexedSample.project,
+                              demultiplexedSample.sampleId))
     ProtoPipelineStages.parseReadLengthFromRunInfo(r) match {
       case Left(error) =>
         logger.error(s"$error")
+        progressServer.send(
+          SampleProcessingFailed(demultiplexedSample.project,
+                                 demultiplexedSample.sampleId))
         Future.successful(None)
       case Right(readLengths) =>
         logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
@@ -304,6 +322,10 @@ class ProtoPipeline(implicit EC: ExecutionContext)
           val pastDemultiplexed =
             pastSampleResult.toSeq.flatMap(_.demultiplexed)
           val pastRunFolders = pastSampleResult.toSeq.flatMap(_.runFolders)
+
+          progressServer.send(
+            SampleProcessingFinished(demultiplexedSample.project,
+                                     demultiplexedSample.sampleId))
 
           Some(
             SampleResult(
