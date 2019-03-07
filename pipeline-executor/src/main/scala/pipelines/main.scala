@@ -14,6 +14,10 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 
+object MainConfig {
+  val port = 9099
+}
+
 object Main extends App with StrictLogging {
   logger.info("Main thread started.")
 
@@ -34,7 +38,7 @@ object Main extends App with StrictLogging {
     implicit val actorSystem = ActorSystem("Main")
     implicit val materializer = ActorMaterializer()
     import scala.concurrent.ExecutionContext.Implicits.global
-    val eventSource = new HttpServer(port = 9099)
+    val eventSource = new HttpServer(port = MainConfig.port)
     val httpBinding = eventSource.startServer
     httpBinding.andThen {
       case scala.util.Success(serverBinding) =>

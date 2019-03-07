@@ -9,9 +9,7 @@ lazy val commonSettings = Seq(
   javaOptions += "-Xmx4G",
   cancelable in Global := true,
   git.useGitDescribe := true
-) ++ enablePublishDependencies
-
-lazy val publishDependencies = taskKey[Unit]("Publish dependencies.")
+)
 
 lazy val stagingIvy1Repository =
   Resolver.url("gc-ivy1",
@@ -21,103 +19,6 @@ lazy val stagingIvy1Repository =
 lazy val publishToStagingArtifactory = Seq(
   publishTo := Some(stagingIvy1Repository)
 )
-
-def enablePublishDependencies =
-  Seq(
-    publishDependencies := {
-      import sbt.librarymanagement._
-      import sbt.internal.librarymanagement._
-
-      val ivySbt0 = new IvySbt(
-        InlineIvyConfiguration().withResolvers(Vector(stagingIvy1Repository)))
-      val streams0 = streams.value
-      val log = streams0.log
-
-      val modules = (update.value.configurations.flatMap { configReport =>
-        val modules = configReport.details.flatMap { detail =>
-          detail.modules
-        } ++ configReport.modules
-
-        modules map { moduleReport =>
-          val moduleID = moduleReport.module
-          val artifacts = moduleReport.artifacts
-          (moduleID, artifacts)
-        }
-      }).distinct
-
-      log.info(
-        "Trying to publish the following modules:" +
-          modules.map(x => x._1.toString).sorted.mkString("\n"))
-
-      modules.distinct.foreach {
-        case (moduleID, artifacts) =>
-          val moduleInfo = ModuleInfo(moduleID.name)
-            .withOrganizationName(moduleID.organization)
-
-          val ivyModule = new ivySbt0.Module(
-            ModuleDescriptorConfiguration(moduleID, moduleInfo))
-
-          val pomFile = {
-            val tmpFile = java.io.File.createTempFile("pom", "pom")
-            IvyActions.makePomFile(ivyModule,
-                                   MakePomConfiguration()
-                                     .withFile(tmpFile)
-                                     .withModuleInfo(moduleInfo),
-                                   streams0.log)
-          }
-          val pomArtifact = Artifact.pom(moduleID.name)
-
-          val ivyFile = artifacts.headOption.flatMap {
-            case (artifact, file) =>
-              def lookForIvy(f: File): Option[File] = {
-                val parent = f.getParentFile
-                if (parent == null) None
-                else {
-                  val candidate1 =
-                    new File(parent, "ivy-" + moduleID.revision + ".xml")
-                  val candidate2 = new File(parent + "/ivys", "ivy.xml")
-                  if (candidate1.canRead) Some(candidate1)
-                  else if (candidate2.canRead) Some(candidate2)
-                  else lookForIvy(parent)
-                }
-              }
-
-              lookForIvy(file)
-          }
-          val ivyArtifact =
-            Artifact(moduleID.name, "ivy", "ivy", None, Vector(), None)
-
-          val publishConfigurationWithDependencyArtifacts =
-            PublishConfiguration(
-              publishMavenStyle = true,
-              deliverIvyPattern =
-                sbt.Classpaths.deliverPattern(crossTarget.value),
-              status = "release",
-              configurations = ivyConfigurations.value
-                .map(c => ConfigRef(c.name))
-                .toVector,
-              resolverName = stagingIvy1Repository.name,
-              artifacts = (artifacts :+ (pomArtifact -> pomFile)) ++ ivyFile.toSeq
-                .map(f => ivyArtifact -> f),
-              checksums = checksums.in(publish).value.toVector,
-              logging = ivyLoggingLevel.value,
-              overwrite = false
-            )
-
-          scala.util
-            .Try(
-              sbt.internal.librarymanagement.IvyActions.publish(
-                ivyModule,
-                publishConfigurationWithDependencyArtifacts,
-                streams0.log))
-            .failed
-            .foreach { x =>
-              log.info(x.toString)
-            }
-      }
-
-    }
-  )
 
 resolvers += Resolver.jcenterRepo
 
@@ -207,7 +108,9 @@ lazy val pipelineExecutor = project
       "com.github.pathikrit" %% "better-files" % "3.6.0",
       "io.circe" %% "circe-core" % "0.10.1",
       "io.circe" %% "circe-generic" % "0.10.1",
-      "org.scala-lang.modules" %% "scala-xml" % "1.1.1"
+      "org.scala-lang.modules" %% "scala-xml" % "1.1.1",
+      "com.github.scopt" %% "scopt" % "4.0.0-RC2",
+      "org.scalaj" %% "scalaj-http" % "2.4.1"
     ),
     unmanagedClasspath in Test += {
       val testFolder = System.getenv("GC_TESTFOLDER")
