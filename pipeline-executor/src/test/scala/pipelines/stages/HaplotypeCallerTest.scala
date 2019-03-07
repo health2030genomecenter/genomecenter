@@ -13,7 +13,7 @@ class HaplotypeCallerTest
     with GivenWhenThen
     with TestHelpers {
 
-  ignore("genotypegvcf") {
+  test("genotypegvcf") {
     new Fixture {
 
       Given("a gvcf file and a reference")
