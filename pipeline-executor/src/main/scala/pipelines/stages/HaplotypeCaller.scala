@@ -429,13 +429,22 @@ object HaplotypeCaller {
               .filter(c => contigs.contains(c))
             scattered <- Future.traverse(intervals) { interval =>
               intoScattersFolder { implicit computationEnvironment =>
+                val scratchNeeded =
+                  (input.targetVcfs.size * ResourceConfig.genotypeGvcfScratchSpaceMegabytePerSample).toInt
+
+                val genotypeGvcfResourceRequest =
+                  ResourceConfig.genotypeGvcfs.copy(
+                    cpuMemoryRequest =
+                      ResourceConfig.genotypeGvcfs.cpuMemoryRequest
+                        .copy(scratch = scratchNeeded))
+
                 genotypeGvcfsOnInterval(
                   GenotypeGVCFsOnIntervalInput(input.targetVcfs,
                                                input.reference,
                                                input.dbSnpVcf,
                                                interval,
                                                input.name))(
-                  ResourceConfig.genotypeGvcfs)
+                  genotypeGvcfResourceRequest)
               }
             }
             scatteredGenotypes = scattered.map(_.genotypes)

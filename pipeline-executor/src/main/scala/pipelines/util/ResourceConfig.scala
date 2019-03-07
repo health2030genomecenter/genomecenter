@@ -96,6 +96,9 @@ object ResourceConfig {
   val uncompressedBamSizeBytePerRead =
     config.getDouble("uncompressedBamSizeBytePerRead")
 
+  val genotypeGvcfScratchSpaceMegabytePerSample =
+    config.getDouble("genotypeGvcfScratchSpaceMegabytePerSample")
+
   val projectPriorities: Map[Project, Int] =
     if (config.hasPath("projectPriorities"))
       config
