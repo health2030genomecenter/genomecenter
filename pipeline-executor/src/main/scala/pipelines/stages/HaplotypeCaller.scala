@@ -5,8 +5,17 @@ import tasks.circesupport._
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.Future
-import org.gc.pipelines.util.{Exec, GATK, JVM, ResourceConfig, Files, StableSet}
+import org.gc.pipelines.util.{
+  Exec,
+  GATK,
+  JVM,
+  ResourceConfig,
+  Files,
+  StableSet,
+  Fasta
+}
 import java.io.File
+import scala.collection.JavaConverters._
 
 case class HaplotypeCallerInput(
     bam: CoordinateSortedBam,
@@ -361,6 +370,20 @@ object HaplotypeCaller {
           } yield result
     }
 
+  def createIntervals(dict: File): Seq[(String, (Int, Int))] = {
+    val samSequenceDictionary = Fasta.parseDict(dict)
+    samSequenceDictionary.getSequences.asScala.toList.flatMap { sequence =>
+      val contigName = sequence.getSequenceName
+      val contigSize = sequence.getSequenceLength
+      val intervals =
+        GATK.create1BasedClosedIntervals(minInclusive = 1,
+                                         maxInclusive = contigSize,
+                                         numberOfIntervals = 10)
+      intervals.map(i => (contigName, i))
+
+    }
+  }
+
   val genotypeGvcfs =
     AsyncTask[GenotypeGVCFsInput, GenotypeGVCFsResult]("__genotypegvcfs", 1) {
       case input =>
@@ -424,9 +447,10 @@ object HaplotypeCaller {
             contigs <- input.contigsFile
               .map(_.readContigs)
               .getOrElse(Future.successful(HaplotypeCaller.defaultContigs))
-            intervals = BaseQualityScoreRecalibration
+            intervals = HaplotypeCaller
               .createIntervals(dict)
-              .filter(c => contigs.contains(c))
+              .filter { case (contig, _) => contigs.contains(contig) }
+              .map { case (contig, (from, to)) => s"$contig:$from-$to" }
             scattered <- Future.traverse(intervals) { interval =>
               intoScattersFolder { implicit computationEnvironment =>
                 val scratchNeeded =
