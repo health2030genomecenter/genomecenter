@@ -10,7 +10,8 @@ import GenericTestHelpers._
 import org.gc.pipelines.application.{
   HttpServer,
   FilePipelineState,
-  PipelinesApplication
+  PipelinesApplication,
+  ProgressServer
 }
 
 import org.gc.pipelines.stages.ProtoPipeline
@@ -25,6 +26,7 @@ import org.gc.pipelines.model.Project
 import tasks.TaskSystemComponents
 import akka.stream.Materializer
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 import akka.util.ByteString
 import akka.testkit.TestProbe
 import akka.stream.scaladsl.Sink
@@ -64,6 +66,18 @@ object EndToEndHelpers {
           entity = data)))
   }
 
+  def getProgress(endpoint: String)(implicit app: PipelinesApplication[_, _, _],
+                                    ec: ExecutionContext) = {
+    implicit val AS = app.actorSystem
+    implicit val mat = ActorMaterializer()
+    // val binding = await(app.eventSource.asInstanceOf[HttpServer].startServer)
+    await(
+      Http()
+        .singleRequest(HttpRequest(uri = s"http://127.0.0.1:9999$endpoint",
+                                   method = HttpMethods.GET))
+        .flatMap(_.entity.toStrict(5 seconds))).data.utf8String
+  }
+
   def createProbe(implicit app: PipelinesApplication[_, _, _]) = {
     implicit val AS = app.actorSystem
     implicit val mat = ActorMaterializer()
@@ -88,11 +102,13 @@ object EndToEndHelpers {
     val pipelineState = new FilePipelineState(new File(basePath, "STATE"))
     val taskSystem = defaultTaskSystem(Some(config))
 
+    val progressServer = new ProgressServer
+
     val app = new PipelinesApplication(eventSource,
                                        pipelineState,
                                        AS,
                                        taskSystem,
-                                       new ProtoPipeline,
+                                       new ProtoPipeline(progressServer),
                                        Set.empty)
 
     try {

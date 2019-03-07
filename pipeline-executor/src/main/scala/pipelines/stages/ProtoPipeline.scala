@@ -10,14 +10,14 @@ import org.gc.pipelines.application.{
   AnalysisAssignments
 }
 import org.gc.pipelines.model._
-import org.gc.pipelines.application.{ProgressServer}
+import org.gc.pipelines.application.{SendProgressData}
 import org.gc.pipelines.application.ProgressData._
 import org.gc.pipelines.util.ResourceConfig
 import org.gc.pipelines.util.StableSet.syntax
 import com.typesafe.scalalogging.StrictLogging
 import scala.util.{Success, Failure}
 
-class ProtoPipeline(progressServer: ProgressServer)(
+class ProtoPipeline(progressServer: SendProgressData)(
     implicit EC: ExecutionContext)
     extends Pipeline[PerSamplePerRunFastQ, SampleResult, DeliverableList]
     with StrictLogging {

@@ -84,6 +84,12 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
           case sample: SampleFinished[_] =>
             sample.sample shouldBe "sample1"
         }
+        getProgress("/runs") shouldBe "runid1"
+        getProgress("/runs/runid1") shouldBe "demultiplex started\ndemultiplexed 1\ndemultiplex started\ndemultiplexed 1"
+        getProgress("/projects") shouldBe "project1"
+        getProgress("/projects/project1") shouldBe "sample1\tdemultiplexed:start:finish:demultiplexed:start:finish"
+        getProgress("/bams/project1") shouldBe ""
+        getProgress("/vcfs/project1") shouldBe ""
 
       }
     }

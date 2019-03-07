@@ -14,7 +14,9 @@ import org.gc.pipelines.application.{
   RNASeqConfiguration,
   InputFastQPerLane,
   InputSampleAsFastQ,
-  AnalysisAssignments
+  AnalysisAssignments,
+  SendProgressData,
+  ProgressData
 }
 import org.gc.pipelines.util.StableSet
 
@@ -57,7 +59,7 @@ class ProtopipelineIntegrationTestSuite
                 ))),
             runConfiguration
           )
-        val pipeline = new ProtoPipeline()
+        val pipeline = new ProtoPipeline(progressServer)
         import scala.concurrent.duration._
         val demultiplexedSamples =
           Await.result(pipeline.demultiplex(run), atMost = 400000 seconds)
@@ -86,7 +88,7 @@ class ProtopipelineIntegrationTestSuite
                                       Some(runFolderPath),
                                       None,
                                       runConfiguration)
-        val pipeline = new ProtoPipeline()
+        val pipeline = new ProtoPipeline(progressServer)
         import scala.concurrent.duration._
         val demultiplexedSamples =
           Await.result(pipeline.demultiplex(run), atMost = 400000 seconds)
@@ -308,6 +310,10 @@ class ProtopipelineIntegrationTestSuite
       Map(Project("project1") -> Seq(wesConfiguration, rnaConfiguration)))
 
     val (testConfig, basePath) = makeTestConfig
+
+    val progressServer = new SendProgressData {
+      def send(d: ProgressData) = ()
+    }
 
   }
 
