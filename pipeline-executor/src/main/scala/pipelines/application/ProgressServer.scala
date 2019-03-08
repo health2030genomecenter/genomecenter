@@ -2,12 +2,10 @@ package org.gc.pipelines.application
 
 import com.typesafe.scalalogging.StrictLogging
 import org.gc.pipelines.model._
-import akka.stream.Materializer
 
 import akka.actor._
 import tasks.TaskSystemComponents
 import scala.concurrent.duration._
-import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.RejectionHandler
@@ -51,9 +49,10 @@ trait SendProgressData {
   def send(data: ProgressData): Unit
 }
 
-class ProgressServer(implicit MAT: Materializer, AS: ActorSystem)
+class ProgressServer(implicit AS: ActorSystem)
     extends StrictLogging
-    with SendProgressData {
+    with SendProgressData
+    with HttpComponent {
 
   private case object GetState
 
@@ -95,156 +94,152 @@ class ProgressServer(implicit MAT: Materializer, AS: ActorSystem)
       }
       .result()
 
-  private[pipelines] val route =
+  val route =
     handleRejections(rejectionHandler) {
       get {
         pathSingleSlash {
           complete("""|How to use: 
         |GET / 
-        |GET /run/{runid}
-        |GET /runs
-        |GET /projects
-        |GET /project/{projectname}
-        |GET /bams/{projectname}
-        |GET /vcfs/{projectname}""".stripMargin)
+        |GET /v2/runs/{runid}
+        |GET /v2/runs
+        |GET /v2/projects
+        |GET /v2/projects/{projectname}
+        |GET /v2/bams/{projectname}
+        |GET /v2/vcfs/{projectname}
+        |POST /v2/runs , and post body
+        |DELETE /v2/runs/{runid}
+        |POST /v2/analyses/{projectname} , and post body
+        |DELETE /v2/analyses/{projectname}/{analysisid}""".stripMargin)
         } ~
-          path("runs" / Segment) { runId =>
-            complete {
-              for {
-                data <- getData
-              } yield {
-                data
-                  .collect {
-                    case DemultiplexStarted(run) if run == runId =>
-                      "demultiplex started"
-                    case DemultiplexFailed(run) if run == runId =>
-                      "demultiplex failed"
-                    case Demultiplexed(run, samples) if run == runId =>
-                      s"demultiplexed ${samples.size}"
-                  }
-                  .map(_.toString)
-                  .mkString("\n")
+          pathPrefix("v2") {
+            path("runs" / Segment) { runId =>
+              complete {
+                for {
+                  data <- getData
+                } yield {
+                  data
+                    .collect {
+                      case DemultiplexStarted(run) if run == runId =>
+                        "demultiplex started"
+                      case DemultiplexFailed(run) if run == runId =>
+                        "demultiplex failed"
+                      case Demultiplexed(run, samples) if run == runId =>
+                        s"demultiplexed ${samples.size}"
+                    }
+                    .map(_.toString)
+                    .mkString("\n")
+                }
               }
-            }
-          } ~
-          path("runs") {
-            complete {
-              for {
-                data <- getData
-              } yield {
-                data
-                  .collect {
-                    case DemultiplexStarted(run) => run
+            } ~
+              path("runs") {
+                complete {
+                  for {
+                    data <- getData
+                  } yield {
+                    data
+                      .collect {
+                        case DemultiplexStarted(run) => run
+                      }
+                      .distinct
+                      .mkString("\n")
                   }
-                  .distinct
-                  .mkString("\n")
-              }
-            }
-          } ~
-          path("projects") {
-            complete {
-              for {
-                data <- getData
-              } yield {
-                data
-                  .collect {
-                    case Demultiplexed(_, samples) => samples.map(_._1).distinct
+                }
+              } ~
+              path("projects") {
+                complete {
+                  for {
+                    data <- getData
+                  } yield {
+                    data
+                      .collect {
+                        case Demultiplexed(_, samples) =>
+                          samples.map(_._1).distinct
+                      }
+                      .flatten
+                      .distinct
+                      .mkString("\n")
                   }
-                  .flatten
-                  .distinct
-                  .mkString("\n")
-              }
-            }
-          } ~
-          path("projects" / Segment) { project =>
-            complete {
-              for {
-                data <- getData
-              } yield {
-                val sampleStates = data
-                  .collect {
-                    case Demultiplexed(_, samples)
-                        if samples.map(_._1).contains(project) =>
-                      samples
-                        .filter(_._1 == project)
-                        .map(p => (p._2, "demultiplexed"))
-                    case SampleProcessingStarted(project0, sample)
-                        if project0 == project =>
-                      List(sample -> "start")
-                    case SampleProcessingFailed(project0, sample)
-                        if project0 == project =>
-                      List(sample -> "fail")
-                    case SampleProcessingFinished(project0, sample)
-                        if project0 == project =>
-                      List(sample -> "finish")
-                    case CoverageAvailable(project0, sample, _)
-                        if project0 == project =>
-                      List(sample -> "cov")
-                    case BamAvailable(project0, sample, _)
-                        if project0 == project =>
-                      List(sample -> "bam")
-                    case VCFAvailable(project0, sample, _)
-                        if project0 == project =>
-                      List(sample -> "vcf")
-                  }
+                }
+              } ~
+              path("projects" / Segment) { project =>
+                complete {
+                  for {
+                    data <- getData
+                  } yield {
+                    val sampleStates = data
+                      .collect {
+                        case Demultiplexed(_, samples)
+                            if samples.map(_._1).contains(project) =>
+                          samples
+                            .filter(_._1 == project)
+                            .map(p => (p._2, "demultiplexed"))
+                        case SampleProcessingStarted(project0, sample)
+                            if project0 == project =>
+                          List(sample -> "start")
+                        case SampleProcessingFailed(project0, sample)
+                            if project0 == project =>
+                          List(sample -> "fail")
+                        case SampleProcessingFinished(project0, sample)
+                            if project0 == project =>
+                          List(sample -> "finish")
+                        case CoverageAvailable(project0, sample, _)
+                            if project0 == project =>
+                          List(sample -> "cov")
+                        case BamAvailable(project0, sample, _)
+                            if project0 == project =>
+                          List(sample -> "bam")
+                        case VCFAvailable(project0, sample, _)
+                            if project0 == project =>
+                          List(sample -> "vcf")
+                      }
 
-                sampleStates.flatten
-                  .groupBy(_._1)
-                  .toSeq
-                  .sortBy(_._1.toString)
-                  .map {
-                    case (sample, states) =>
-                      sample + "\t" + states.map(_._2).mkString(":")
+                    sampleStates.flatten
+                      .groupBy(_._1)
+                      .toSeq
+                      .sortBy(_._1.toString)
+                      .map {
+                        case (sample, states) =>
+                          sample + "\t" + states.map(_._2).mkString(":")
+                      }
+                      .mkString("\n")
                   }
-                  .mkString("\n")
-              }
-            }
-          } ~
-          path("bams" / Segment) { project =>
-            complete {
-              for {
-                data <- getData
-              } yield {
-                data
-                  .collect {
-                    case BamAvailable(project0, sample, path)
-                        if project0 == project =>
-                      sample + "\t" + path
+                }
+              } ~
+              path("bams" / Segment) { project =>
+                complete {
+                  for {
+                    data <- getData
+                  } yield {
+                    data
+                      .collect {
+                        case BamAvailable(project0, sample, path)
+                            if project0 == project =>
+                          sample + "\t" + path
+                      }
+                      .distinct
+                      .mkString("\n")
                   }
-                  .distinct
-                  .mkString("\n")
-              }
-            }
-          } ~
-          path("vcfs" / Segment) { project =>
-            complete {
-              for {
-                data <- getData
-              } yield {
-                data
-                  .collect {
-                    case VCFAvailable(project0, sample, path)
-                        if project0 == project =>
-                      sample + "\t" + path
+                }
+              } ~
+              path("vcfs" / Segment) { project =>
+                complete {
+                  for {
+                    data <- getData
+                  } yield {
+                    data
+                      .collect {
+                        case VCFAvailable(project0, sample, path)
+                            if project0 == project =>
+                          sample + "\t" + path
+                      }
+                      .distinct
+                      .mkString("\n")
                   }
-                  .distinct
-                  .mkString("\n")
+                }
               }
-            }
           }
       }
     }
-
-  val port = 9999
-
-  private val bindingFuture =
-    Http().bindAndHandle(route, "0.0.0.0", port)
-
-  bindingFuture.andThen {
-    case scala.util.Success(serverBinding) =>
-      logger.info(
-        s"Progress web server is listening on ${serverBinding.localAddress}")
-  }(AS.dispatcher)
 
 }
 

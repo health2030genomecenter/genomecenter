@@ -15,7 +15,7 @@ case class Assign(project: Project, analysis: AnalysisConfiguration)
 case class Unassign(project: Project, analysisId: AnalysisId)
     extends AssignmentCommand
 
-trait SequencingCompleteEventSource {
+trait CommandSource {
   def commands: Source[Command, _]
 
 }

@@ -9,6 +9,7 @@ import GenericTestHelpers._
 
 import org.gc.pipelines.application.{
   HttpServer,
+  HttpCommandSource,
   FilePipelineState,
   PipelinesApplication,
   ProgressServer
@@ -30,6 +31,11 @@ import scala.concurrent.duration._
 import akka.util.ByteString
 import akka.testkit.TestProbe
 import akka.stream.scaladsl.Sink
+
+case class TestApplication[A, B, C](
+    pipelinesApplication: PipelinesApplication[A, B, C],
+    httpServer: HttpServer
+)
 
 object EndToEndHelpers {
 
@@ -55,9 +61,9 @@ object EndToEndHelpers {
   }
 
   def postString(endpoint: String, data: String)(
-      implicit app: PipelinesApplication[_, _, _]) = {
-    implicit val AS = app.actorSystem
-    val binding = await(app.eventSource.asInstanceOf[HttpServer].startServer)
+      implicit app: TestApplication[_, _, _]) = {
+    implicit val AS = app.pipelinesApplication.actorSystem
+    val binding = await(app.httpServer.startServer)
     await(
       Http().singleRequest(
         HttpRequest(
@@ -66,50 +72,57 @@ object EndToEndHelpers {
           entity = data)))
   }
 
-  def getProgress(endpoint: String)(implicit app: PipelinesApplication[_, _, _],
+  def getProgress(endpoint: String)(implicit app: TestApplication[_, _, _],
                                     ec: ExecutionContext) = {
-    implicit val AS = app.actorSystem
+    implicit val AS = app.pipelinesApplication.actorSystem
     implicit val mat = ActorMaterializer()
-    // val binding = await(app.eventSource.asInstanceOf[HttpServer].startServer)
+    val binding = await(app.httpServer.startServer)
     await(
       Http()
-        .singleRequest(HttpRequest(uri = s"http://127.0.0.1:9999$endpoint",
-                                   method = HttpMethods.GET))
+        .singleRequest(
+          HttpRequest(
+            uri = s"http://127.0.0.1:${binding.localAddress.getPort}$endpoint",
+            method = HttpMethods.GET))
         .flatMap(_.entity.toStrict(5 seconds))).data.utf8String
   }
 
-  def createProbe(implicit app: PipelinesApplication[_, _, _]) = {
-    implicit val AS = app.actorSystem
+  def createProbe(implicit app: TestApplication[_, _, _]) = {
+    implicit val AS = app.pipelinesApplication.actorSystem
     implicit val mat = ActorMaterializer()
     val probe = TestProbe()
-    app.processingFinishedSource
+    app.pipelinesApplication.processingFinishedSource
       .to(Sink.actorRef(probe.ref, "completed"))
       .run()
     probe
   }
 
   def withApplication(
-      fun: PipelinesApplication[PerSamplePerRunFastQ,
-                                SampleResult,
-                                DeliverableList] => Unit) = {
+      fun: TestApplication[PerSamplePerRunFastQ,
+                           SampleResult,
+                           DeliverableList] => Unit) = {
 
     implicit val AS = ActorSystem()
     import AS.dispatcher
     implicit val materializer = ActorMaterializer()
     val (config, basePath) = makeTestConfig
-    val eventSource = new HttpServer(port = 0)
+    val commandSource = new HttpCommandSource
+    val progressServer = new ProgressServer
+
+    val httpServer =
+      new HttpServer(port = 0, Seq(commandSource.route, progressServer.route))
     basePath.mkdirs
     val pipelineState = new FilePipelineState(new File(basePath, "STATE"))
     val taskSystem = defaultTaskSystem(Some(config))
 
-    val progressServer = new ProgressServer
+    val pipelineApp = new PipelinesApplication(
+      commandSource,
+      pipelineState,
+      AS,
+      taskSystem,
+      new ProtoPipeline(progressServer),
+      Set.empty)
 
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       AS,
-                                       taskSystem,
-                                       new ProtoPipeline(progressServer),
-                                       Set.empty)
+    val app = TestApplication(pipelineApp, httpServer)
 
     try {
       fun(app)

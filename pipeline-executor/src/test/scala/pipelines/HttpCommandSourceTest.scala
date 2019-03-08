@@ -24,7 +24,7 @@ import org.gc.pipelines.util.StableSet
 import org.gc.pipelines.model._
 import fileutils._
 
-class HttpEventSourceTest
+class HttpCommandSourceTest
     extends FunSuite
     with BeforeAndAfterAll
     with GivenWhenThen
@@ -52,7 +52,7 @@ class HttpEventSourceTest
     val runFolder = new File(watchedFolder, runId)
 
     Given("a folder watch event source")
-    val server = new HttpServer(port = 0)
+    val server = new HttpCommandSource
     val source =
       server.commands
 
@@ -61,9 +61,9 @@ class HttpEventSourceTest
     When("a run folder is created")
     runFolder.mkdir
     openFileWriter(new File(runFolder, "RunInfo.xml"))(_ => ())
-    When("a post request is made to /v2/run/append")
+    When("a post request is made to /v2/runs")
     val request = HttpRequest(method = HttpMethods.POST,
-                              uri = Uri("/v2/run/append"),
+                              uri = Uri("/v2/runs"),
                               entity = HttpEntity(
                                 ContentTypes.`application/json`,
                                 runConfigurationFileContent
@@ -116,7 +116,7 @@ class HttpEventSourceTest
       ]"""
 
     Given("an http event source")
-    val server = new HttpServer(port = 0)
+    val server = new HttpCommandSource
     val source =
       server.commands
 
@@ -125,7 +125,7 @@ class HttpEventSourceTest
 
     When("a post request is made to /v2/run/append")
     val request = HttpRequest(method = HttpMethods.POST,
-                              uri = Uri("/v2/run/append"),
+                              uri = Uri("/v2/runs"),
                               entity = HttpEntity(
                                 ContentTypes.`application/json`,
                                 runConfigurationFileContent
@@ -176,7 +176,7 @@ class HttpEventSourceTest
     val runFolder = new File(watchedFolder, runId)
 
     Given("a folder watch event source")
-    val server = new HttpServer(port = 0)
+    val server = new HttpCommandSource
     val source =
       server.commands
 

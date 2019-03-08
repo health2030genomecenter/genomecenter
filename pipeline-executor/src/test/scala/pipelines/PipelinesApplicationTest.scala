@@ -718,7 +718,7 @@ class PipelinesApplicationTest
 class FakeSequencingCompleteEventSource(take: Int,
                                         uniform: Boolean,
                                         pattern: List[Int] = Nil)
-    extends SequencingCompleteEventSource
+    extends CommandSource
     with StrictLogging {
 
   val runFolder = fileutils.TempFile.createTempFile(".temp")

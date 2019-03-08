@@ -20,9 +20,9 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
 
       Given("a running application")
       withApplication { implicit app =>
-        implicit val AS = app.actorSystem
+        implicit val AS = app.pipelinesApplication.actorSystem
         implicit val mat = ActorMaterializer()
-        implicit val tsc = app.taskSystem.components
+        implicit val tsc = app.pipelinesApplication.taskSystem.components
         import AS.dispatcher
         val probe = createProbe
         And("A configuration with an already demultiplexed set of fastq files")

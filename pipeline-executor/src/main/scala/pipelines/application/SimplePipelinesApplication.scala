@@ -10,8 +10,8 @@ import org.gc.pipelines.model.{Project, SampleId}
 import akka.stream.scaladsl.Sink
 import akka.stream.ActorMaterializer
 
-class PersistEventSource(
-    eventSource: SequencingCompleteEventSource,
+class PersistCommandSource(
+    commandSource: CommandSource,
     pipelineState: PipelineState
 )(implicit EC: ExecutionContext, AS: ActorSystem)
     extends StrictLogging {
@@ -21,7 +21,7 @@ class PersistEventSource(
   val persistCommandsFunction =
     PipelinesApplication.persistCommands(pipelineState)
 
-  eventSource.commands
+  commandSource.commands
     .mapAsync(1)(persistCommandsFunction)
     .runWith(Sink.ignore)
 }

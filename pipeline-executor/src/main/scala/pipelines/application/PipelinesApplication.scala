@@ -141,7 +141,7 @@ object PipelinesApplication extends StrictLogging {
 }
 
 class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
-    val eventSource: SequencingCompleteEventSource,
+    val commandSource: CommandSource,
     val pipelineState: PipelineState,
     val actorSystem: ActorSystem,
     val taskSystem: TaskSystem,
@@ -192,7 +192,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .map(_.get)
 
   def futureRuns =
-    eventSource.commands
+    commandSource.commands
       .via(validateCommandAndPersistEvents)
 
   implicit val taskSystemComponents = taskSystem.components
