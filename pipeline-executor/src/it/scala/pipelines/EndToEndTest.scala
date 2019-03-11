@@ -44,7 +44,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             ]
         """
         When("registering that runconfiguration to the application")
-        postString("/v2/run/append", runConfiguration).status.intValue shouldBe 200
+        postString("/v2/runs", runConfiguration).status.intValue shouldBe 200
 
         Then("The sample's processing should finish")
         probe.expectMsgPF(timeout) {
@@ -78,18 +78,18 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
 
         When(
           "registering that runconfiguration to the application for a second time")
-        postString("/v2/run/append", runConfiguration).status.intValue shouldBe 200
+        postString("/v2/runs", runConfiguration).status.intValue shouldBe 200
         Then("The sample's processing should finish immediately")
         probe.expectMsgPF(15 seconds) {
           case sample: SampleFinished[_] =>
             sample.sample shouldBe "sample1"
         }
-        getProgress("/runs") shouldBe "runid1"
-        getProgress("/runs/runid1") shouldBe "demultiplex started\ndemultiplexed 1\ndemultiplex started\ndemultiplexed 1"
-        getProgress("/projects") shouldBe "project1"
-        getProgress("/projects/project1") shouldBe "sample1\tdemultiplexed:start:finish:demultiplexed:start:finish"
-        getProgress("/bams/project1") shouldBe ""
-        getProgress("/vcfs/project1") shouldBe ""
+        getProgress("/v2/runs") shouldBe "runid1"
+        getProgress("/v2/runs/runid1") shouldBe "demultiplex started\ndemultiplexed 1\ndemultiplex started\ndemultiplexed 1"
+        getProgress("/v2/projects") shouldBe "project1"
+        getProgress("/v2/projects/project1") shouldBe "sample1\tdemultiplexed:start:finish:demultiplexed:start:finish"
+        getProgress("/v2/bams/project1") shouldBe ""
+        getProgress("/v2/vcfs/project1") shouldBe ""
 
       }
     }
