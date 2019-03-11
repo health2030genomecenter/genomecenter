@@ -2,8 +2,12 @@ package org.gc.pipelines.util
 
 import akka.stream.scaladsl._
 import akka.stream.FlowShape
+import akka.http.scaladsl.server.RejectionHandler
+import akka.http.scaladsl.server.Directives.complete
+import akka.http.scaladsl.model._
+import com.typesafe.scalalogging.StrictLogging
 
-object AkkaStreamComponents {
+object AkkaStreamComponents extends StrictLogging {
 
   def broadcastThenMerge[I, O1, O2](
       flow1: Flow[I, O1, _],
@@ -52,5 +56,17 @@ object AkkaStreamComponents {
       }
   def deduplicate[T]: Flow[T, T, _] =
     deduplicateBy(identity)
+
+  val rejectionHandler =
+    RejectionHandler
+      .newBuilder()
+      .handle {
+        case reject =>
+          logger.info("Rejected with: " + reject.toString)
+          complete(
+            HttpResponse(StatusCodes.BadRequest,
+                         entity = s"Rejection: $reject"))
+      }
+      .result()
 
 }

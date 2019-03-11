@@ -6,7 +6,6 @@ import org.gc.pipelines.model.{RunId, Project, AnalysisId}
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.RejectionHandler
 import java.io.File
 
 import io.circe.{Encoder, Decoder}
@@ -32,150 +31,134 @@ class HttpCommandSource(implicit AS: ActorSystem)
       deriveDecoder[RunfolderDTO]
   }
 
-  val rejectionHandler =
-    RejectionHandler
-      .newBuilder()
-      .handle {
-        case reject =>
-          logger.info("Rejected with: " + reject.toString)
-          complete(
-            HttpResponse(StatusCodes.BadRequest,
-                         entity = s"Rejection: $reject"))
-      }
-      .result()
-
   val route =
-    handleRejections(rejectionHandler) {
-      post {
-        path("delete" / Segment) { runId =>
-          sourceActor ! Delete(RunId(runId))
-          complete(akka.http.scaladsl.model.StatusCodes.OK)
-        } ~
-          path("runfolder") {
-            import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-            entity(as[Seq[RunfolderDTO]]) { runFolders =>
-              val invalidPath = runFolders.exists {
-                case RunfolderDTO(path, _) =>
-                  !new java.io.File(path).canRead ||
-                    !new java.io.File(path, "RunInfo.xml").canRead
-              }
-
-              if (invalidPath) {
-                complete(HttpResponse(StatusCodes.BadRequest,
-                                      entity = HttpEntity("can't read")))
-              } else {
-                val parsed = runFolders.map {
-                  case dto @ RunfolderDTO(runFolderPath, configurationFile) =>
-                    logger.info(s"Got $runFolderPath")
-                    val runFolder = new java.io.File(runFolderPath)
-
-                    val maybeRunFolderReadyEvent =
-                      RunfolderReadyForProcessing.readFolderWithConfigFile(
-                        runFolder,
-                        new File(configurationFile)
-                      )
-
-                    maybeRunFolderReadyEvent match {
-                      case Left(error) =>
-                        logger.info(
-                          s"$dto failed to parse due to error $error.")
-                      case Right(runFolderReadyEvent) =>
-                        sourceActor ! Append(runFolderReadyEvent)
-                    }
-
-                    maybeRunFolderReadyEvent
-                }
-
-                if (parsed.forall(_.isRight))
-                  complete(akka.http.scaladsl.model.StatusCodes.OK)
-                else
-                  complete(
-                    HttpResponse(StatusCodes.BadRequest,
-                                 entity = HttpEntity(
-                                   parsed.map(_.toString).mkString("\n"))))
-              }
+    post {
+      path("delete" / Segment) { runId =>
+        sourceActor ! Delete(RunId(runId))
+        complete(akka.http.scaladsl.model.StatusCodes.OK)
+      } ~
+        path("runfolder") {
+          import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+          entity(as[Seq[RunfolderDTO]]) { runFolders =>
+            val invalidPath = runFolders.exists {
+              case RunfolderDTO(path, _) =>
+                !new java.io.File(path).canRead ||
+                  !new java.io.File(path, "RunInfo.xml").canRead
             }
 
-          }
-      } ~
-        pathPrefix("v2") {
-          post {
-            path("analyses" / Segment) { project =>
-              entity(as[String]) { analysisConfigurationAsString =>
-                val maybeParsed = AnalysisConfiguration.fromConfig(
-                  ConfigFactory.parseString(analysisConfigurationAsString))
+            if (invalidPath) {
+              complete(
+                HttpResponse(StatusCodes.BadRequest,
+                             entity = HttpEntity("can't read")))
+            } else {
+              val parsed = runFolders.map {
+                case dto @ RunfolderDTO(runFolderPath, configurationFile) =>
+                  logger.info(s"Got $runFolderPath")
+                  val runFolder = new java.io.File(runFolderPath)
 
-                maybeParsed match {
+                  val maybeRunFolderReadyEvent =
+                    RunfolderReadyForProcessing.readFolderWithConfigFile(
+                      runFolder,
+                      new File(configurationFile)
+                    )
+
+                  maybeRunFolderReadyEvent match {
+                    case Left(error) =>
+                      logger.info(s"$dto failed to parse due to error $error.")
+                    case Right(runFolderReadyEvent) =>
+                      sourceActor ! Append(runFolderReadyEvent)
+                  }
+
+                  maybeRunFolderReadyEvent
+              }
+
+              if (parsed.forall(_.isRight))
+                complete(akka.http.scaladsl.model.StatusCodes.OK)
+              else
+                complete(
+                  HttpResponse(
+                    StatusCodes.BadRequest,
+                    entity = HttpEntity(parsed.map(_.toString).mkString("\n"))))
+            }
+          }
+
+        }
+    } ~
+      pathPrefix("v2") {
+        post {
+          path("analyses" / Segment) { project =>
+            entity(as[String]) { analysisConfigurationAsString =>
+              val maybeParsed = AnalysisConfiguration.fromConfig(
+                ConfigFactory.parseString(analysisConfigurationAsString))
+
+              maybeParsed match {
+                case Left(error) =>
+                  logger.error(error.toString)
+                  complete(HttpResponse(StatusCodes.BadRequest,
+                                        entity = HttpEntity(error)))
+                case Right(configuration)
+                    if configuration.validationErrors.nonEmpty =>
+                  logger.error(s"Can't read $configuration")
+                  complete(HttpResponse(
+                    StatusCodes.BadRequest,
+                    entity = HttpEntity(
+                      s"can't read: ${configuration.validationErrors.mkString(";")}")))
+                case Right(configuration) =>
+                  logger.info(s"Assign ${configuration.analysisId} - $project")
+                  sourceActor ! Assign(Project(project), configuration)
+                  complete(akka.http.scaladsl.model.StatusCodes.OK)
+              }
+
+            }
+          }
+        } ~
+          delete {
+            path("analyses" / Segment / Segment) {
+              case (project, analysisId) =>
+                logger.info(s"Unassign $analysisId - $project")
+                sourceActor ! Unassign(Project(project), AnalysisId(analysisId))
+                complete(akka.http.scaladsl.model.StatusCodes.OK)
+
+            }
+          } ~
+          delete {
+            path("runs" / Segment) { runId =>
+              sourceActor ! Delete(RunId(runId))
+              complete(akka.http.scaladsl.model.StatusCodes.OK)
+            }
+          } ~
+          post {
+            path("runs") {
+              entity(as[String]) { runFolderConfigurationAsString =>
+                val maybeRunFolderReadyEvent = for {
+                  parsed <- Try(ConfigFactory.parseString(
+                    runFolderConfigurationAsString)).toEither.left
+                    .map(_.toString)
+                  runFolder <- RunfolderReadyForProcessing.fromConfig(parsed)
+                } yield runFolder
+
+                maybeRunFolderReadyEvent match {
                   case Left(error) =>
                     logger.error(error.toString)
                     complete(HttpResponse(StatusCodes.BadRequest,
                                           entity = HttpEntity(error)))
-                  case Right(configuration)
-                      if configuration.validationErrors.nonEmpty =>
-                    logger.error(s"Can't read $configuration")
+                  case Right(runFolder)
+                      if runFolder.validationErrors.nonEmpty =>
+                    logger.error(s"Can't read $runFolder")
                     complete(HttpResponse(
                       StatusCodes.BadRequest,
                       entity = HttpEntity(
-                        s"can't read: ${configuration.validationErrors.mkString(";")}")))
-                  case Right(configuration) =>
-                    logger.info(
-                      s"Assign ${configuration.analysisId} - $project")
-                    sourceActor ! Assign(Project(project), configuration)
+                        s"can't read: ${runFolder.validationErrors.mkString(";")}")))
+                  case Right(runFolder) =>
+                    logger.info(s"Got ${runFolder.runId}")
+                    sourceActor ! Append(runFolder)
                     complete(akka.http.scaladsl.model.StatusCodes.OK)
                 }
 
               }
+
             }
-          } ~
-            delete {
-              path("analyses" / Segment / Segment) {
-                case (project, analysisId) =>
-                  logger.info(s"Unassign $analysisId - $project")
-                  sourceActor ! Unassign(Project(project),
-                                         AnalysisId(analysisId))
-                  complete(akka.http.scaladsl.model.StatusCodes.OK)
-
-              }
-            } ~
-            delete {
-              path("runs" / Segment) { runId =>
-                sourceActor ! Delete(RunId(runId))
-                complete(akka.http.scaladsl.model.StatusCodes.OK)
-              }
-            } ~
-            post {
-              path("runs") {
-                entity(as[String]) { runFolderConfigurationAsString =>
-                  val maybeRunFolderReadyEvent = for {
-                    parsed <- Try(ConfigFactory.parseString(
-                      runFolderConfigurationAsString)).toEither.left
-                      .map(_.toString)
-                    runFolder <- RunfolderReadyForProcessing.fromConfig(parsed)
-                  } yield runFolder
-
-                  maybeRunFolderReadyEvent match {
-                    case Left(error) =>
-                      logger.error(error.toString)
-                      complete(HttpResponse(StatusCodes.BadRequest,
-                                            entity = HttpEntity(error)))
-                    case Right(runFolder)
-                        if runFolder.validationErrors.nonEmpty =>
-                      logger.error(s"Can't read $runFolder")
-                      complete(HttpResponse(
-                        StatusCodes.BadRequest,
-                        entity = HttpEntity(
-                          s"can't read: ${runFolder.validationErrors.mkString(";")}")))
-                    case Right(runFolder) =>
-                      logger.info(s"Got ${runFolder.runId}")
-                      sourceActor ! Append(runFolder)
-                      complete(akka.http.scaladsl.model.StatusCodes.OK)
-                  }
-
-                }
-
-              }
-            }
-        }
-    }
+          }
+      }
 
 }

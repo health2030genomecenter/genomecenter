@@ -14,7 +14,8 @@ class HttpServer(port: Int, components: Seq[Route])(implicit AS: ActorSystem,
                                                     MAT: Materializer)
     extends StrictLogging {
 
-  val route = Directives.concat(components: _*)
+  val route =
+    Directives.concat(components: _*)
 
   lazy val startServer
     : scala.concurrent.Future[akka.http.scaladsl.Http.ServerBinding] =
