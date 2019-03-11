@@ -90,6 +90,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         getProgress("/v2/projects/project1") shouldBe "sample1\tdemultiplexed:start:finish:demultiplexed:start:finish"
         getProgress("/v2/bams/project1") shouldBe ""
         getProgress("/v2/vcfs/project1") shouldBe ""
+        getProgress("/v2/analyses") shouldBe "[]"
 
       }
     }

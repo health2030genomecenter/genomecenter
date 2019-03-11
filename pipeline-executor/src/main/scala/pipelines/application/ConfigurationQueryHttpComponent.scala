@@ -5,7 +5,7 @@ import scala.concurrent.ExecutionContext
 import org.gc.pipelines.model._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 
-class ConfigurationQueryHttpCompoment(state: PipelineState)(
+class ConfigurationQueryHttpComponent(state: PipelineState)(
     implicit ec: ExecutionContext)
     extends HttpComponent {
 

@@ -27,18 +27,20 @@ class Application(implicit ec: ExecutionContext,
 
   val commandSource = new HttpCommandSource
   val progressServer = new ProgressServer
+  val pipelineState = PipelineConfiguration.pipelineState
+  val queryComponent = new ConfigurationQueryHttpComponent(pipelineState)
 
   val httpServer =
-    new HttpServer(port = MainConfig.port,
-                   Seq(commandSource.route, progressServer.route))
+    new HttpServer(
+      port = MainConfig.port,
+      Seq(commandSource.route, progressServer.route, queryComponent.route))
+
   val httpBinding = httpServer.startServer
   httpBinding.andThen {
     case scala.util.Success(serverBinding) =>
       logger.info(
         s"Pipeline application's web server is listening on ${serverBinding.localAddress}")
   }(actorSystem.dispatcher)
-
-  val pipelineState = PipelineConfiguration.pipelineState
 
   val pipeline =
     new ProtoPipeline(progressServer)

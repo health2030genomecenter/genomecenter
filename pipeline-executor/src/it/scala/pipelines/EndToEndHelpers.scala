@@ -12,7 +12,8 @@ import org.gc.pipelines.application.{
   HttpCommandSource,
   FilePipelineState,
   PipelinesApplication,
-  ProgressServer
+  ProgressServer,
+  ConfigurationQueryHttpComponent
 }
 
 import org.gc.pipelines.stages.ProtoPipeline
@@ -107,11 +108,14 @@ object EndToEndHelpers {
     val (config, basePath) = makeTestConfig
     val commandSource = new HttpCommandSource
     val progressServer = new ProgressServer
-
-    val httpServer =
-      new HttpServer(port = 0, Seq(commandSource.route, progressServer.route))
     basePath.mkdirs
     val pipelineState = new FilePipelineState(new File(basePath, "STATE"))
+    val queryComponent = new ConfigurationQueryHttpComponent(pipelineState)
+    val httpServer =
+      new HttpServer(
+        port = 0,
+        Seq(commandSource.route, progressServer.route, queryComponent.route))
+
     val taskSystem = defaultTaskSystem(Some(config))
 
     val pipelineApp = new PipelinesApplication(
