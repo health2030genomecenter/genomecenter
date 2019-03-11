@@ -71,7 +71,7 @@ class FilePipelineState(logFile: File)
     extends PipelineState
     with StrictLogging {
   private var past = Vector[RunfolderReadyForProcessing]()
-  private var analyses = AnalysisAssignments.empty
+  private var _analyses = AnalysisAssignments.empty
   sealed trait Event
   case class Registered(run: RunfolderReadyForProcessing) extends Event
   case class Deleted(runId: RunId) extends Event
@@ -116,9 +116,9 @@ class FilePipelineState(logFile: File)
       past =
         past.filterNot(runFolder => (runFolder.runId: RunId) == (runId: RunId))
     case Assigned(project, analysis) =>
-      analyses = analyses.assigned(project, analysis)
+      _analyses = _analyses.assigned(project, analysis)
     case Unassigned(project, analysis) =>
-      analyses = analyses.unassigned(project, analysis)
+      _analyses = _analyses.unassigned(project, analysis)
   }
 
   def registered(r: RunfolderReadyForProcessing) = synchronized {
@@ -126,7 +126,7 @@ class FilePipelineState(logFile: File)
     val event = Registered(r)
     appendEvent(event)
     updateState(event)
-    Future.successful(Some(RunWithAnalyses(r, analyses)))
+    Future.successful(Some(RunWithAnalyses(r, _analyses)))
   }
 
   def invalidated(runId: RunId) = synchronized {
@@ -136,7 +136,9 @@ class FilePipelineState(logFile: File)
   }
 
   def pastRuns =
-    Future.successful(past.toList.map(run => RunWithAnalyses(run, analyses)))
+    Future.successful(past.toList.map(run => RunWithAnalyses(run, _analyses)))
+
+  def analyses = Future.successful(_analyses)
 
   def contains(runId: RunId) =
     Future.successful(past.exists(_.runId == runId))

@@ -100,7 +100,18 @@ case class AnalysisAssignments(
 }
 
 object AnalysisAssignments {
+  /* Helper for serialization
+   * Circe had codecs for string keyed maps only
+   */
+  private case class Helper(assignmens: Map[String, Seq[AnalysisConfiguration]])
   val empty = AnalysisAssignments(Map.empty)
+  implicit val encoder: Encoder[AnalysisAssignments] =
+    deriveEncoder[Helper].contramap(a =>
+      Helper(a.assignments.map { case (k, v) => k.toString -> v }))
+  implicit val decoder: Decoder[AnalysisAssignments] =
+    deriveDecoder[Helper].map { h =>
+      AnalysisAssignments(h.assignmens.map { case (k, v) => Project(k) -> v })
+    }
 }
 
 case class RunConfiguration(

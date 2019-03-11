@@ -106,6 +106,11 @@ class ProgressServer(implicit AS: ActorSystem)
         |GET /v2/projects/{projectname}
         |GET /v2/bams/{projectname}
         |GET /v2/vcfs/{projectname}
+        |GET /v2/runconfigurations
+        |GET /v2/runconfigurations/{runid}
+        |GET /v2/analyses
+        |GET /v2/analyses/{projectname}
+        |GET /v2/analyses/{projectname}/{analysisid}
         |POST /v2/runs , and post body
         |DELETE /v2/runs/{runid}
         |POST /v2/analyses/{projectname} , and post body
