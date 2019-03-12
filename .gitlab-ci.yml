@@ -66,7 +66,7 @@ sbt-package:
     paths:
       - pipeline-executor/target/universal/*gz
   only:
-    - master    
+    - masterdisable
 
 deploy-to-staging:
   stage: deploy
@@ -74,13 +74,18 @@ deploy-to-staging:
    - echo -n ''
   script: |
      mkdir build
-     tar xf pipeline-executor/target/universal/*gz -C build --strip-components 1
+     //  ARCHIVE=$(ls pipeline-executor/target/universal/*gz)
+     ARCHIVE=/home/ibartha2/pipeline-executor-3-127-gccc364b.tgz
+     VERSION=$(basename $ARCHIVE | awk -F- '{print $3"-"$4"-"$5}' | awk -F. '{print $1}' )
+
+     tar xf $ARCHIVE -C build --strip-components 1
      cp docker/staging/resources/* build/resources/
+
      cd build
-     docker build -f ../docker/staging/Dockerfile -t docker.staging/gc/pipeline:`git describe` .
-     docker push docker.staging/gc/pipeline:`git describe`
+     docker build -f ../docker/staging/Dockerfile -t docker.staging/gc/pipeline:$VERSION .
+     docker push docker.staging/gc/pipeline:$VERSION
      cd ..
-     VERSION=`git describe`
+
      TEMPLATE=kubernetes.deployment.yml
      cat $TEMPLATE | sed "s/{{IMAGEVERSION}}/$VERSION/g" | kubectl apply -f -
   tags:

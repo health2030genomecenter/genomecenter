@@ -46,9 +46,12 @@ spec:
     - port: 28880
       targetPort: 28880
       nodePort: 33880
+      name: tasks-http
     - port: 28881
       targetPort: 28881
       nodePort: 33881
+      name: tasks-http2
     - port: 9099
       targetPort: 9099
       nodePort: 33099
+      name: pipeline-http
