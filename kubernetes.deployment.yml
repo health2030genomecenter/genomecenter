@@ -1,0 +1,54 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pipeline-deployment
+  labels:
+    app: pipeline
+    namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pipeline
+  template:
+    metadata:
+      labels:
+        app: pipeline
+    spec:
+      containers:
+      - name: pipeline
+        image: docker.staging/pipeline: IMAGEVERSION
+        imagePullPolicy: Never
+        ports:
+          - containerPort: 28880
+          - containerPort: 28881
+          - containerPort: 9099
+        volumeMounts:
+          - mountPath: /data
+            name: data
+      volumes:
+        - name: data
+          hostPath:
+            path: /data/ibartha2/kube-data/staging-deployment/
+            type: Directory
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: pipeline
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    app: pipeline
+  ports:
+    - port: 28880
+      targetPort: 28880
+      nodePort: 33880
+    - port: 28881
+      targetPort: 28881
+      nodePort: 33881
+    - port: 9099
+      targetPort: 9099
+      nodePort: 33099

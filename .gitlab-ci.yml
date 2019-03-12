@@ -50,7 +50,7 @@ sbt-unit-it-test:
       - target/scala-2.12/scoverage-report/*
   coverage: '/Coverage was \[(\d+\.\d+)\]/'  
   only:
-    - master
+    - masterdisable
 
 sbt-package:
   stage: deploy
@@ -62,3 +62,29 @@ sbt-package:
       - pipeline-executor/target/universal/*gz
   only:
     - master    
+
+build-image:
+  stage: deploy
+  script:
+    - docker build -f Dockerfile -t docker.staging/pipeline:`git describe` .
+    - docker push docker.staging/pipeline:`git describe`
+  tags:
+    - shell-runner
+  # dependencies:
+  #   - sbt-unit-it-test
+  only:
+    - master
+
+deploy-to-staging:
+  stage: deploy
+  script:
+    - |
+    VERSION=`git describe`
+    TEMPLATE=kubernetes.deployment.yml
+    `cat "deploy.yml.template" | sed "s/{{IMAGEVERSION}}/$VERSION/g"` | kubectl apply -f -
+  tags:
+    - shell-runner
+  dependencies:
+    - build-image
+  only:
+    - master
