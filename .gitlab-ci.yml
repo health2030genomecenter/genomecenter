@@ -75,15 +75,14 @@ deploy-to-staging:
   script: |
      mkdir build
      tar xf pipeline-executor/target/universal/*gz -C build --strip-components 1
-     find build
      cp docker/staging/resources/* build/resources/
      cd build
-     docker build -f ../docker/staging/Dockerfile -t docker.staging/pipeline:`git describe` .
-     docker push docker.staging/pipeline:`git describe`
+     docker build -f ../docker/staging/Dockerfile -t docker.staging/gc/pipeline:`git describe` .
+     docker push docker.staging/gc/pipeline:`git describe`
 
      VERSION=`git describe`
      TEMPLATE=kubernetes.deployment.yml
-     `cat "deploy.yml.template" | sed "s/{{IMAGEVERSION}}/$VERSION/g"` | kubectl apply -f -
+     `cat $TEMPLATE | sed "s/{{IMAGEVERSION}}/$VERSION/g"` | kubectl apply -f -
   tags:
     - shell-runner
   dependencies:
