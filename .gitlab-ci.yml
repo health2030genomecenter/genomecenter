@@ -1,5 +1,10 @@
 image: docker.staging/centos7-slurm-sbt:18.08.8-1.2.1
 
+stages:
+  - build
+  - test
+  - package
+  - deploy
 
 before_script:
   - uname
@@ -53,7 +58,7 @@ sbt-unit-it-test:
     - masterdisable
 
 sbt-package:
-  stage: deploy
+  stage: package
   script:
     - sbt -Dsbt.repository.config=repositories -Dsbt.override.build.repos=true -batch 'pipelineExecutor/universal:packageZipTarball'
   artifacts:
@@ -64,7 +69,7 @@ sbt-package:
     - master    
 
 build-image:
-  stage: deploy
+  stage: package
   script:
     - docker build -f Dockerfile -t docker.staging/pipeline:`git describe` .
     - docker push docker.staging/pipeline:`git describe`
@@ -77,8 +82,7 @@ build-image:
 
 deploy-to-staging:
   stage: deploy
-  script:
-    - |
+  script: |
     VERSION=`git describe`
     TEMPLATE=kubernetes.deployment.yml
     `cat "deploy.yml.template" | sed "s/{{IMAGEVERSION}}/$VERSION/g"` | kubectl apply -f -
