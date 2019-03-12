@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: pipeline
-        image: docker.staging/pipeline: IMAGEVERSION
+        image: "docker.staging/pipeline:IMAGEVERSION"
         imagePullPolicy: Never
         ports:
           - containerPort: 28880
