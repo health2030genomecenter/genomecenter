@@ -87,7 +87,7 @@ deploy-to-staging:
      cd ..
 
      TEMPLATE=kubernetes.deployment.yml
-     cat $TEMPLATE | sed "s/{{IMAGEVERSION}}/$VERSION/g" | kubectl apply -f -
+     cat $TEMPLATE | sed "s/IMAGEVERSION/$VERSION/g" | kubectl apply -f -
   tags:
     - shell-runner
   # dependencies:
