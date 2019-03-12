@@ -45,7 +45,7 @@ spec:
   ports:
     - port: 28880
       targetPort: 28880
-      nodePort: 33880
+      nodePort: 30880
       name: tasks-http
     - port: 28881
       targetPort: 28881
