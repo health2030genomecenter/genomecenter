@@ -78,12 +78,12 @@ deploy-to-staging:
      ls pipeline-executor/target/universal/*gz
      ls /
      ORIG=`pwd`
-     mkdir /build
-     tar xf pipeline-executor/target/universal/*gz -C /build 
-     find /build
-     cp docker/staging/resources/* /build/resources/*
-     cd /build
-     docker build -f $ORIG/docker/staging/Dockerfile -t docker.staging/pipeline:`git describe` .
+     mkdir build
+     tar xf pipeline-executor/target/universal/*gz -C build 
+     find build
+     cp docker/staging/resources/* build/resources/*
+     cd build
+     docker build -f ../docker/staging/Dockerfile -t docker.staging/pipeline:`git describe` .
      docker push docker.staging/pipeline:`git describe`
 
      VERSION=`git describe`
