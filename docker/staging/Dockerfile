@@ -4,5 +4,5 @@ RUN mkdir -p /data/output
 
 COPY ./ /opt/
 
-CMD ["/opt/bin/pipeline-executor", "-J-Xmx4G"]
+ENTRYPOINT ["/opt/bin/pipeline-executor", "-J-Xmx4G"]
 
