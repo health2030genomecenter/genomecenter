@@ -70,6 +70,7 @@ sbt-package:
 
 build-image:
   stage: package
+  before_script: echo -n ''
   script:
     - docker build -f Dockerfile -t docker.staging/pipeline:`git describe` .
     - docker push docker.staging/pipeline:`git describe`
@@ -82,6 +83,7 @@ build-image:
 
 deploy-to-staging:
   stage: deploy
+  before_script: echo -n ''
   script: |
     VERSION=`git describe`
     TEMPLATE=kubernetes.deployment.yml
