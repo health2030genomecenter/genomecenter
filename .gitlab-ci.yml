@@ -73,15 +73,10 @@ deploy-to-staging:
   before_script: 
    - echo -n ''
   script: |
-     ls
-     pwd
-     ls pipeline-executor/target/universal/*gz
-     ls /
-     ORIG=`pwd`
      mkdir build
-     tar xf pipeline-executor/target/universal/*gz -C build 
+     tar xf pipeline-executor/target/universal/*gz -C build --strip-components 1
      find build
-     cp docker/staging/resources/* build/resources/*
+     cp docker/staging/resources/* build/resources/
      cd build
      docker build -f ../docker/staging/Dockerfile -t docker.staging/pipeline:`git describe` .
      docker push docker.staging/pipeline:`git describe`
