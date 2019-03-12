@@ -68,31 +68,30 @@ sbt-package:
   only:
     - master    
 
-build-image:
-  stage: package
-  before_script: 
-   - echo -n ''
-  script:
-    - docker build -f Dockerfile -t docker.staging/pipeline:`git describe` .
-    - docker push docker.staging/pipeline:`git describe`
-  tags:
-    - shell-runner
-  # dependencies:
-  #   - sbt-unit-it-test
-  only:
-    - master
-
 deploy-to-staging:
   stage: deploy
   before_script: 
-    - echo -n ''
+   - echo -n ''
   script: |
-    VERSION=`git describe`
-    TEMPLATE=kubernetes.deployment.yml
-    `cat "deploy.yml.template" | sed "s/{{IMAGEVERSION}}/$VERSION/g"` | kubectl apply -f -
+     ls
+     pwd
+     ls pipeline-executor/target/universal/*gz
+     ls /
+     ORIG=`pwd`
+     mkdir /build
+     tar xf pipeline-executor/target/universal/*gz -C /build 
+     find /build
+     cp docker/staging/resources/* /build/resources/*
+     cd /build
+     docker build -f $ORIG/docker/staging/Dockerfile -t docker.staging/pipeline:`git describe` .
+     docker push docker.staging/pipeline:`git describe`
+
+     VERSION=`git describe`
+     TEMPLATE=kubernetes.deployment.yml
+     `cat "deploy.yml.template" | sed "s/{{IMAGEVERSION}}/$VERSION/g"` | kubectl apply -f -
   tags:
     - shell-runner
   dependencies:
-    - build-image
+    - sbt-package
   only:
     - master
