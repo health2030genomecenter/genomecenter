@@ -66,7 +66,7 @@ object CliHelpers {
       analysisId =
       referenceFasta =
       targetIntervals =
-      bqsrKnownSites = # array of strings 
+      bqsr.knownSites = # array of strings 
       dbSnpVcf = 
       variantEvaluationIntervals = 
       
@@ -85,11 +85,11 @@ object CliHelpers {
 
       # optional minimum coverage (WGS, or targeted)
       # If present the pipeline will stop early if coverage is not met 
-
       # minimumWGSCoverage =
       # minimumTargetCoverage =
 
       # optional, if missing main human chromosomes ([chr]1-22,X,Y,M,MT) are used
+      # path to file 
       # variantCallingContigs =
     }
 
@@ -157,12 +157,16 @@ object Pipelinectl extends App {
       .method("POST")
       .asString
   }
-  def get(endpoint: String) = {
+  def get(endpoint: String) =
     Http(s"http://$hostname:$port$endpoint")
       .method("GET")
       .asString
       .body
-  }
+
+  def delete(endpoint: String) =
+    Http(s"http://$hostname:$port$endpoint")
+      .method("DELETE")
+      .asString
 
   case class Config(
       command: CliCommand = PrintHelp,
@@ -251,6 +255,7 @@ object Pipelinectl extends App {
           opt[String]('c', "conf")
             .text("path to configuration of analysis. stdin for stdin")
             .action((v, c) => c.copy(configPath = Some(v)))
+            .required
             .validate(v =>
               if (v == "stdin") success
               else if (new java.io.File(v).canRead) success
@@ -367,8 +372,8 @@ object Pipelinectl extends App {
           println(
             s"Command: unassigned project ${config.project.get} from analysis ${config.analysisId.get}")
           val response =
-            post(
-              "/v2/analysis/unassign/" + config.project.get + "/" + config.analysisId.get)
+            delete(
+              "/v2/analyses/unassign/" + config.project.get + "/" + config.analysisId.get)
           if (response.code != 200) {
             println("Request failed: " + response)
           } else {
@@ -393,7 +398,7 @@ object Pipelinectl extends App {
               println("Validation passed.")
           }
           val response =
-            post("/v2/analysis/assign/" + config.project.get, configuration)
+            post("/v2/analyses/" + config.project.get, configuration)
           if (response.code != 200) {
             println("Request failed: " + response)
           } else {
@@ -406,7 +411,7 @@ object Pipelinectl extends App {
             case None =>
               throw new RuntimeException("should not happen")
           }
-          val response = post("/v2/run/delete/" + run)
+          val response = delete("/v2/runs/" + run)
           if (response.code != 200) {
             println("Request failed: " + response)
           } else {
@@ -435,7 +440,7 @@ object Pipelinectl extends App {
               println("Validation passed.")
           }
 
-          val response = post("/v2/run/append", configuration)
+          val response = post("/v2/runs", configuration)
           if (response.code != 200) {
             println("Request failed: " + response)
           } else {
