@@ -57,8 +57,8 @@ class SimplePipelinesApplicationTest
           .takeWhile(samplesFinished(
                        FakeSampleResult(Project("project1"),
                                         SampleId("sample1"),
-                                        RunId("fake2"),
-                                        "fake1_0fake3_0fake2_0")),
+                                        RunId("fake3"),
+                                        "fake1_0fake2_0fake3_0")),
                      true)
           .runWith(Sink.last),
         atMost = 60 seconds
@@ -82,12 +82,12 @@ class SimplePipelinesApplicationTest
                        "fake1_0"),
       FakeSampleResult(Project("project1"),
                        SampleId("sample1"),
-                       RunId("fake3"),
-                       "fake1_0fake3_0"),
+                       RunId("fake2"),
+                       "fake1_0fake2_0"),
       FakeSampleResult(Project("project1"),
                        SampleId("sample1"),
-                       RunId("fake2"),
-                       "fake1_0fake3_0fake2_0")
+                       RunId("fake3"),
+                       "fake1_0fake2_0fake3_0")
     )
     taskSystem.shutdown
 

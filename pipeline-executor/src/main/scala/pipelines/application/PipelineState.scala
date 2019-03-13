@@ -59,17 +59,24 @@ trait PipelineState {
 }
 
 class InMemoryPipelineState extends PipelineState with StrictLogging {
-  private var past = List[RunfolderReadyForProcessing]()
+  private var past = Vector[RunfolderReadyForProcessing]()
+  private var runOrder = Vector[RunId]()
   def contains(r: RunId) = {
     Future.successful(past.exists(_.runId == r))
   }
   def pastRuns = {
     logger.debug(s"Querying incomplete runs (${past.size})")
-    Future.successful(past.map(r => RunWithAnalyses(r, _analyses)))
+    Future.successful(past.map(r => RunWithAnalyses(r, _analyses)).toList)
   }
   def registered(r: RunfolderReadyForProcessing) = synchronized {
     logger.info(s"Registering run ${r.runId}")
-    past = (past.filterNot(_.runId == r.runId)) :+ r
+    if (!runOrder.contains(r.runId)) {
+      past = past :+ r
+      runOrder = runOrder :+ r.runId
+    } else {
+      past = (past.filterNot(_.runId == r.runId) :+ r).sortBy(r =>
+        runOrder.indexOf(r.runId))
+    }
     Future.successful(Some(RunWithAnalyses(r, _analyses)))
   }
   def invalidated(runId: RunId) = synchronized {

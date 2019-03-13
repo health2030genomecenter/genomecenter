@@ -71,6 +71,7 @@ class FilePipelineState(logFile: File)
     extends PipelineState
     with StrictLogging {
   private var past = Vector[RunfolderReadyForProcessing]()
+  private var runOrder = Vector[RunId]()
   private var _analyses = AnalysisAssignments.empty
   sealed trait Event
   case class Registered(run: RunfolderReadyForProcessing) extends Event
@@ -111,7 +112,13 @@ class FilePipelineState(logFile: File)
 
   def updateState(e: Event) = e match {
     case Registered(r) =>
-      past = (past.filterNot(_.runId == r.runId)) :+ r
+      if (!runOrder.contains(r.runId)) {
+        past = past :+ r
+        runOrder = runOrder :+ r.runId
+      } else {
+        past = (past.filterNot(_.runId == r.runId) :+ r).sortBy(r =>
+          runOrder.indexOf(r.runId))
+      }
     case Deleted(runId) =>
       past =
         past.filterNot(runFolder => (runFolder.runId: RunId) == (runId: RunId))

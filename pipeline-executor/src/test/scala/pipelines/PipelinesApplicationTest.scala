@@ -144,6 +144,81 @@ class PipelinesApplicationTest
     }
   }
 
+  test("stable run order in FilePipelineState") {
+    new Fixture {
+      Given("an empty file ")
+      val file = fileutils.TempFile.createTempFile("state")
+      And("loaded into a FilePipelineState")
+      val pipelineState = new FilePipelineState(file)
+
+      And("three runs with two ids ")
+      val run1 = RunfolderReadyForProcessing(
+        RunId("r1"),
+        Some("fakePath"),
+        None,
+        RunConfiguration(StableSet.empty, None, StableSet.empty)
+      )
+      val run1b = RunfolderReadyForProcessing(
+        RunId("r1"),
+        Some("fakePath2"),
+        None,
+        RunConfiguration(StableSet.empty, None, StableSet.empty)
+      )
+      val run2 = RunfolderReadyForProcessing(
+        RunId("r2"),
+        Some("fakePath3"),
+        None,
+        RunConfiguration(StableSet.empty, None, StableSet.empty)
+      )
+
+      When("run1 and run2 are registered")
+      pipelineState.registered(run1)
+      pipelineState.registered(run2)
+
+      Await.result(pipelineState.pastRuns, 5 seconds).map(_.runId) shouldBe Seq(
+        "r1",
+        "r2")
+      Await
+        .result(new FilePipelineState(file).pastRuns, 5 seconds)
+        .map(_.runId) shouldBe Seq("r1", "r2")
+
+      When("run1b is registered")
+      pipelineState.registered(run1b)
+      Await.result(pipelineState.pastRuns, 5 seconds).map(_.runId) shouldBe Seq(
+        "r1",
+        "r2")
+      Await
+        .result(new FilePipelineState(file).pastRuns, 5 seconds)
+        .map(_.runId) shouldBe Seq("r1", "r2")
+
+      When("run1b is invalidated")
+      pipelineState.invalidated(run1b.runId)
+      And("registered again")
+      pipelineState.registered(run1b)
+      Await.result(pipelineState.pastRuns, 5 seconds).map(_.runId) shouldBe Seq(
+        "r1",
+        "r2")
+      Await
+        .result(new FilePipelineState(file).pastRuns, 5 seconds)
+        .map(_.runId) shouldBe Seq("r1", "r2")
+
+      When("run1b and run2 is invalidated")
+      pipelineState.invalidated(run1b.runId)
+      pipelineState.invalidated(run2.runId)
+      And("registered again")
+      pipelineState.registered(run2)
+      pipelineState.registered(run1b)
+      Await.result(pipelineState.pastRuns, 5 seconds).map(_.runId) shouldBe Seq(
+        "r1",
+        "r2")
+      Await
+        .result(new FilePipelineState(file).pastRuns, 5 seconds)
+        .map(_.runId) shouldBe Seq("r1", "r2")
+
+    }
+
+  }
+
   test("pipelines application should respect the blacklist") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
