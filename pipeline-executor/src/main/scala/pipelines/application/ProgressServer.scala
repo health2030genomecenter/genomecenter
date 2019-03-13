@@ -9,6 +9,9 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import akka.http.scaladsl.server.Directives._
 import akka.pattern.ask
+import io.circe.syntax._
+import io.circe.{Decoder, Encoder}
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
 sealed trait ProgressData
 object ProgressData {
@@ -19,9 +22,14 @@ object ProgressData {
       samplesWithFastq: Seq[(Project, SampleId, Set[String])])
       extends ProgressData
 
+  case class DemultiplexedSample(project: Project,
+                                 sampleId: SampleId,
+                                 run: RunId)
+      extends ProgressData
+
   case class SampleProcessingStarted(project: Project,
                                      sample: SampleId,
-                                     run: RunId)
+                                     runId: RunId)
       extends ProgressData
   case class SampleProcessingFinished(project: Project,
                                       sample: SampleId,
@@ -57,6 +65,9 @@ object ProgressData {
                                  samples: Set[SampleId],
                                  vcfPath: String)
       extends ProgressData
+
+  implicit val encoder: Encoder[ProgressData] = deriveEncoder[ProgressData]
+  implicit val decoder: Decoder[ProgressData] = deriveDecoder[ProgressData]
 }
 import ProgressData._
 
@@ -177,42 +188,36 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                 for {
                   data <- getData
                 } yield {
-                  val sampleStates = data
-                    .collect {
-                      case Demultiplexed(_, samples)
-                          if samples.map(_._1).contains(project) =>
-                        samples
-                          .filter(_._1 == project)
-                          .map(p => (p._2, "demultiplexed"))
-                      case SampleProcessingStarted(project0, sample, _)
-                          if project0 == project =>
-                        List(sample -> "start")
-                      case SampleProcessingFailed(project0, sample, _)
-                          if project0 == project =>
-                        List(sample -> "fail")
-                      case SampleProcessingFinished(project0, sample, _)
-                          if project0 == project =>
-                        List(sample -> "finish")
-                      case CoverageAvailable(project0, sample, _, _, _)
-                          if project0 == project =>
-                        List(sample -> "cov")
-                      case BamAvailable(project0, sample, _, _, _)
-                          if project0 == project =>
-                        List(sample -> "bam")
-                      case VCFAvailable(project0, sample, _, _, _)
-                          if project0 == project =>
-                        List(sample -> "vcf")
-                    }
+                  val sampleStates: Seq[ProgressData] = data.collect {
+                    case Demultiplexed(run, samples)
+                        if samples.map(_._1).contains(project) =>
+                      samples
+                        .filter(_._1 == project)
+                        .map(p =>
+                          DemultiplexedSample(Project(project), p._2, run))
+                        .toSeq
+                    case v @ SampleProcessingStarted(project0, _, _)
+                        if project0 == project =>
+                      List(v)
+                    case v @ SampleProcessingFailed(project0, _, _)
+                        if project0 == project =>
+                      List(v)
+                    case v @ SampleProcessingFinished(project0, _, _)
+                        if project0 == project =>
+                      List(v)
+                    case v @ CoverageAvailable(project0, _, _, _, _)
+                        if project0 == project =>
+                      List(v)
+                    case v @ BamAvailable(project0, _, _, _, _)
+                        if project0 == project =>
+                      List(v)
+                    case v @ VCFAvailable(project0, _, _, _, _)
+                        if project0 == project =>
+                      List(v)
+                  } flatten
 
-                  sampleStates.flatten
-                    .groupBy(_._1)
-                    .toSeq
-                    .sortBy(_._1.toString)
-                    .map {
-                      case (sample, states) =>
-                        sample + "\t" + states.map(_._2).mkString(":")
-                    }
-                    .mkString("\n")
+                  sampleStates.asJson.noSpaces
+
                 }
               }
             } ~

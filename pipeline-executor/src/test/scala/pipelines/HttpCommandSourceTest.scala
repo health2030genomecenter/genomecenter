@@ -79,7 +79,8 @@ class HttpCommandSourceTest
             None,
             RunConfiguration(
               demultiplexingRuns = StableSet(),
-              globalIndexSet = None
+              globalIndexSet = None,
+              lastRunOfSamples = StableSet()
             )
           )))
     }
@@ -148,7 +149,8 @@ class HttpCommandSourceTest
             )),
           RunConfiguration(
             demultiplexingRuns = StableSet(),
-            globalIndexSet = None
+            globalIndexSet = None,
+            lastRunOfSamples = StableSet()
           )
         )))
     }

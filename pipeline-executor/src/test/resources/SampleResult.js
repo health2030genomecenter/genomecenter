@@ -612,6 +612,8 @@
           ]
         ],
         "rnaProcessing" : [
+        ],
+        "lastRunOfSamples" : [
         ]
       }
     }

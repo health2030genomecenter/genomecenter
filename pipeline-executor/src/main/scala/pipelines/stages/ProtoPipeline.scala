@@ -263,6 +263,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
       SampleProcessingStarted(demultiplexedSample.project,
                               demultiplexedSample.sampleId,
                               r.runId))
+
     ProtoPipelineStages.parseReadLengthFromRunInfo(r) match {
       case Left(error) =>
         logger.error(s"$error")

@@ -87,7 +87,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         getProgress("/v2/runs") shouldBe "runid1"
         getProgress("/v2/runs/runid1") shouldBe "demultiplex started\ndemultiplexed 1\ndemultiplex started\ndemultiplexed 1"
         getProgress("/v2/projects") shouldBe "project1"
-        getProgress("/v2/projects/project1") shouldBe "sample1\tdemultiplexed:start:finish:demultiplexed:start:finish"
+        getProgress("/v2/projects/project1") shouldBe """[{"DemultiplexedSample":{"project":"project1","sampleId":"sample1","run":"runid1"}},{"SampleProcessingStarted":{"project":"project1","sample":"sample1","runId":"runid1"}},{"SampleProcessingFinished":{"project":"project1","sample":"sample1","run":"runid1"}},{"DemultiplexedSample":{"project":"project1","sampleId":"sample1","run":"runid1"}},{"SampleProcessingStarted":{"project":"project1","sample":"sample1","runId":"runid1"}},{"SampleProcessingFinished":{"project":"project1","sample":"sample1","run":"runid1"}}]"""
         getProgress("/v2/bams/project1") shouldBe ""
         getProgress("/v2/vcfs/project1") shouldBe ""
         getProgress("/v2/analyses") shouldBe "[]"

@@ -231,7 +231,8 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
           partitionByTileCount = None
         )
       ),
-      globalIndexSet = Some("file")
+      globalIndexSet = Some("file"),
+      StableSet.empty
     )
 
     val runInfoContent =

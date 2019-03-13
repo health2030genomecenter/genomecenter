@@ -303,7 +303,8 @@ class ProtopipelineIntegrationTestSuite
           partitionByTileCount = None
         )
       ),
-      globalIndexSet = Some(globalIndexSetFilePath)
+      globalIndexSet = Some(globalIndexSetFilePath),
+      lastRunOfSamples = StableSet.empty
     )
 
     val analysisAssignment = AnalysisAssignments(

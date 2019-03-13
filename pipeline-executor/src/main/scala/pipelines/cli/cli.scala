@@ -5,11 +5,14 @@ import scala.util._
 import com.typesafe.config.ConfigFactory
 import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
-  AnalysisConfiguration
+  AnalysisConfiguration,
+  ProgressData
 }
 import java.io.File
 import org.gc.pipelines.model.{Project, SampleId, AnalysisId, RunId}
+import org.gc.pipelines.util.StableSet.syntax
 import scalaj.http.Http
+import io.circe.parser.decode
 
 object CliHelpers {
   val runConfigurationExample =
@@ -134,6 +137,7 @@ object Pipelinectl extends App {
   case object QueryRunConfigurations extends CliCommand
   case object QueryAnalyses extends CliCommand
   case object AnalyseResourceUsage extends CliCommand
+  case object LastRun extends CliCommand
 
   val config = {
     val configInUserHome =
@@ -180,7 +184,8 @@ object Pipelinectl extends App {
       analysisId: Option[String] = None,
       sampleId: Option[String] = None,
       subtree: Option[String] = None,
-      printDot: Option[Boolean] = None
+      printDot: Option[Boolean] = None,
+      samplesFile: Option[String] = None
   )
 
   def printAddRunHelpAndExit() = {
@@ -206,7 +211,6 @@ object Pipelinectl extends App {
           System.exit(0)
           ???
         } else conf
-
     }
 
   val builder = OParser.builder[Config]
@@ -371,6 +375,20 @@ object Pipelinectl extends App {
           opt[Unit]("dot")
             .text("print dot document for graphviz")
             .action((_, c) => c.copy(printDot = Some(true)))
+        ),
+      cmd("lastrun")
+        .text(
+          "Modifies the 'lastRunOfSamples' field of the runs of a project and resends the run. Use it to force analysis of samples irrespective of the read coverage. ")
+        .action((_, c) => c.copy(command = LastRun))
+        .children(
+          arg[String]("project")
+            .text("project name")
+            .required
+            .action((v, c) => c.copy(project = Some(v))),
+          arg[String]("samples-file")
+            .text(
+              "path to a file listing sample ids. Use stdin for standard input.")
+            .action((v, c) => c.copy(samplesFile = Some(v)))
         )
     )
   }
@@ -424,11 +442,90 @@ object Pipelinectl extends App {
             case Some(project) =>
               println(get(s"/v2/projects/$project"))
           }
+        case LastRun =>
+          val project = config.project.get
+          println(
+            s"Command: force full analysis of  samples from project ${config.project.get}")
+          val sampleFilter = config.samplesFile match {
+            case None =>
+              println("Applying for all samples of the project")
+              None
+            case Some(f) =>
+              println(s"Reading sample id list from $f")
+              Some(
+                scala.io.Source
+                  .fromString(readFileOrStdin(f))
+                  .getLines
+                  .map(SampleId(_))
+                  .toSet)
+          }
+
+          val samplesOfProject = {
+            val json = get(s"/v2/projects/$project")
+            io.circe.parser.decode[Seq[ProgressData]](json).right.get.collect {
+              case sampleProcessingStarted: ProgressData.SampleProcessingStarted =>
+                sampleProcessingStarted
+            }
+          }
+
+          val lastRunOfSelectedSamples = {
+            val lastRunOfSamples =
+              samplesOfProject
+                .groupBy(
+                  sampleProcessingStarted =>
+                    (sampleProcessingStarted.project,
+                     sampleProcessingStarted.sample))
+                .toSeq
+                .map {
+                  case (sample, group) => (sample, group.last.runId)
+                }
+            lastRunOfSamples.filter {
+              case ((_, sample), _) =>
+                sampleFilter
+                  .map(filter => filter.contains(sample))
+                  .getOrElse(true)
+
+            }
+          }
+
+          val numberOfSamplesMatched = lastRunOfSelectedSamples.size
+          println(numberOfSamplesMatched + " samples matched.")
+          val runsInvolved = lastRunOfSelectedSamples.map(_._2).distinct
+          println(s"Runs involved: ${runsInvolved.mkString(", ")}")
+
+          val samplesToFinishPerRun = lastRunOfSelectedSamples.groupBy(_._2)
+
+          val editedRunConfigurations = samplesToFinishPerRun.map {
+            case (run, group) =>
+              val samples = group.map(_._1)
+              val currentRunConfiguration = decode[RunfolderReadyForProcessing](
+                get(s"/v2/runconfigurations/$run")).right.get
+              val conf = currentRunConfiguration.runConfiguration
+              val currentValue =
+                conf.lastRunOfSamples.toSeq
+              val newValue =
+                (currentValue.toSeq ++ samples).toSet.toStable
+              println(
+                s"Run $run was last run for ${currentValue.size} samples, updated to ${newValue.size}.")
+              currentRunConfiguration.copy(
+                runConfiguration = conf.copy(lastRunOfSamples = newValue))
+
+          }
+
+          editedRunConfigurations.foreach { conf =>
+            println(s"Resend run configuration as \n \n $conf ")
+            println("Y if OK")
+            if (scala.io.Source.stdin.take(1).mkString != "Y") {
+              import io.circe.syntax._
+              post("/v2/runs", conf.asJson.noSpaces)
+            }
+          }
+
         case PrintHelp =>
           println(OParser.usage(parser1))
         case Unassign =>
           println(
-            s"Command: unassigned project ${config.project.get} from analysis ${config.analysisId.get}")
+            s"Command: unassign project ${config.project.get} from analysis ${config.analysisId.get}")
           val response =
             delete(
               "/v2/analyses/" + config.project.get + "/" + config.analysisId.get)

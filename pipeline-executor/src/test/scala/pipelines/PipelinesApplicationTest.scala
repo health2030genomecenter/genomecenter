@@ -20,6 +20,9 @@ import org.gc.pipelines.util.StableSet
 import java.io.File
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.Tag
+
+object Only extends Tag("only")
 
 object MyTestKit extends akka.testkit.TestKit(ActorSystem())
 
@@ -64,13 +67,13 @@ class PipelinesApplicationTest
         RunId("fake"),
         Some("fakePath"),
         None,
-        RunConfiguration(StableSet.empty, None)
+        RunConfiguration(StableSet.empty, None, StableSet.empty)
       )
       val run2 = RunfolderReadyForProcessing(
         RunId("fake"),
         Some("fakePath2"),
         None,
-        RunConfiguration(StableSet.empty, None)
+        RunConfiguration(StableSet.empty, None, StableSet.empty)
       )
       When("the first run is registered")
       pipelineState.registered(run)
@@ -81,7 +84,7 @@ class PipelinesApplicationTest
         Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
       result.size shouldBe 2
       result.takeRight(1) shouldBe List(
-        RunWithAnalyses(run, AnalysisAssignments.empty))
+        RunWithAnalyses(run, analysisAssignment))
       result.map(_.runId) shouldBe List("", "fake")
 
       When("The second is invalidated")
@@ -108,7 +111,9 @@ class PipelinesApplicationTest
         .result(pipelineState.registered(run2), 5 seconds)
         .get shouldBe RunWithAnalyses(
         run2,
-        AnalysisAssignments(Map(Project("project1") -> Seq(rnaConfiguration))))
+        AnalysisAssignments(
+          Map(Project("project1") -> Seq(rnaConfiguration),
+              Project("project") -> Seq(wesConfigurationFromMigration))))
 
       When("the configuration is updated")
       pipelineState.assigned(
@@ -131,7 +136,9 @@ class PipelinesApplicationTest
         .result(pipelineState.registered(run2), 5 seconds)
         .get shouldBe RunWithAnalyses(
         run2,
-        AnalysisAssignments(Map(Project("project1") -> Seq())))
+        AnalysisAssignments(
+          Map(Project("project1") -> Seq(),
+              Project("project") -> Seq(wesConfigurationFromMigration))))
     }
   }
 
@@ -688,6 +695,39 @@ class PipelinesApplicationTest
 
   trait Fixture {
 
+    val wesConfigurationFromMigration =
+      WESConfiguration(
+        analysisId = AnalysisId("hg38"),
+        referenceFasta = "GCA_000001405.15_GRCh38_no_alt_analysis_set.fna",
+        targetIntervals =
+          "reference_files/sequence_capture/Agilent/sureSelect_Human_all_exons_v7/GRCh38_hg38/S31285117_Covered_formated_sorted.hg38.bed",
+        bqsrKnownSites = StableSet(
+          "reference_files/variants/dbSNP/GRCh38/b151/gatk/All_20180418.hg38.vcf.gz",
+          "reference_files/ftp.broadinstitute.org/bundle/hg38/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz"
+        ),
+        dbSnpVcf =
+          "reference_files/variants/dbSNP/GRCh38/b151/gatk/All_20180418.hg38.vcf.gz",
+        variantEvaluationIntervals =
+          "reference_files/sequence_capture/Agilent/sureSelect_Human_all_exons_v7/GRCh38_hg38/S31285117_Covered_formated_sorted.hg38.bed",
+        vqsrMillsAnd1Kg = None,
+        vqsrHapmap = Some(
+          "reference_files/ftp.broadinstitute.org/bundle/hg38/hapmap_3.3.hg38.vcf.gz"),
+        vqsrOneKgOmni = Some(
+          "reference_files/ftp.broadinstitute.org/bundle/hg38/1000G_omni2.5.hg38.vcf.gz"),
+        vqsrOneKgHighConfidenceSnps = Some(
+          "reference_files/ftp.broadinstitute.org/bundle/hg38/1000G_phase1.snps.high_confidence.hg38.vcf.gz"),
+        vqsrDbSnp138 = Some(
+          "reference_files/ftp.broadinstitute.org/bundle/hg38/dbsnp_138.hg38.vcf.gz"),
+        doVariantCalls = None,
+        doJointCalls = Some(true),
+        minimumWGSCoverage = Some(20.0),
+        minimumTargetCoverage = Some(20.0),
+        variantCallingContigs = None
+      )
+
+    val analysisAssignment = AnalysisAssignments(
+      Map(Project("project") -> List(wesConfigurationFromMigration)))
+
     val referenceFasta = getClass
       .getResource("/tutorial_8017/chr19_chr19_KI270866v1_alt.fasta")
       .getFile
@@ -750,7 +790,7 @@ class FakeSequencingCompleteEventSource(take: Int,
           RunId("fake"),
           Some(runFolder.getAbsolutePath),
           None,
-          RunConfiguration(StableSet.empty, None)
+          RunConfiguration(StableSet.empty, None, StableSet.empty)
         )
       )
       .take(take.toLong)
