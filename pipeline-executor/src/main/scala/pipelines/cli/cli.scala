@@ -13,6 +13,7 @@ object CliHelpers {
   val runConfigurationExample =
     s"""
   # list of demultiplexing configurations
+  # not needed if fastqs are given (see below)
   demultiplexing=[
     {
       # path to sample sheet
@@ -50,9 +51,9 @@ object CliHelpers {
       sampleId = s1
       lanes = [
         {
-          lane = 1
-          read1 = fq1
-          read2 = fq2
+          lane = 1 # integer
+          read1 = /path/to/fq1
+          read2 = /path/to/fq2
         }
       ]
     } 
@@ -128,9 +129,22 @@ object Pipelinectl extends App {
   case object QueryVcf extends CliCommand
   case object QueryRuns extends CliCommand
   case object QueryProjects extends CliCommand
+  case object QueryRunConfigurations extends CliCommand
+  case object QueryAnalyses extends CliCommand
 
-  val hostname = ConfigFactory.load().getString("gc.cli.hostname")
-  val port = org.gc.pipelines.MainConfig.port
+  val config = {
+    val configInUserHome =
+      new java.io.File(System.getProperty("user.home") + "/.gc/config")
+    if (configInUserHome.canRead)
+      ConfigFactory
+        .parseFile(configInUserHome)
+        .withFallback(ConfigFactory.load())
+    else ConfigFactory.load()
+  }
+  val hostname = config.getString("gc.cli.hostname")
+  val port =
+    if (config.hasPath("gc.cli.port")) config.getInt("gc.cli.port")
+    else org.gc.pipelines.MainConfig.port
 
   def post(endpoint: String, data: String) = {
     Http(s"http://$hostname:$port$endpoint")
@@ -142,6 +156,12 @@ object Pipelinectl extends App {
     Http(s"http://$hostname:$port$endpoint")
       .method("POST")
       .asString
+  }
+  def get(endpoint: String) = {
+    Http(s"http://$hostname:$port$endpoint")
+      .method("GET")
+      .asString
+      .body
   }
 
   case class Config(
@@ -194,7 +214,7 @@ object Pipelinectl extends App {
           "Adds a new run. The run will be processed immediately and on all future restarts of the pipeline (subject to checkpointing). To overwrite the configuration of a run call this command multiple times.")
         .action((_, c) => c.copy(command = AppendRun))
         .children(
-          arg[String]("runID")
+          arg[String]("configuration-file")
             .text("path to run configuration, stdin for stdin")
             .action((v, c) => c.copy(configPath = Some(v)))
             .validate(v =>
@@ -278,19 +298,69 @@ object Pipelinectl extends App {
         .text("Queries projects or sample status per project")
         .action((_, c) => c.copy(command = QueryProjects))
         .children(
-          arg[String]("project")
+          opt[String]('p', "project")
             .text("project name. If missing lists all projects. If present lists sample status per project.")
             .action((v, c) => c.copy(project = Some(v)))
         ),
       cmd("query-runs")
-        .text("Queries runs")
+        .text("Queries runs or progress of runs")
+        .action((_, c) => c.copy(command = QueryRuns)),
+      cmd("query-runconfig")
+        .text("Query run configurations")
         .action((_, c) => c.copy(command = QueryRuns))
+        .children(
+          opt[String]('r', "run")
+            .text("run ID of the run. Lists all configurations if missing.")
+            .action((v, c) => c.copy(runId = Some(v)))
+        ),
+      cmd("query-analyses")
+        .text("Query analysis configurations")
+        .action((_, c) => c.copy(command = QueryRuns))
+        .children(
+          opt[String]('p', "project")
+            .text("project name. If missing lists all.")
+            .action((v, c) => c.copy(project = Some(v))),
+          opt[String]('a', "analysisID")
+            .text("analysis id. If missing lists all. Only relevant if project is given as well.")
+            .action((v, c) => c.copy(project = Some(v)))
+        )
     )
   }
 
   OParser.parse(parser1, args, Config()) match {
     case Some(config) =>
       config.command match {
+        case QueryAnalyses =>
+          (config.project, config.analysisId) match {
+            case (None, _) =>
+              println(get("/v2/analyses"))
+            case (Some(project), None) =>
+              println(get(s"/v2/analyses/$project"))
+            case (Some(project), Some(analysisId)) =>
+              println(get(s"/v2/analyses/$project/$analysisId"))
+          }
+        case QueryRunConfigurations =>
+          config.runId match {
+            case None =>
+              println(get("/v2/runconfigurations"))
+            case Some(runId) =>
+              println(get(s"/v2/runconfigurations/$runId"))
+          }
+        case QueryBam =>
+          val project = config.project.get
+          println(get(s"/v2/bams/$project"))
+        case QueryVcf =>
+          val project = config.project.get
+          println(get(s"/v2/vcfs/$project"))
+        case QueryRuns =>
+          println(get("/v2/runs"))
+        case QueryProjects =>
+          config.project match {
+            case None =>
+              println(get("/v2/projects"))
+            case Some(project) =>
+              println(get(s"/v2/projects/$project"))
+          }
         case PrintHelp =>
           println(OParser.usage(parser1))
         case Unassign =>
