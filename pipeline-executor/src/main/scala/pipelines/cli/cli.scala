@@ -173,6 +173,7 @@ object Pipelinectl extends App {
       configPath: Option[String] = None,
       runId: Option[String] = None,
       project: Option[String] = None,
+      projectFrom: Option[String] = None,
       analysisId: Option[String] = None
   )
 
@@ -186,12 +187,12 @@ object Pipelinectl extends App {
     System.exit(0)
   }
 
-  def readFileOrStdin(path: Option[String]) =
+  def readFileOrStdin(path: String) =
     path match {
-      case Some("stdin") =>
+      case "stdin" =>
         println("  Waiting for input on stdin..")
         scala.io.Source.stdin.mkString
-      case Some(path) =>
+      case path =>
         val conf = fileutils.openSource(path)(_.mkString)
         println(s"File contents follows: ~~~\n\n $conf \n\n~~~")
         println("Type Y if ok!")
@@ -200,8 +201,6 @@ object Pipelinectl extends App {
           ???
         } else conf
 
-      case _ =>
-        throw new RuntimeException("should not happend")
     }
 
   val builder = OParser.builder[Config]
@@ -245,7 +244,7 @@ object Pipelinectl extends App {
         ),
       cmd("assign-analysis")
         .text(
-          "Assigns an analysis configuration to a project name. All samples in the project will be processed with that analysis. You can assign multiple analyses per project, or overwrite existing configuration by calling this command multiple times.")
+          "Assigns an analysis configuration to a project name. All samples in the project will be processed with that analysis. You can assign multiple analyses per project, or overwrite existing configuration by calling this command multiple times. You can either specify a new analysis configuration or copy from an existing project.")
         .action((_, c) => c.copy(command = Assign))
         .children(
           opt[String]('p', "project")
@@ -255,17 +254,22 @@ object Pipelinectl extends App {
           opt[String]('c', "conf")
             .text("path to configuration of analysis. stdin for stdin")
             .action((v, c) => c.copy(configPath = Some(v)))
-            .required
             .validate(v =>
               if (v == "stdin") success
               else if (new java.io.File(v).canRead) success
               else failure("can't read.")),
+          opt[String]("from-project")
+            .text("project name from which we copy")
+            .action((v, c) => c.copy(projectFrom = Some(v))),
+          opt[String]("from-analysis")
+            .text("analysis id from which we copy")
+            .action((v, c) => c.copy(analysisId = Some(v))),
           cmd("template")
             .action { (_, c) =>
               printAssignHelpAndExit()
               c
             }
-            .text("print template configuration for assign-analysis and exit")
+            .text("print template configuration for assign-analysis and exit"),
         ),
       cmd("unassign-analysis")
         .text(
@@ -382,7 +386,25 @@ object Pipelinectl extends App {
 
         case Assign =>
           println(s"Command: assign project ${config.project.get} to analysis")
-          val configuration = readFileOrStdin(config.configPath)
+
+          val configuration = config.configPath match {
+            case Some(configPath) =>
+              println(s"Reading new configuration from file $configPath")
+              readFileOrStdin(configPath)
+            case None =>
+              (config.projectFrom, config.analysisId) match {
+                case (Some(projectFrom), Some(analysisId)) =>
+                  println(
+                    s"Attempt to copy configuration from $projectFrom - $analysisId")
+                  get(s"/v2/analyses/$projectFrom/$analysisId")
+                case _ =>
+                  println(
+                    "You have to specify either --conf or both --from-project and --from-analysis")
+                  System.exit(1)
+                  ???
+              }
+          }
+
           val maybeParsed = AnalysisConfiguration.fromConfig(
             ConfigFactory.parseString(configuration))
 
@@ -421,7 +443,7 @@ object Pipelinectl extends App {
         case AppendRun =>
           println("Command: add run")
 
-          val configuration = readFileOrStdin(config.configPath)
+          val configuration = readFileOrStdin(config.configPath.get)
 
           val maybeRunFolderReadyEvent = for {
             parsed <- Try(ConfigFactory.parseString(configuration)).toEither.left
@@ -429,15 +451,42 @@ object Pipelinectl extends App {
             runFolder <- RunfolderReadyForProcessing.fromConfig(parsed)
           } yield runFolder
 
-          maybeRunFolderReadyEvent match {
+          val parsedRunfolder = maybeRunFolderReadyEvent match {
             case Left(error) =>
               println(error.toString)
               System.exit(1)
+              ???
             case Right(runFolder) if runFolder.validationErrors.nonEmpty =>
               runFolder.validationErrors.foreach(println)
               System.exit(1)
-            case _ =>
+              ???
+            case Right(runFolder) =>
               println("Validation passed.")
+              runFolder
+          }
+
+          val projects = parsedRunfolder.projects
+          println(
+            "This run contains the following projects: \n" + projects.toSeq
+              .sortBy(_.toString)
+              .mkString("\n"))
+
+          val projectsWithoutAnalysis = projects.filter { project =>
+            val analyses = get(s"/v2/projects/$project")
+            println(analyses)
+            analyses.isEmpty
+          }
+
+          if (projectsWithoutAnalysis.nonEmpty) {
+            println(
+              s"Projects ${projectsWithoutAnalysis.mkString(", ")} have no analyses assigned to it. You most likely want to assign an analysis first.")
+          }
+
+          println(
+            "Please confirm to continue with adding the run (type exactly Y)")
+          if (scala.io.Source.stdin.take(1).mkString != "Y") {
+            System.exit(0)
+            ???
           }
 
           val response = post("/v2/runs", configuration)

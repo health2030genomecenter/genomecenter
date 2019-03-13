@@ -147,6 +147,20 @@ case class RunfolderReadyForProcessing(
     demultiplexedSamples: Option[Seq[InputSampleAsFastQ]],
     runConfiguration: RunConfiguration) {
 
+  def projects = {
+    val projectsInSampleSheet =
+      runConfiguration.demultiplexingRuns.map(_.sampleSheet).toSeq.flatMap {
+        sampleSheetFile =>
+          SampleSheet(sampleSheetFile).parsed.poolingLayout
+            .map(_.project)
+            .distinct
+      }
+    val projectsInFastqs =
+      demultiplexedSamples.toSeq.flatten.map(_.project).distinct
+
+    (projectsInSampleSheet ++ projectsInFastqs).distinct
+  }
+
   private def unreadableFiles(files: Set[String]) =
     files.filterNot(s => new File(s).canRead)
 
