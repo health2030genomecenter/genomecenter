@@ -373,7 +373,7 @@ object Pipelinectl extends App {
             s"Command: unassigned project ${config.project.get} from analysis ${config.analysisId.get}")
           val response =
             delete(
-              "/v2/analyses/unassign/" + config.project.get + "/" + config.analysisId.get)
+              "/v2/analyses/" + config.project.get + "/" + config.analysisId.get)
           if (response.code != 200) {
             println("Request failed: " + response)
           } else {
