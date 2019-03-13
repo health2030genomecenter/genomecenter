@@ -249,6 +249,16 @@ class ProtoPipeline(progressServer: SendProgressData)(
                     pastSampleResult: Option[SampleResult],
                     demultiplexedSample: PerSamplePerRunFastQ)(
       implicit tsc: TaskSystemComponents): Future[Option[SampleResult]] = {
+
+    val lastRun =
+      r.runConfiguration.isLastRunOfSample(demultiplexedSample.project,
+                                           demultiplexedSample.sampleId)
+
+    def modifyConfigurationForLastRun(conf: WESConfiguration) =
+      if (lastRun)
+        conf.ignoreMinimumCoverage
+      else conf
+
     progressServer.send(
       SampleProcessingStarted(demultiplexedSample.project,
                               demultiplexedSample.sampleId,
@@ -270,7 +280,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
           .get(demultiplexedSample.project)
           .getOrElse(Nil)
           .collect {
-            case conf: WESConfiguration => conf
+            case conf: WESConfiguration => modifyConfigurationForLastRun(conf)
           }
 
         val selectedRNASeqConfigurations = analysisAssignments.assignments

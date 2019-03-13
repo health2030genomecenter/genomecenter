@@ -7,7 +7,7 @@ import org.gc.pipelines.application.{DemultiplexingConfiguration}
 import org.gc.pipelines.application
 import io.circe.syntax._
 
-object Migration0000 extends Function1[Json, Json] {
+object Migration0003 extends Function1[Json, Json] {
 
   def apply(in: Json) = {
     val registered = in.hcursor
@@ -39,18 +39,7 @@ object Migration0000 extends Function1[Json, Json] {
 
     case class RunConfiguration(
         demultiplexingRuns: StableSet[DemultiplexingConfiguration],
-        referenceFasta: String,
-        targetIntervals: String,
-        bqsrKnownSites: StableSet[String],
-        globalIndexSet: Option[String],
-        geneModelGtf: String,
-        dbSnpVcf: String,
-        variantEvaluationIntervals: String,
-        vqsrMillsAnd1Kg: Option[String],
-        vqsrHapmap: Option[String],
-        vqsrOneKgOmni: Option[String],
-        vqsrOneKgHighConfidenceSnps: Option[String],
-        vqsrDbSnp138: Option[String]
+        globalIndexSet: Option[String]
     )
 
     object RunConfiguration {

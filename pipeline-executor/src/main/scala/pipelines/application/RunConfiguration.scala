@@ -55,6 +55,9 @@ case class WESConfiguration(
     variantCallingContigs: Option[String]
 ) extends AnalysisConfiguration {
 
+  def ignoreMinimumCoverage =
+    copy(minimumTargetCoverage = None, minimumWGSCoverage = None)
+
   def files =
     Set(referenceFasta, targetIntervals, dbSnpVcf, variantEvaluationIntervals) ++ bqsrKnownSites.toSeq.toSet ++ vqsrMillsAnd1Kg.toSet ++ vqsrHapmap.toSet ++ vqsrOneKgHighConfidenceSnps.toSet ++ vqsrOneKgOmni.toSet ++ vqsrDbSnp138.toSet ++ variantCallingContigs.toSet ++
       vqsrMillsAnd1Kg.map((_: String) + ".tbi").toSet ++ vqsrHapmap
@@ -119,8 +122,11 @@ object AnalysisAssignments {
 
 case class RunConfiguration(
     demultiplexingRuns: StableSet[DemultiplexingConfiguration],
-    globalIndexSet: Option[String]
+    globalIndexSet: Option[String],
+    lastRunOfSamples: StableSet[(Project, SampleId)]
 ) {
+  def isLastRunOfSample(project: Project, sample: SampleId) =
+    lastRunOfSamples.contains((project, sample))
   def files =
     demultiplexingRuns.toSeq
       .map(conf => conf.sampleSheet)
@@ -367,7 +373,17 @@ object RunConfiguration {
           globalIndexSet =
             if (config.hasPath("globalIndexSet"))
               Some(config.getString("globalIndexSet"))
-            else None
+            else None,
+          lastRunOfSamples =
+            if (config.hasPath("lastRunOfSamples"))
+              config
+                .getStringList("lastRunOfSamples")
+                .asScala
+                .grouped(2)
+                .map(group => (Project(group(0)), SampleId(group(1))))
+                .toSet
+                .toStable
+            else Set.empty.toStable
         )
 
       }
