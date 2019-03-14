@@ -92,7 +92,7 @@ trait TestHelpers {
     sortOrder
   }
 
-  def await[T](f: Future[T]) = Await.result(f, atMost = 180 seconds)
+  def await[T](f: Future[T]) = Await.result(f, atMost = 360 seconds)
 
   def makeTestConfig = {
     val tmp = tasks.util.TempFile.createTempFile(".temp")

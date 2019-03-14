@@ -197,6 +197,7 @@ object HaplotypeCaller {
               --recal-file ${indelRecal.getAbsolutePath} \\
               --create-output-variant-index true \\
               -mode INDEL \\
+              ${GATK.skipGcs} \\
               --truth-sensitivity-filter-level 99.7
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """)
@@ -212,6 +213,7 @@ object HaplotypeCaller {
               --recal-file ${snpRecal.getAbsolutePath} \\
               --create-output-variant-index true \\
               -mode SNP \\
+              ${GATK.skipGcs} \\
               --truth-sensitivity-filter-level 99.7
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """)
@@ -283,6 +285,7 @@ object HaplotypeCaller {
               $tranches \\
               $annotations \\
               -mode SNP \\
+              ${GATK.skipGcs} \\
               --max-gaussians 6 \\
               -resource hapmap,known=false,training=true,truth=true,prior=15:${hapmap.getAbsolutePath} \\
               -resource omni,known=false,training=true,truth=true,prior=12:${omni.getAbsolutePath} \\
@@ -348,6 +351,7 @@ object HaplotypeCaller {
               $tranches \\
               $annotations \\
               -mode INDEL \\
+              ${GATK.skipGcs} \\
               --max-gaussians 4 \\
               -resource mills,known=false,training=true,truth=true,prior=12:${millsAnd1Kg} \\
               -resource dbsnp,known=true,training=false,truth=false,prior=2:${knownSites} \\
@@ -542,6 +546,7 @@ object HaplotypeCaller {
             --genomicsdb-workspace-path ${genomeDbWorkfolder.getAbsolutePath} \\
             --intervals $interval \\
             --batch-size 50 --reader-threads 5 -ip 500 \\
+            ${GATK.skipGcs} \\
             $input \\
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """)
@@ -558,6 +563,7 @@ object HaplotypeCaller {
             -G StandardAnnotation \\
             --only-output-calls-starting-in-intervals \\
             --use-new-qual-calculator \\
+            ${GATK.skipGcs} \\
             --intervals $interval \\
             -V gendb://${genomeDbWorkfolder.getAbsolutePath} \\
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
@@ -574,6 +580,7 @@ object HaplotypeCaller {
             --filter-expression "ExcessHet > 54.69" \\
             --filter-name ExcessHet \\
             --output $vcfOutputFiltered \\
+            ${GATK.skipGcs} \\
             -V ${vcfOutput.getAbsolutePath} \\
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """)
@@ -727,6 +734,7 @@ object HaplotypeCaller {
       --intervals $interval \\
       --emit-ref-confidence GVCF \\
       --max-alternate-alleles 3 \\
+      ${GATK.skipGcs} \\
       --read-filter OverclippedReadFilter \\
       > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """

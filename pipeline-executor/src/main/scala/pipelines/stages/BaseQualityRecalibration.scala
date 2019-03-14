@@ -12,7 +12,8 @@ import org.gc.pipelines.util.{
   ResourceConfig,
   Fasta,
   StableSet,
-  Files
+  Files,
+  VersionConfig
 }
 import scala.collection.JavaConverters._
 import java.io.File
@@ -87,6 +88,7 @@ object BaseQualityScoreRecalibration {
                   compressionLevel = 1)} -jar $gatkJar GatherBQSRReports \\
                 $input\\
                 -O ${output.getAbsolutePath} \\
+                ${GATK.skipGcs} \\
                 > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)"""
               )
               for {
@@ -134,6 +136,7 @@ object BaseQualityScoreRecalibration {
                 -I ${localBam.getAbsolutePath} \\
                 -O ${output.getAbsolutePath} \\
                 -L $interval \\
+                ${GATK.skipGcs} \\
                 --use-original-qualities \\
                 $knownSitesArguments \\
                 > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)"""
@@ -261,6 +264,7 @@ object BaseQualityScoreRecalibration {
                 --add-output-sam-program-record \\
                 --create-output-bam-index \\
                 --create-output-bam-md5 \\
+                ${GATK.skipGcs} \\
                 -bqsr ${bqsrTable.getAbsolutePath} \\
                 > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
                 """
@@ -293,11 +297,12 @@ object BaseQualityScoreRecalibration {
           } yield result
     }
 
-  def extractGatkJar(): String =
+  def extractGatkJar(): String = {
+    val gatkJarName = VersionConfig.gatkResourceName
     fileutils.TempFile
-      .getExecutableFromJar("/bin/gatk-package-4.0.9.0-local.jar",
-                            "gatk-package-4.0.9.0-local.jar")
+      .getExecutableFromJar(s"/bin/$gatkJarName", gatkJarName)
       .getAbsolutePath
+  }
 
 }
 
