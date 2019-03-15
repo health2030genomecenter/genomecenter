@@ -447,7 +447,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .map {
         case value @ (runFolder, demultiplexedSample) =>
           val keys = getKeysOfDemultiplexedSample(demultiplexedSample)
-          logger.info(
+          logger.debug(
             s"SampleProcessor received sample (before groupby) ${runFolder.runId} $keys")
           value
       }
@@ -457,7 +457,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .map {
         case value @ (runFolder, demultiplexedSample) =>
           val keys = getKeysOfDemultiplexedSample(demultiplexedSample)
-          logger.info(
+          logger.debug(
             s"SampleProcessor received sample (after groupby) ${runFolder.runId} $keys")
           value
       }
