@@ -313,10 +313,15 @@ object Pipelinectl extends App {
         ),
       cmd("query-runs")
         .text("Queries runs or progress of runs")
-        .action((_, c) => c.copy(command = QueryRuns)),
+        .action((_, c) => c.copy(command = QueryRuns))
+        .children(
+          opt[String]('r', "run")
+            .text("run id. If given shows progress of run. Otherwise lists all runs.")
+            .action((v, c) => c.copy(runId = Some(v)))
+        ),
       cmd("query-runconfig")
         .text("Query run configurations")
-        .action((_, c) => c.copy(command = QueryRuns))
+        .action((_, c) => c.copy(command = QueryRunConfigurations))
         .children(
           opt[String]('r', "run")
             .text("run ID of the run. Lists all configurations if missing.")
@@ -324,7 +329,7 @@ object Pipelinectl extends App {
         ),
       cmd("query-analyses")
         .text("Query analysis configurations")
-        .action((_, c) => c.copy(command = QueryRuns))
+        .action((_, c) => c.copy(command = QueryAnalyses))
         .children(
           opt[String]('p', "project")
             .text("project name. If missing lists all.")
@@ -362,7 +367,12 @@ object Pipelinectl extends App {
           val project = config.project.get
           println(get(s"/v2/vcfs/$project"))
         case QueryRuns =>
-          println(get("/v2/runs"))
+          config.runId match {
+            case None =>
+              println(get("/v2/runs"))
+            case Some(r) =>
+              println(get(s"/v2/runs/$r"))
+          }
         case QueryProjects =>
           config.project match {
             case None =>
