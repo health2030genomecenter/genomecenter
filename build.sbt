@@ -11,6 +11,8 @@ lazy val commonSettings = Seq(
   git.useGitDescribe := true
 )
 
+lazy val tasksVersion = "0.0.35"
+
 lazy val stagingIvy1Repository =
   Resolver.url("gc-ivy1",
                new java.net.URL("http://10.6.38.2:31080/artifactory/ivy1"))(
@@ -28,7 +30,7 @@ lazy val tasksSlurm = project
   .settings(
     name := "tasks-slurm",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.33",
+      "io.github.pityka" %% "tasks-core" % tasksVersion,
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
@@ -88,10 +90,10 @@ lazy val pipelineExecutor = project
   .settings(
     name := "pipeline-executor",
     libraryDependencies ++= Seq(
-      "io.github.pityka" %% "tasks-core" % "0.0.33",
-      "io.github.pityka" %% "tasks-collection" % "0.0.33",
-      "io.github.pityka" %% "tasks-ui-backend" % "0.0.33",
-      "io.github.pityka" %% "tasks-tracker" % "0.0.33",
+      "io.github.pityka" %% "tasks-core" % tasksVersion,
+      "io.github.pityka" %% "tasks-collection" % tasksVersion,
+      "io.github.pityka" %% "tasks-ui-backend" % tasksVersion,
+      "io.github.pityka" %% "tasks-tracker" % tasksVersion,
       "io.github.pityka" %% "fileutils" % "1.2.2",
       "io.github.pityka" %% "nspl-core" % "0.0.20",
       "io.github.pityka" %% "nspl-awt" % "0.0.20",
