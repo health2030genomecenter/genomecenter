@@ -66,7 +66,12 @@ class ProgressServer(implicit AS: ActorSystem)
         }
       }
     )
-    AS.actorOf(props, "progress-server")
+    val actorRef = AS.actorOf(props, "progress-server")
+
+    logger.info(
+      s"Progress server actor created on $actorRef ${actorRef.path} ${actorRef.path.address}")
+    actorRef
+
   }
 
   logger.info("Progress server started.")
