@@ -382,10 +382,14 @@ class ProtoPipeline(progressServer: SendProgressData)(
             minimumWGSCoverage = conf.minimumWGSCoverage,
             minimumTargetCoverage = conf.minimumTargetCoverage,
             contigsFile = contigsFile
-          ))(ResourceConfig.minimal,
-             labels = ResourceConfig.projectAndSampleLabel(
-               sampleForWESAnalysis.project,
-               sampleForWESAnalysis.sampleId))
+          ))(
+          ResourceConfig.minimal,
+          labels =
+            ResourceConfig.projectAndSampleLabel(sampleForWESAnalysis.project,
+                                                 sampleForWESAnalysis.sampleId,
+                                                 conf.analysisId,
+                                                 sampleForWESAnalysis.runId)
+        )
       }
       bamPath <- perSampleResultsWES.bam.bam.uri.map(_.toString)
       _ = progressServer.send(

@@ -2,16 +2,21 @@ package org.gc.pipelines.util
 
 import com.typesafe.config.ConfigFactory
 import tasks._
-import org.gc.pipelines.model.{Project, SampleId}
+import org.gc.pipelines.model.{Project, SampleId, AnalysisId, RunId}
 import org.gc.pipelines.stages.PerSamplePerRunFastQ
 import scala.collection.JavaConverters._
 
 object ResourceConfig {
 
-  def projectAndSampleLabel(project: Project, sample: SampleId) =
+  def projectAndSampleLabel(project: Project,
+                            sample: SampleId,
+                            analysisId: AnalysisId,
+                            runId: RunId) =
     tasks.shared.Labels(
       List("project" -> project,
            "sample" -> sample,
+           "analysisId" -> analysisId,
+           "run" -> runId,
            "uuid" -> java.util.UUID.randomUUID.toString))
 
   def projectLabel(projects: Project*) =

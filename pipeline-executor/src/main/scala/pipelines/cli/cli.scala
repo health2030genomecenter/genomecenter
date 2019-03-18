@@ -7,6 +7,8 @@ import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   AnalysisConfiguration
 }
+import java.io.File
+import org.gc.pipelines.model.{Project, SampleId, AnalysisId, RunId}
 import scalaj.http.Http
 
 object CliHelpers {
@@ -131,6 +133,7 @@ object Pipelinectl extends App {
   case object QueryProjects extends CliCommand
   case object QueryRunConfigurations extends CliCommand
   case object QueryAnalyses extends CliCommand
+  case object AnalyseResourceUsage extends CliCommand
 
   val config = {
     val configInUserHome =
@@ -174,7 +177,10 @@ object Pipelinectl extends App {
       runId: Option[String] = None,
       project: Option[String] = None,
       projectFrom: Option[String] = None,
-      analysisId: Option[String] = None
+      analysisId: Option[String] = None,
+      sampleId: Option[String] = None,
+      subtree: Option[String] = None,
+      printDot: Option[Boolean] = None
   )
 
   def printAddRunHelpAndExit() = {
@@ -336,7 +342,35 @@ object Pipelinectl extends App {
             .action((v, c) => c.copy(project = Some(v))),
           opt[String]('a', "analysisID")
             .text("analysis id. If missing lists all. Only relevant if project is given as well.")
+            .action((v, c) => c.copy(analysisId = Some(v)))
+        ),
+      cmd("analyse-resource-usage")
+        .text("Analyses resource usage log")
+        .action((_, c) => c.copy(command = AnalyseResourceUsage))
+        .children(
+          opt[String]('p', "project")
+            .text("project name")
             .action((v, c) => c.copy(project = Some(v)))
+            .required,
+          opt[String]('s', "sample")
+            .text("sample id")
+            .action((v, c) => c.copy(sampleId = Some(v))),
+          opt[String]('a', "analysis")
+            .text("analysis id")
+            .action((v, c) => c.copy(analysisId = Some(v))),
+          opt[String]('r', "run")
+            .text("run id")
+            .action((v, c) => c.copy(runId = Some(v))),
+          opt[String]('f', "file")
+            .text("log file")
+            .action((v, c) => c.copy(configPath = Some(v)))
+            .required,
+          opt[String]("subtree")
+            .text("root of subtree")
+            .action((v, c) => c.copy(subtree = Some(v))),
+          opt[Unit]("dot")
+            .text("print dot document for graphviz")
+            .action((_, c) => c.copy(printDot = Some(true)))
         )
     )
   }
@@ -344,6 +378,16 @@ object Pipelinectl extends App {
   OParser.parse(parser1, args, Config()) match {
     case Some(config) =>
       config.command match {
+        case AnalyseResourceUsage =>
+          ResourceUsage.plotSample(
+            new File(config.configPath.get),
+            Project(config.project.get),
+            config.sampleId.map(s => SampleId(s)),
+            config.analysisId.map(s => AnalysisId(s)),
+            config.runId.map(s => RunId(s)),
+            config.subtree,
+            config.printDot.getOrElse(false)
+          )
         case QueryAnalyses =>
           (config.project, config.analysisId) match {
             case (None, _) =>
