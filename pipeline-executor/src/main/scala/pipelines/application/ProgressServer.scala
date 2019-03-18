@@ -6,6 +6,7 @@ import org.gc.pipelines.model._
 import akka.actor._
 import tasks.TaskSystemComponents
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 import akka.http.scaladsl.server.Directives._
 import akka.pattern.ask
 
@@ -47,7 +48,7 @@ trait SendProgressData {
   def send(data: ProgressData): Unit
 }
 
-class ProgressServer(implicit AS: ActorSystem)
+class ProgressServer(implicit tsc: TaskSystemComponents, ec: ExecutionContext)
     extends StrictLogging
     with SendProgressData
     with HttpComponent {
@@ -66,7 +67,7 @@ class ProgressServer(implicit AS: ActorSystem)
         }
       }
     )
-    val actorRef = AS.actorOf(props, "progress-server")
+    val actorRef = tsc.actorsystem.actorOf(props, "progress-server")
 
     logger.info(
       s"Progress server actor created on $actorRef ${actorRef.path} ${actorRef.path.address}")
@@ -77,8 +78,6 @@ class ProgressServer(implicit AS: ActorSystem)
   logger.info("Progress server started.")
 
   def send(data: ProgressData) = _endpointActor ! data
-
-  import AS.dispatcher
 
   private def getData = {
     implicit val timeOut = akka.util.Timeout(5 seconds)
