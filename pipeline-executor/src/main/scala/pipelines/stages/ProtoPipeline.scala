@@ -182,21 +182,24 @@ class ProtoPipeline(progressServer: SendProgressData)(
                    jointCall,
                    contigs)) =>
                 inProjectJointCallFolder(project, analysisId) { implicit tsc =>
-                  if (jointCall)
+                  def jointCallInputVCFs =
+                    wesResults
+                      .filter(_._2.wesConfiguration.doJointCalls
+                        .getOrElse(false))
+                      .flatMap(_._1.haplotypeCallerReferenceCalls.toSeq)
+                      .toSet
+
+                  if (jointCall && jointCallInputVCFs.nonEmpty)
                     HaplotypeCaller
-                      .jointCall(JointCallInput(
-                        wesResults
-                          .filter(_._2.wesConfiguration.doJointCalls
-                            .getOrElse(false))
-                          .flatMap(_._1.haplotypeCallerReferenceCalls.toSeq)
-                          .toSet
-                          .toStable,
-                        indexedReference,
-                        dbSnpVcf,
-                        vqsrTrainingFiles,
-                        project + "." + analysisId,
-                        contigs
-                      ))(ResourceConfig.minimal)
+                      .jointCall(
+                        JointCallInput(
+                          jointCallInputVCFs.toStable,
+                          indexedReference,
+                          dbSnpVcf,
+                          vqsrTrainingFiles,
+                          project + "." + analysisId,
+                          contigs
+                        ))(ResourceConfig.minimal)
                       .map(Some(_))
                   else Future.successful(None)
                 }
