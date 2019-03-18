@@ -151,7 +151,9 @@ case class RunfolderReadyForProcessing(
     val projectsInSampleSheet =
       runConfiguration.demultiplexingRuns.map(_.sampleSheet).toSeq.flatMap {
         sampleSheetFile =>
-          SampleSheet(sampleSheetFile).parsed.poolingLayout
+          val sampleSheetContents =
+            fileutils.openSource(sampleSheetFile)(_.mkString)
+          SampleSheet(sampleSheetContents).parsed.poolingLayout
             .map(_.project)
             .distinct
       }
