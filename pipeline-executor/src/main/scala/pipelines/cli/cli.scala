@@ -482,8 +482,7 @@ object Pipelinectl extends App {
               .mkString("\n"))
 
           val projectsWithoutAnalysis = projects.filter { project =>
-            val analyses = get(s"/v2/projects/$project")
-            println(analyses)
+            val analyses = get(s"/v2/analyses/$project")
             analyses.isEmpty
           }
 
