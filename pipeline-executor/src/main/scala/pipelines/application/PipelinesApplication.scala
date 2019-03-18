@@ -27,10 +27,10 @@ object PipelinesApplication extends StrictLogging {
       implicit ec: ExecutionContext)
     : PartialFunction[Command, Future[Option[RunWithAnalyses]]] = {
     case Delete(runId) =>
-      logger.info(s"Deleting $runId")
+      logger.info(s"Command: delete $runId")
       pipelineState.invalidated(runId).map(_ => None)
     case Append(run) =>
-      logger.info(s"Got run ${run.runId}")
+      logger.info(s"Command: append ${run.runId}")
       val validationErrors = run.validationErrors
       val valid = validationErrors.isEmpty
 
@@ -41,11 +41,12 @@ object PipelinesApplication extends StrictLogging {
       } else
         for {
           r <- {
-            logger.debug(s"New run received ${run.runId}")
+            logger.debug(s"${run.runId} is valid")
             pipelineState.registered(run)
           }
         } yield r
     case Assign(project, analysisConfiguration) =>
+      logger.info(s"Command: assign analaysis to $project")
       val validationErrors = analysisConfiguration.validationErrors
       val valid = validationErrors.isEmpty
 
@@ -54,14 +55,15 @@ object PipelinesApplication extends StrictLogging {
           s"Configuration is not valid. Validation errors: $validationErrors")
         Future.successful(None)
       } else {
-        logger.info(s"Assign $project to ${analysisConfiguration.analysisId}")
+        logger.info(
+          s"Configuration is valid. Assign $project to ${analysisConfiguration.analysisId}")
         pipelineState
           .assigned(project, analysisConfiguration)
           .map(_ => None)
       }
 
     case Unassign(project, analysisId) =>
-      logger.info(s"Unassign $project to $analysisId")
+      logger.info(s"Command: Unassign $project from $analysisId")
       pipelineState
         .unassigned(project, analysisId)
         .map(_ => None)
@@ -129,7 +131,7 @@ object PipelinesApplication extends StrictLogging {
       .map { case (sample, _) => sample }
 
     logger.info(
-      s"Project finished with ${lastRunOfEachSample.size} samples: $project .")
+      s"Per sample processing of $project with ${lastRunOfEachSample.size} samples finished.")
     pipeline.processCompletedProject(lastRunOfEachSample).recover {
       case error =>
         logger.error(
@@ -283,7 +285,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     Flow[RunWithAnalyses]
       .mapAsync(1000) { runWithAnalyses =>
         val run = runWithAnalyses.run
-        logger.info(s"Demultiplex run ${run.runId}")
+        logger.debug(s"Call pipelines demultiplex method for run ${run.runId}")
         for {
           samples <- pipeline.demultiplex(run).recover {
             case error =>
@@ -310,17 +312,19 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         case (state, Demultiplexed(runWithAnalyses, demultiplexedSamples))
             if demultiplexedSamples.nonEmpty =>
           val sampleIds = demultiplexedSamples.map(ds => getSampleId(ds))
-          logger.info(s"Got demultiplexed samples: ${sampleIds.mkString(", ")}")
+          logger.info(
+            s"Got demultiplexed ${sampleIds.size} samples from ${runWithAnalyses.run.runId} (${sampleIds
+              .mkString(", ")})")
           state.addNewDemultiplexedSamples(
             (runWithAnalyses, demultiplexedSamples))
 
         case (state, Demultiplexed(run, _)) =>
-          logger.info(s"Demultiplexed 0 samples.")
+          logger.info(s"Demultiplexed 0 samples from ${run.runId}.")
           state.removeFromUnfinishedDemultiplexing(run.runId)
 
         case (state, ProcessedSample(processedSample)) =>
           logger.info(
-            s"Finishing ${pipeline.getKeysOfSampleResult(processedSample)}")
+            s"Processed sample ${pipeline.getKeysOfSampleResult(processedSample)}")
           state.finish(processedSample)
 
         case (state, Raw(runWithAnalyses)) =>
@@ -382,7 +386,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .map {
         case CompletedRun(samples) =>
           val (_, _, runId) = getKeysOfSampleResult(samples.head)
-          logger.info(s"Run finished with ${samples.size} samples: $runId")
+          logger.info(s"Run $runId finished with ${samples.size} samples.")
           (runId, samples)
       }
       .groupBy(maxSubstreams = 10000, { case (runId, _) => runId })
@@ -653,7 +657,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
     def finish(processedSample: SampleResult): StateOfUnfinishedSamples = {
       val keysOfFinishedSample = getKeysOfSampleResult(processedSample)
-      logger.debug(s"Finishing $keysOfFinishedSample.")
+      logger.debug(
+        s"Accunting the completion of sample processing of $keysOfFinishedSample.")
       copy(
         unfinished = unfinished.filterNot(_ == keysOfFinishedSample),
         finished = finished :+ processedSample,
@@ -674,7 +679,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           val existRemaining =
             keysOfUnfinishedSamples.contains(keyOfLastFinishedSample)
           logger.debug(
-            s"Finished $keyOfLastFinishedSample . Remaining unfinished: $keysOfUnfinishedSamples")
+            s"Finished processing ${getKeysOfSampleResult(lastFinished)} . Remaining runs or projects with unfinished samples: $keysOfUnfinishedSamples")
           if (!existRemaining)
             finished.filter { sampleResult =>
               extractKey(getKeysOfSampleResult(sampleResult)) == keyOfLastFinishedSample
