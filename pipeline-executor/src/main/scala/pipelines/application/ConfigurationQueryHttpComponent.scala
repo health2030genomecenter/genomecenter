@@ -41,12 +41,13 @@ class ConfigurationQueryHttpComponent(state: PipelineState)(
           } ~
           path("analyses" / Segment / Segment) { (projectName, analysisId) =>
             complete {
-              state.analyses.map(_.assignments.toSeq
-                .filter {
-                  case (project, analyses) =>
-                    project == projectName && analyses.exists(
-                      _.analysisId == analysisId)
-                })
+              state.analyses.map { assignments =>
+                val ofProject =
+                  assignments.assignments.get(Project(projectName))
+
+                ofProject
+                  .flatMap(_.find(_.analysisId == analysisId))
+              }
             }
           }
       }
