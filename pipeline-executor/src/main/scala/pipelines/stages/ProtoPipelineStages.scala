@@ -145,6 +145,8 @@ object ProtoPipelineStages extends StrictLogging {
             _ = ProgressServer.send(
               BamAvailable(demultiplexed.project,
                            demultiplexed.sampleId,
+                           runIdTag,
+                           analysisId,
                            recalibratedPath))
 
             alignmentQC = intoQCFolder { implicit computationEnvironment =>
@@ -198,6 +200,8 @@ object ProtoPipelineStages extends StrictLogging {
             _ = ProgressServer.send(
               CoverageAvailable(demultiplexed.project,
                                 demultiplexed.sampleId,
+                                runIdTag,
+                                analysisId,
                                 wgsMeanCoverage))
 
             variantCalls <- if (!executeVariantCalling(doVariantCalling,
@@ -243,6 +247,8 @@ object ProtoPipelineStages extends StrictLogging {
                 _ = ProgressServer.send(
                   VCFAvailable(demultiplexed.project,
                                demultiplexed.sampleId,
+                               runIdTag,
+                               analysisId,
                                genotypedVcfPath))
 
                 gvcfQC <- intoQCFolder { implicit computationEnvironment =>

@@ -248,13 +248,15 @@ class ProtoPipeline(progressServer: SendProgressData)(
       implicit tsc: TaskSystemComponents): Future[Option[SampleResult]] = {
     progressServer.send(
       SampleProcessingStarted(demultiplexedSample.project,
-                              demultiplexedSample.sampleId))
+                              demultiplexedSample.sampleId,
+                              r.runId))
     ProtoPipelineStages.parseReadLengthFromRunInfo(r) match {
       case Left(error) =>
         logger.error(s"$error")
         progressServer.send(
           SampleProcessingFailed(demultiplexedSample.project,
-                                 demultiplexedSample.sampleId))
+                                 demultiplexedSample.sampleId,
+                                 r.runId))
         Future.successful(None)
       case Right(readLengths) =>
         logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
@@ -326,7 +328,8 @@ class ProtoPipeline(progressServer: SendProgressData)(
 
           progressServer.send(
             SampleProcessingFinished(demultiplexedSample.project,
-                                     demultiplexedSample.sampleId))
+                                     demultiplexedSample.sampleId,
+                                     demultiplexedSample.runId))
 
           Some(
             SampleResult(
@@ -344,7 +347,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
     }
   }
 
-  private def wes(samplesForWESAnalysis: PerSamplePerRunFastQ,
+  private def wes(sampleForWESAnalysis: PerSamplePerRunFastQ,
                   conf: WESConfiguration,
                   previousUncalibratedBam: Option[Bam])(
       implicit tsc: TaskSystemComponents) =
@@ -361,11 +364,11 @@ class ProtoPipeline(progressServer: SendProgressData)(
       vqsrTrainingFiles <- ProtoPipelineStages.fetchVqsrTrainingFiles(conf)
       perSampleResultsWES <- {
         logger.info(
-          s"Start main wes task of ${samplesForWESAnalysis.project} ${samplesForWESAnalysis.sampleId}")
+          s"Start main wes task of ${sampleForWESAnalysis.project} ${sampleForWESAnalysis.sampleId}")
         ProtoPipelineStages.singleSampleWES(
           SingleSamplePipelineInput(
             conf.analysisId,
-            samplesForWESAnalysis.withoutRunId,
+            sampleForWESAnalysis.withoutRunId,
             reference,
             knownSites.toSet.toStable,
             selectionTargetIntervals,
@@ -378,8 +381,27 @@ class ProtoPipeline(progressServer: SendProgressData)(
             contigsFile = contigsFile
           ))(ResourceConfig.minimal,
              labels = ResourceConfig.projectAndSampleLabel(
-               samplesForWESAnalysis.project,
-               samplesForWESAnalysis.sampleId))
+               sampleForWESAnalysis.project,
+               sampleForWESAnalysis.sampleId))
+      }
+      bamPath <- perSampleResultsWES.bam.bam.uri.map(_.toString)
+      _ = progressServer.send(
+        BamAvailable(sampleForWESAnalysis.project,
+                     sampleForWESAnalysis.sampleId,
+                     sampleForWESAnalysis.runId.toString,
+                     conf.analysisId,
+                     bamPath))
+      _ <- perSampleResultsWES.gvcf match {
+        case Some(vcf) =>
+          vcf.vcf.uri.map(_.toString).map { vcfPath =>
+            progressServer.send(
+              VCFAvailable(sampleForWESAnalysis.project,
+                           sampleForWESAnalysis.sampleId,
+                           sampleForWESAnalysis.runId.toString,
+                           conf.analysisId,
+                           vcfPath))
+          }
+        case _ => Future.successful(())
       }
 
     } yield

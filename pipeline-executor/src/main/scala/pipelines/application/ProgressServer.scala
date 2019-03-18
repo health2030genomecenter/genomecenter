@@ -19,22 +19,38 @@ object ProgressData {
       samplesWithFastq: Seq[(Project, SampleId, Set[String])])
       extends ProgressData
 
-  case class SampleProcessingStarted(project: Project, sample: SampleId)
+  case class SampleProcessingStarted(project: Project,
+                                     sample: SampleId,
+                                     run: RunId)
       extends ProgressData
-  case class SampleProcessingFinished(project: Project, sample: SampleId)
+  case class SampleProcessingFinished(project: Project,
+                                      sample: SampleId,
+                                      run: RunId)
       extends ProgressData
-  case class SampleProcessingFailed(project: Project, sample: SampleId)
+  case class SampleProcessingFailed(project: Project,
+                                    sample: SampleId,
+                                    run: RunId)
       extends ProgressData
 
   case class CoverageAvailable(project: Project,
                                sample: SampleId,
+                               runIdTag: String,
+                               analysis: AnalysisId,
                                wgsCoverage: Double)
       extends ProgressData
 
-  case class BamAvailable(project: Project, sample: SampleId, bamPath: String)
+  case class BamAvailable(project: Project,
+                          sample: SampleId,
+                          runIdTag: String,
+                          analysis: AnalysisId,
+                          bamPath: String)
       extends ProgressData
 
-  case class VCFAvailable(project: Project, sample: SampleId, vcfPath: String)
+  case class VCFAvailable(project: Project,
+                          sample: SampleId,
+                          run: String,
+                          analysis: AnalysisId,
+                          vcfPath: String)
       extends ProgressData
 
   case class JointCallsAvailable(project: Project,
@@ -48,7 +64,8 @@ trait SendProgressData {
   def send(data: ProgressData): Unit
 }
 
-class ProgressServer(implicit tsc: TaskSystemComponents, ec: ExecutionContext)
+class ProgressServer(taskSystemActorSystem: ActorSystem)(
+    implicit ec: ExecutionContext)
     extends StrictLogging
     with SendProgressData
     with HttpComponent {
@@ -67,7 +84,7 @@ class ProgressServer(implicit tsc: TaskSystemComponents, ec: ExecutionContext)
         }
       }
     )
-    val actorRef = tsc.actorsystem.actorOf(props, "progress-server")
+    val actorRef = taskSystemActorSystem.actorOf(props, "progress-server")
 
     logger.info(
       s"Progress server actor created on $actorRef ${actorRef.path} ${actorRef.path.address}")
@@ -167,22 +184,22 @@ class ProgressServer(implicit tsc: TaskSystemComponents, ec: ExecutionContext)
                         samples
                           .filter(_._1 == project)
                           .map(p => (p._2, "demultiplexed"))
-                      case SampleProcessingStarted(project0, sample)
+                      case SampleProcessingStarted(project0, sample, _)
                           if project0 == project =>
                         List(sample -> "start")
-                      case SampleProcessingFailed(project0, sample)
+                      case SampleProcessingFailed(project0, sample, _)
                           if project0 == project =>
                         List(sample -> "fail")
-                      case SampleProcessingFinished(project0, sample)
+                      case SampleProcessingFinished(project0, sample, _)
                           if project0 == project =>
                         List(sample -> "finish")
-                      case CoverageAvailable(project0, sample, _)
+                      case CoverageAvailable(project0, sample, _, _, _)
                           if project0 == project =>
                         List(sample -> "cov")
-                      case BamAvailable(project0, sample, _)
+                      case BamAvailable(project0, sample, _, _, _)
                           if project0 == project =>
                         List(sample -> "bam")
-                      case VCFAvailable(project0, sample, _)
+                      case VCFAvailable(project0, sample, _, _, _)
                           if project0 == project =>
                         List(sample -> "vcf")
                     }
@@ -206,9 +223,9 @@ class ProgressServer(implicit tsc: TaskSystemComponents, ec: ExecutionContext)
                 } yield {
                   data
                     .collect {
-                      case BamAvailable(project0, sample, path)
+                      case BamAvailable(project0, sample, run, analysis, path)
                           if project0 == project =>
-                        sample + "\t" + path
+                        sample + "\t" + run + "\t" + analysis + "\t" + path
                     }
                     .distinct
                     .mkString("\n")
@@ -222,9 +239,9 @@ class ProgressServer(implicit tsc: TaskSystemComponents, ec: ExecutionContext)
                 } yield {
                   data
                     .collect {
-                      case VCFAvailable(project0, sample, path)
+                      case VCFAvailable(project0, sample, run, analysis, path)
                           if project0 == project =>
-                        sample + "\t" + path
+                        sample + "\t" + run + "\t" + analysis + "\t" + path
                     }
                     .distinct
                     .mkString("\n")

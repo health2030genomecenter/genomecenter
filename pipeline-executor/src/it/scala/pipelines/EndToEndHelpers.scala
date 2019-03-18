@@ -107,7 +107,7 @@ object EndToEndHelpers {
     implicit val materializer = ActorMaterializer()
     val (config, basePath) = makeTestConfig
     val commandSource = new HttpCommandSource
-    val progressServer = new ProgressServer
+    val progressServer = new ProgressServer(AS)
     basePath.mkdirs
     val pipelineState = new FilePipelineState(new File(basePath, "STATE"))
     val queryComponent = new ConfigurationQueryHttpComponent(pipelineState)

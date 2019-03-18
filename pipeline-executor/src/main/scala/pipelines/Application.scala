@@ -26,7 +26,7 @@ class Application(implicit ec: ExecutionContext,
     extends StrictLogging {
 
   val commandSource = new HttpCommandSource
-  val progressServer = new ProgressServer
+  val progressServer = new ProgressServer(taskSystem.components.actorsystem)
   val pipelineState = PipelineConfiguration.pipelineState
   val queryComponent = new ConfigurationQueryHttpComponent(pipelineState)
 
