@@ -182,7 +182,6 @@ object AlignmentQC {
               f"${readPairOpticalDuplicates / 1E6}%8.2fM" -> right,
               f"$gcContent%6.2f" -> right,
               modeInsertSize.toString -> right,
-              f"${pctCoverage10x * 100}%11.2f%%" -> right,
               f"${pctCoverage20x * 100}%11.2f%%" -> right,
               f"${pctCoverage60x * 100}%11.2f%%" -> right,
               f"$pctExcludedTotal%11.2f%%" -> right,
@@ -229,7 +228,7 @@ object AlignmentQC {
               f"${pctPfUniqueReadsAligned * 100}%15.2f%%" -> right,
               badCycles.toString -> right,
               f"${pctChimeras * 100}%8.2f%%" -> right,
-              f"${pctTargetBases10 * 100}%11.2f%%" -> right,
+              f"${pctTargetBases20 * 100}%11.2f%%" -> right,
               f"${pctTargetBases30 * 100}%11.2f%%" -> right,
               f"${pctTargetBases50 * 100}%11.2f%%" -> right,
               f"${coveragePerRead * 1E6}%11.3f" -> right,
@@ -248,8 +247,8 @@ object AlignmentQC {
         "PFUniqueReadsAligned" -> right,
         "BadCycles" -> right,
         "Chimera" -> right,
-        "TargetBase10" -> right,
-        "Targetbase30" -> right,
+        "TargetBase20" -> right,
+        "TargetBase30" -> right,
         "TargetBase50" -> right,
         "CoveragePerMillionRead" -> right
       )
@@ -266,7 +265,6 @@ object AlignmentQC {
         "OptDupReadPairs" -> right,
         "GC" -> right,
         "InsertSizePeak" -> right,
-        "Wgs10x" -> right,
         "Wgs20x" -> right,
         "Wgs60x" -> right,
         "Excluded" -> right,
@@ -327,7 +325,7 @@ object AlignmentQC {
   }
 
   val runQCTable =
-    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 1) {
+    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 2) {
       case RunQCTableInput(fileName, sampleMetrics, rnaAnalyses) =>
         implicit computationEnvironment =>
           def read(f: File) = fileutils.openSource(f)(_.mkString)
