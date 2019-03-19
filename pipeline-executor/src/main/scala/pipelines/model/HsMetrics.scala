@@ -30,7 +30,8 @@ object HsMetrics {
       pctTargetBases20: Double,
       pctTargetBases30: Double,
       pctTargetBases40: Double,
-      pctTargetBases50: Double
+      pctTargetBases50: Double,
+      pctUsableBasesOnTarget: Double
   )
 
   object Root {
@@ -83,6 +84,7 @@ object HsMetrics {
         val PCT_TARGET_BASES_30X = "PCT_TARGET_BASES_30X"
         val PCT_TARGET_BASES_40X = "PCT_TARGET_BASES_40X"
         val PCT_TARGET_BASES_50X = "PCT_TARGET_BASES_50X"
+        val PCT_USABLE_BASES_ON_TARGET = "PCT_USABLE_BASES_ON_TARGET"
 
         val allHeaders = List(
           READ_GROUP,
@@ -102,7 +104,8 @@ object HsMetrics {
           PCT_TARGET_BASES_20X,
           PCT_TARGET_BASES_30X,
           PCT_TARGET_BASES_40X,
-          PCT_TARGET_BASES_50X
+          PCT_TARGET_BASES_50X,
+          PCT_USABLE_BASES_ON_TARGET
         )
       }
 
@@ -131,7 +134,8 @@ object HsMetrics {
           pctTargetBases20 = g(H.PCT_TARGET_BASES_20X).toDouble,
           pctTargetBases30 = g(H.PCT_TARGET_BASES_30X).toDouble,
           pctTargetBases40 = g(H.PCT_TARGET_BASES_40X).toDouble,
-          pctTargetBases50 = g(H.PCT_TARGET_BASES_50X).toDouble
+          pctTargetBases50 = g(H.PCT_TARGET_BASES_50X).toDouble,
+          pctUsableBasesOnTarget = g(H.PCT_USABLE_BASES_ON_TARGET).toDouble
         )
 
         val lane = laneFromReadGroup(g(H.READ_GROUP))
