@@ -204,11 +204,14 @@ object ProtoPipelineStages extends StrictLogging {
                                 analysisId,
                                 wgsMeanCoverage))
 
-            variantCalls <- if (!executeVariantCalling(doVariantCalling,
-                                                       wgsMeanCoverage,
-                                                       targetedMeanCoverage,
-                                                       minimumTargetedCoverage,
-                                                       minimumWGSCoverage))
+            variantCalls <- if (!executeVariantCalling(
+                                  doVariantCalling = doVariantCalling,
+                                  wgsCoverage = wgsMeanCoverage,
+                                  targetedCoverage = targetedMeanCoverage,
+                                  minimumTargetedCoverage =
+                                    minimumTargetedCoverage,
+                                  minimumWGSCoverage = minimumWGSCoverage
+                                ))
               Future.successful(None)
             else {
               for {
