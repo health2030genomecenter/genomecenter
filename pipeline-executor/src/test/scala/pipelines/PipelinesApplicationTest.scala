@@ -110,6 +110,19 @@ class PipelinesApplicationTest
         run2,
         AnalysisAssignments(Map(Project("project1") -> Seq(rnaConfiguration))))
 
+      When("the configuration is updated")
+      pipelineState.assigned(
+        Project("project1"),
+        rnaConfiguration.copy(referenceFasta = "somethingelse"))
+      Then("the state should zip the analysis configuration with future runs")
+      Await
+        .result(pipelineState.registered(run2), 5 seconds)
+        .get shouldBe RunWithAnalyses(
+        run2,
+        AnalysisAssignments(
+          Map(Project("project1") -> Seq(
+            rnaConfiguration.copy(referenceFasta = "somethingelse")))))
+
       When("a project is unassigned")
       pipelineState.unassigned(Project("project1"), rnaConfiguration.analysisId)
       Then(

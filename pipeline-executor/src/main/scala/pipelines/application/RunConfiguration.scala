@@ -83,8 +83,11 @@ case class AnalysisAssignments(
 ) {
   def assigned(project: Project, conf: AnalysisConfiguration) = {
     val updatedMap = assignments.get(project) match {
-      case None       => assignments.updated(project, Seq(conf))
-      case Some(list) => assignments.updated(project, (list :+ conf).distinct)
+      case None => assignments.updated(project, Seq(conf))
+      case Some(list) =>
+        assignments.updated(
+          project,
+          (list.filterNot(_.analysisId == conf.analysisId) :+ conf).distinct)
     }
     copy(updatedMap)
   }
