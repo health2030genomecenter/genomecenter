@@ -40,7 +40,7 @@ object ProtoPipelineStages extends StrictLogging {
   val singleSampleWES =
     AsyncTask[SingleSamplePipelineInput, SingleSamplePipelineResult](
       "__persample-single",
-      1) {
+      2) {
       case SingleSamplePipelineInput(analysisId,
                                      demultiplexed,
                                      referenceFasta,
