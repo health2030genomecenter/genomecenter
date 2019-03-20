@@ -227,6 +227,37 @@ class ProtoPipeline(progressServer: SendProgressData)(
     } yield (project, true, Some(deliverables))
   }
 
+  def sendFastQPathsToProgressServer(runId: RunId,
+                                     samples: Seq[PerSamplePerRunFastQ])(
+      implicit tsc: TaskSystemComponents): Unit = {
+    val samplesWithFastqPaths = Future.traverse(samples) {
+      perSamplePerRunFastq =>
+        val files = perSamplePerRunFastq.lanes.toSeq.flatMap(
+          lane =>
+            List(lane.read1.file, lane.read2.file) ++ lane.umi.toList
+              .map(_.file))
+
+        for {
+          paths <- Future.traverse(files)(_.uri)
+        } yield {
+          (perSamplePerRunFastq.runId,
+           perSamplePerRunFastq.project,
+           perSamplePerRunFastq.sampleId,
+           paths.map(_.toString))
+        }
+    }
+
+    samplesWithFastqPaths.andThen {
+      case Success(samplesWithFastqPaths) =>
+        progressServer.send(Demultiplexed(runId, samplesWithFastqPaths.map {
+          case (_, project, sampleId, paths) =>
+            (project, sampleId, paths.toSet)
+        }))
+      case Failure(e) =>
+        logger.error("Failed to fetch paths for demultiplexed fastqs", e)
+    }
+  }
+
   def demultiplex(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents): Future[Seq[PerSamplePerRunFastQ]] = {
     progressServer.send(DemultiplexStarted(r.runId))
@@ -235,10 +266,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
       case None    => ProtoPipelineStages.liftAlreadyDemultiplexedFastQs(r)
     }).andThen {
       case Success(samples) =>
-        progressServer.send(
-          Demultiplexed(r.runId,
-                        samples.map(s =>
-                          (s.project, s.sampleId, Set.empty[String]))))
+        sendFastQPathsToProgressServer(r.runId, samples)
       case Failure(_) =>
         progressServer.send(DemultiplexFailed(r.runId))
     }

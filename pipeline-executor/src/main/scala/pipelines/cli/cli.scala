@@ -132,6 +132,7 @@ object Pipelinectl extends App {
   case object Unassign extends CliCommand
   case object QueryBam extends CliCommand
   case object QueryVcf extends CliCommand
+  case object QueryFastq extends CliCommand
   case object QueryRuns extends CliCommand
   case object QueryProjects extends CliCommand
   case object QueryRunConfigurations extends CliCommand
@@ -314,6 +315,15 @@ object Pipelinectl extends App {
             .action((v, c) => c.copy(project = Some(v)))
             .required
         ),
+      cmd("query-fastqs")
+        .text("Queries finished fastq files per project")
+        .action((_, c) => c.copy(command = QueryFastq))
+        .children(
+          arg[String]("project")
+            .text("project name ")
+            .action((v, c) => c.copy(project = Some(v)))
+            .required
+        ),
       cmd("query-projects")
         .text("Queries projects or sample status per project")
         .action((_, c) => c.copy(command = QueryProjects))
@@ -432,6 +442,9 @@ object Pipelinectl extends App {
         case QueryBam =>
           val project = config.project.get
           println(get(s"/v2/bams/$project"))
+        case QueryFastq =>
+          val project = config.project.get
+          println(get(s"/v2/fastqs/$project"))
         case QueryVcf =>
           val project = config.project.get
           println(get(s"/v2/vcfs/$project"))

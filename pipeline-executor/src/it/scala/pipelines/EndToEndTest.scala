@@ -82,12 +82,13 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
           case sample: SampleFinished[_] =>
             sample.sample shouldBe "sample1"
         }
-        getProgress("/v2/runs") shouldBe "runid1"
-        getProgress("/v2/runs/runid1") shouldBe "demultiplex started\ndemultiplexed 1\ndemultiplex started\ndemultiplexed 1"
-        getProgress("/v2/projects") shouldBe "project1"
+        getProgress("/v2/runs") shouldBe "runid1\n"
+        getProgress("/v2/runs/runid1") shouldBe "demultiplex started\ndemultiplexed 1\ndemultiplex started\ndemultiplexed 1\n"
+        getProgress("/v2/projects") shouldBe "project1\n"
         getProgress("/v2/projects/project1") shouldBe """[{"DemultiplexedSample":{"project":"project1","sampleId":"sample1","run":"runid1"}},{"SampleProcessingStarted":{"project":"project1","sample":"sample1","runId":"runid1"}},{"SampleProcessingFinished":{"project":"project1","sample":"sample1","run":"runid1"}},{"DemultiplexedSample":{"project":"project1","sampleId":"sample1","run":"runid1"}},{"SampleProcessingStarted":{"project":"project1","sample":"sample1","runId":"runid1"}},{"SampleProcessingFinished":{"project":"project1","sample":"sample1","run":"runid1"}}]"""
-        getProgress("/v2/bams/project1") shouldBe ""
-        getProgress("/v2/vcfs/project1") shouldBe ""
+        getProgress("/v2/bams/project1") shouldBe "\n"
+        getProgress("/v2/vcfs/project1") shouldBe "\n"
+        getProgress("/v2/fastqs/project1").size > 3 shouldBe true
         getProgress("/v2/analyses") shouldBe "[]"
         io.circe.parser
           .decode[Seq[RunfolderReadyForProcessing]](

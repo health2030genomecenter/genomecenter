@@ -149,7 +149,7 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                       s"demultiplexed ${samples.size}"
                   }
                   .map(_.toString)
-                  .mkString("\n")
+                  .mkString("", "\n", "\n")
               }
             }
           } ~
@@ -163,7 +163,7 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                       case DemultiplexStarted(run) => run
                     }
                     .distinct
-                    .mkString("\n")
+                    .mkString("", "\n", "\n")
                 }
               }
             } ~
@@ -179,7 +179,7 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                     }
                     .flatten
                     .distinct
-                    .mkString("\n")
+                    .mkString("", "\n", "\n")
                 }
               }
             } ~
@@ -221,6 +221,38 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                 }
               }
             } ~
+            path("fastqs" / Segment) { project =>
+              complete {
+                for {
+                  data <- getData
+                } yield {
+                  val files = data.collect {
+                    case Demultiplexed(run, samples) =>
+                      val samplesOfProject = samples.filter {
+                        case (project0, _, _) => project0 == project
+                      }
+
+                      samplesOfProject
+                        .flatMap {
+                          case (project, sample, fastqs) =>
+                            fastqs.map { fastq =>
+                              (run, project, sample, fastq)
+                            }
+                        }
+
+                  }
+                  files.flatten
+                    .sortBy(_._3.toString)
+                    .map {
+                      case (run, project, sample, fastq) =>
+                        run + "\t" + project + "\t" + sample + "\t" + fastq
+                    }
+                    .mkString("", "\n", "\n")
+
+                }
+              }
+
+            } ~
             path("bams" / Segment) { project =>
               complete {
                 for {
@@ -233,7 +265,7 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                         sample + "\t" + run + "\t" + analysis + "\t" + path
                     }
                     .distinct
-                    .mkString("\n")
+                    .mkString("", "\n", "\n")
                 }
               }
             } ~
@@ -249,7 +281,7 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                         sample + "\t" + run + "\t" + analysis + "\t" + path
                     }
                     .distinct
-                    .mkString("\n")
+                    .mkString("", "\n", "\n")
                 }
               }
             }
