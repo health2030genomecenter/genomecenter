@@ -25,6 +25,17 @@ class ConfigurationQueryHttpComponent(state: PipelineState)(
               state.pastRuns.map(_.map(_.run))
             }
           } ~
+          path("analysed-projects") {
+            complete {
+              state.analyses
+                .map { data =>
+                  val projects: Seq[Project] =
+                    data.assignments.keySet.toSeq.sortBy(_.toString)
+                  projects
+                }
+
+            }
+          } ~
           path("analyses") {
             complete {
               state.analyses.map(_.assignments.toSeq)

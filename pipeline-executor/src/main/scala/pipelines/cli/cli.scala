@@ -185,7 +185,8 @@ object Pipelinectl extends App {
       sampleId: Option[String] = None,
       subtree: Option[String] = None,
       printDot: Option[Boolean] = None,
-      samplesFile: Option[String] = None
+      samplesFile: Option[String] = None,
+      listProjects: Option[Boolean] = None
   )
 
   def printAddRunHelpAndExit() = {
@@ -319,7 +320,10 @@ object Pipelinectl extends App {
         .children(
           opt[String]('p', "project")
             .text("project name. If missing lists all projects. If present lists sample status per project.")
-            .action((v, c) => c.copy(project = Some(v)))
+            .action((v, c) => c.copy(project = Some(v))),
+          opt[Unit]("list-projects")
+            .text("List all projects with active analysis configuration")
+            .action((_, c) => c.copy(listProjects = Some(true)))
         ),
       cmd("query-runs")
         .text("Queries runs or progress of runs")
@@ -409,7 +413,10 @@ object Pipelinectl extends App {
         case QueryAnalyses =>
           (config.project, config.analysisId) match {
             case (None, _) =>
-              println(get("/v2/analyses"))
+              if (config.listProjects.exists(identity)) {
+                println(get("/v2/analysed-projects"))
+              } else println(get("/v2/analyses"))
+
             case (Some(project), None) =>
               println(get(s"/v2/analyses/$project"))
             case (Some(project), Some(analysisId)) =>
