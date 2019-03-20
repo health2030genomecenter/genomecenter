@@ -125,8 +125,10 @@ class PipelinesApplicationTest
         .get shouldBe RunWithAnalyses(
         run2,
         AnalysisAssignments(
-          Map(Project("project1") -> Seq(
-            rnaConfiguration.copy(referenceFasta = "somethingelse")))))
+          Map(Project("project") -> Seq(wesConfigurationFromMigration),
+              Project("project1") -> Seq(
+                rnaConfiguration.copy(referenceFasta = "somethingelse"))))
+      )
 
       When("a project is unassigned")
       pipelineState.unassigned(Project("project1"), rnaConfiguration.analysisId)
