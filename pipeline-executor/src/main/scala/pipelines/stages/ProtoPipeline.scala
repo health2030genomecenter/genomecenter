@@ -12,7 +12,7 @@ import org.gc.pipelines.application.{
 import org.gc.pipelines.model._
 import org.gc.pipelines.application.{SendProgressData}
 import org.gc.pipelines.application.ProgressData._
-import org.gc.pipelines.util.ResourceConfig
+import org.gc.pipelines.util.{ResourceConfig, traverseAll}
 import org.gc.pipelines.util.StableSet.syntax
 import com.typesafe.scalalogging.StrictLogging
 import scala.util.{Success, Failure}
@@ -292,7 +292,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
           }
 
         val perSampleResultsWES =
-          Future.traverse(selectedWESConfigurations) { conf =>
+          traverseAll(selectedWESConfigurations) { conf =>
             logger.info(
               demultiplexedSample.runId + " " + demultiplexedSample.project + " " + demultiplexedSample.sampleId + " past result: " + pastSampleResult
                 .map(_.runFolders.map(_.runId)))
@@ -324,7 +324,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
           Future.successful(Nil)
 
         } else
-          Future.traverse(selectedRNASeqConfigurations)(
+          traverseAll(selectedRNASeqConfigurations)(
             rna(demultiplexedSample, _, readLengths))
 
         for {

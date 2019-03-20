@@ -4,7 +4,6 @@ import tasks._
 import tasks.circesupport._
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import scala.concurrent.Future
 import org.gc.pipelines.util.{
   Exec,
   GATK,
@@ -13,7 +12,8 @@ import org.gc.pipelines.util.{
   Fasta,
   StableSet,
   Files,
-  VersionConfig
+  VersionConfig,
+  traverseAll
 }
 import scala.collection.JavaConverters._
 import java.io.File
@@ -62,7 +62,7 @@ object BaseQualityScoreRecalibration {
           for {
             dict <- reference.dict
             intervals = BaseQualityScoreRecalibration.createIntervals(dict)
-            scattered <- Future.traverse(intervals) { interval =>
+            scattered <- traverseAll(intervals) { interval =>
               inScatteredFolder { implicit computationEnvironment =>
                 trainBQSRPiece(
                   TrainBQSRInputScatteredPiece(bam,
@@ -72,7 +72,7 @@ object BaseQualityScoreRecalibration {
                   ResourceConfig.trainBqsr)
               }
             }
-            localTables <- Future.traverse(scattered)(_.file.file)
+            localTables <- traverseAll(scattered)(_.file.file)
             gatheredTables <- {
 
               val output = Files.createTempFile(".bsqr.report")
@@ -119,7 +119,7 @@ object BaseQualityScoreRecalibration {
           for {
             localBam <- bam.bam.file
             reference <- reference.localFile
-            knownSites <- Future.traverse(knownSites.toSeq)(_.localFile)
+            knownSites <- traverseAll(knownSites.toSeq)(_.localFile)
             result <- {
 
               val output = Files.createTempFile(".bsqr.report")
@@ -174,7 +174,7 @@ object BaseQualityScoreRecalibration {
           for {
             dict <- reference.dict
             intervals = BaseQualityScoreRecalibration.createIntervals(dict)
-            scattered <- Future.traverse(intervals) { interval =>
+            scattered <- traverseAll(intervals) { interval =>
               inScatteredFolder { implicit computationEnvironment =>
                 applyBQSRPiece(
                   ApplyBQSRInputScatteredPiece(bam,
@@ -184,7 +184,7 @@ object BaseQualityScoreRecalibration {
                   ResourceConfig.applyBqsr)
               }
             }
-            localBams <- Future.traverse(scattered)(_.localFile)
+            localBams <- traverseAll(scattered)(_.localFile)
             gathered <- {
 
               val output = Files.createTempFile(".bsqr.bam")
@@ -226,7 +226,7 @@ object BaseQualityScoreRecalibration {
                 bai <- SharedFile(expectedBai,
                                   bam.bam.name + ".bqsr.bai",
                                   deleteFile = true)
-                _ <- Future.traverse(scattered)(_.bam.delete)
+                _ <- traverseAll(scattered)(_.bam.delete)
               } yield CoordinateSortedBam(gatheredBam, bai)
 
             }

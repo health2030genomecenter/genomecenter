@@ -8,7 +8,14 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.Future
 import org.gc.readqc
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{ResourceConfig, ReadQCPlot, Exec, JVM, StableSet}
+import org.gc.pipelines.util.{
+  ResourceConfig,
+  ReadQCPlot,
+  Exec,
+  JVM,
+  StableSet,
+  traverseAll
+}
 import org.gc.pipelines.util.StableSet.syntax
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
@@ -85,7 +92,7 @@ object ReadQC {
 
         for {
 
-          metrics <- Future.traverse(units) {
+          metrics <- traverseAll(units) {
             case (project, sample, run, lane, read, fastqs) =>
               for {
                 metrics <- readQCPerUnit(

@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.StrictLogging
 import akka.actor.ActorSystem
 import scala.concurrent.{ExecutionContext, Future}
 
-import org.gc.pipelines.util.ActorSource
+import org.gc.pipelines.util.{ActorSource, traverseAll}
 import org.gc.pipelines.model.{Project, SampleId}
 import akka.stream.scaladsl.Sink
 import akka.stream.ActorMaterializer
@@ -143,7 +143,7 @@ class SimplePipelinesApplication[DemultiplexedSample, SampleResult, Delivery](
       .toSeq
       .map(_._2)
 
-    completedProjects <- Future.traverse(processedSamplesByProject) { samples =>
+    completedProjects <- traverseAll(processedSamplesByProject) { samples =>
       assert(samples.map(s => getKeysOfSampleResult(s)._1).distinct.size == 1)
 
       PipelinesApplication.processSamplesOfCompletedProject(pipeline, samples)

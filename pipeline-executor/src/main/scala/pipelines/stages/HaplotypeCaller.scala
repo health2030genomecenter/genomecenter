@@ -12,7 +12,8 @@ import org.gc.pipelines.util.{
   ResourceConfig,
   Files,
   StableSet,
-  Fasta
+  Fasta,
+  traverseAll
 }
 import java.io.File
 import scala.collection.JavaConverters._
@@ -423,17 +424,16 @@ object HaplotypeCaller {
                                       knownSites = training.dbSnp138))(
                     ResourceConfig.vqsrTrainSnp)
               }
-              scatteredRecalibrated <- Future.traverse(scatteredGenotypes) {
-                vcf =>
-                  intoScattersFolder { implicit computationEnvironment =>
-                    applyVQSR(
-                      ApplyVQSRInput(vcf,
-                                     snpRecal = vqsrSnpModel.recal,
-                                     snpTranches = vqsrSnpModel.tranches,
-                                     indelRecal = vqsrIndelModel.recal,
-                                     indelTranches = vqsrIndelModel.tranches))(
-                      ResourceConfig.vqsrApply)
-                  }
+              scatteredRecalibrated <- traverseAll(scatteredGenotypes) { vcf =>
+                intoScattersFolder { implicit computationEnvironment =>
+                  applyVQSR(
+                    ApplyVQSRInput(vcf,
+                                   snpRecal = vqsrSnpModel.recal,
+                                   snpTranches = vqsrSnpModel.tranches,
+                                   indelRecal = vqsrIndelModel.recal,
+                                   indelTranches = vqsrIndelModel.tranches))(
+                    ResourceConfig.vqsrApply)
+                }
               }
               recalibratedSitesOnly <- applyVQSR(
                 ApplyVQSRInput(gatheredSites,
@@ -455,7 +455,7 @@ object HaplotypeCaller {
               .createIntervals(dict)
               .filter { case (contig, _) => contigs.contains(contig) }
               .map { case (contig, (from, to)) => s"$contig:$from-$to" }
-            scattered <- Future.traverse(intervals) { interval =>
+            scattered <- traverseAll(intervals) { interval =>
               intoScattersFolder { implicit computationEnvironment =>
                 val scratchNeeded =
                   (input.targetVcfs.size * ResourceConfig.genotypeGvcfScratchSpaceMegabytePerSample).toInt
@@ -650,7 +650,7 @@ object HaplotypeCaller {
             intervals = BaseQualityScoreRecalibration
               .createIntervals(dict)
               .filter(c => contigs.contains(c))
-            scattered <- Future.traverse(intervals) { interval =>
+            scattered <- traverseAll(intervals) { interval =>
               intoScattersFolder { implicit computationEnvironment =>
                 haplotypeCallerOnInterval(
                   HaplotypeCallerOnIntervalInput(bam, reference, interval))(

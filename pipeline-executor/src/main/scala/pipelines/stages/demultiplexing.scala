@@ -1,7 +1,7 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Exec, Files, ResourceConfig}
+import org.gc.pipelines.util.{Exec, Files, ResourceConfig, traverseAll}
 import org.gc.pipelines.util.StableSet
 import org.gc.pipelines.util.StableSet.syntax
 
@@ -128,7 +128,7 @@ object Demultiplexing {
             }
           }
 
-          demultiplexedLanes <- Future.traverse(partitions.toSeq.zipWithIndex) {
+          demultiplexedLanes <- traverseAll(partitions.toSeq.zipWithIndex) {
             case (tiles, idx) =>
               perLane(
                 DemultiplexSingleLaneInput(runFolder,

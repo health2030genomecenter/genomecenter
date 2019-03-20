@@ -1,5 +1,7 @@
 package org.gc.pipelines
 
+import scala.concurrent.Future
+
 package object util {
   def isMac = System.getProperty("os.name").toLowerCase.contains("mac")
   def isLinux = System.getProperty("os.name").toLowerCase.contains("linux")
@@ -26,5 +28,16 @@ package object util {
         }
     }
 
+  }
+
+  def traverseAll[T, K](it: Seq[T])(f: T => Future[K]) = {
+    implicit val ec = HighlyParallelExecutionContext
+    Future.traverse(it)(f)
+  }
+
+  val HighlyParallelExecutionContext = {
+    val fjp = new java.util.concurrent.ForkJoinPool(1000)
+
+    scala.concurrent.ExecutionContext.fromExecutorService(fjp)
   }
 }

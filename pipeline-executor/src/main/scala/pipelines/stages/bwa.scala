@@ -3,7 +3,7 @@ package org.gc.pipelines.stages
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.{Exec, ResourceConfig, JVM, BAM, Files}
 import org.gc.pipelines.util
-import org.gc.pipelines.util.StableSet
+import org.gc.pipelines.util.{StableSet, traverseAll}
 
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -145,9 +145,8 @@ object BWAAlignment {
                                        reference,
                                        lane.umi))(resourceRequest)
           }
-
           for {
-            alignedLanes <- Future.sequence(fastqs.toSeq.map(alignLane))
+            alignedLanes <- traverseAll(fastqs.toSeq)(alignLane)
             merged <- mergeAndMarkDuplicate(
               BamsWithSampleMetadata(
                 project,
@@ -247,7 +246,7 @@ object BWAAlignment {
             s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
           for {
-            localBams <- Future.sequence(bams.toSeq.map(_.file.file))
+            localBams <- Future.traverse(bams.toSeq)(_.file.file)
             result <- {
 
               localBams.foreach { localBam =>
