@@ -72,12 +72,6 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             assert(
               deliverableListLines.exists(
                 _.endsWith("projectQC/project1/project1.1.readqc.pdf")))
-            assert(
-              deliverableListLines.exists(
-                _.endsWith("premade_fastqs/project1/papa.read1.fq.gz")))
-            assert(
-              deliverableListLines.exists(
-                _.endsWith("premade_fastqs/project1/papa.read2.fq.gz")))
         }
 
         When(

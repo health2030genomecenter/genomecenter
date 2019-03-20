@@ -400,13 +400,10 @@ object ProtoPipelineStages extends StrictLogging {
                 val umi: Option[File] = inputFastQ.umi.map { umi =>
                   new File(umi)
                 }
+                import tasks.util.Uri
                 for {
-                  read1SF <- SharedFile(read1,
-                                        name = read1.getName,
-                                        deleteFile = false)
-                  read2SF <- SharedFile(read2,
-                                        name = read2.getName,
-                                        deleteFile = false)
+                  read1SF <- SharedFile(Uri("file://" + read1.getAbsolutePath))
+                  read2SF <- SharedFile(Uri("file://" + read2.getAbsolutePath))
                   umiSF <- umi match {
                     case None => Future.successful(None)
                     case Some(umif: File) =>
