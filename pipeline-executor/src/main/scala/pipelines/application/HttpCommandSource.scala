@@ -88,8 +88,14 @@ class HttpCommandSource(implicit AS: ActorSystem)
         post {
           path("analyses" / Segment) { project =>
             entity(as[String]) { analysisConfigurationAsString =>
-              val maybeParsed = AnalysisConfiguration.fromConfig(
-                ConfigFactory.parseString(analysisConfigurationAsString))
+              val parsedFromJson = io.circe.parser
+                .decode[AnalysisConfiguration](analysisConfigurationAsString)
+
+              val maybeParsed =
+                if (parsedFromJson.isRight) parsedFromJson.left.map(_.toString)
+                else
+                  AnalysisConfiguration.fromConfig(
+                    ConfigFactory.parseString(analysisConfigurationAsString))
 
               maybeParsed match {
                 case Left(error) =>
@@ -130,12 +136,21 @@ class HttpCommandSource(implicit AS: ActorSystem)
           post {
             path("runs") {
               entity(as[String]) { runFolderConfigurationAsString =>
-                val maybeRunFolderReadyEvent = for {
-                  parsed <- Try(ConfigFactory.parseString(
-                    runFolderConfigurationAsString)).toEither.left
-                    .map(_.toString)
-                  runFolder <- RunfolderReadyForProcessing.fromConfig(parsed)
-                } yield runFolder
+                val parsedFromJson =
+                  io.circe.parser.decode[RunfolderReadyForProcessing](
+                    runFolderConfigurationAsString)
+
+                val maybeRunFolderReadyEvent =
+                  if (parsedFromJson.isRight)
+                    parsedFromJson.left.map(_.toString)
+                  else
+                    for {
+                      parsed <- Try(ConfigFactory.parseString(
+                        runFolderConfigurationAsString)).toEither.left
+                        .map(_.toString)
+                      runFolder <- RunfolderReadyForProcessing.fromConfig(
+                        parsed)
+                    } yield runFolder
 
                 maybeRunFolderReadyEvent match {
                   case Left(error) =>

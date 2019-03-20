@@ -498,8 +498,9 @@ object Pipelinectl extends App {
           val editedRunConfigurations = samplesToFinishPerRun.map {
             case (run, group) =>
               val samples = group.map(_._1)
-              val currentRunConfiguration = decode[RunfolderReadyForProcessing](
-                get(s"/v2/runconfigurations/$run")).right.get
+              val currentRunConfiguration =
+                decode[Seq[RunfolderReadyForProcessing]](
+                  get(s"/v2/runconfigurations/$run")).right.get.head
               val conf = currentRunConfiguration.runConfiguration
               val currentValue =
                 conf.lastRunOfSamples.toSeq

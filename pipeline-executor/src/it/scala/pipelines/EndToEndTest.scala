@@ -10,7 +10,11 @@ import GenericTestHelpers.timeout
 
 import scala.concurrent.duration._
 
-import org.gc.pipelines.application.{SampleFinished, ProjectFinished}
+import org.gc.pipelines.application.{
+  SampleFinished,
+  ProjectFinished,
+  RunfolderReadyForProcessing
+}
 import org.gc.pipelines.model.Project
 
 class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
@@ -91,6 +95,11 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         getProgress("/v2/bams/project1") shouldBe ""
         getProgress("/v2/vcfs/project1") shouldBe ""
         getProgress("/v2/analyses") shouldBe "[]"
+        io.circe.parser
+          .decode[Seq[RunfolderReadyForProcessing]](
+            getProgress("/v2/runconfigurations/runid1"))
+          .right
+          .get
 
       }
     }
