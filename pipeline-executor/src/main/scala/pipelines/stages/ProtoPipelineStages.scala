@@ -15,7 +15,6 @@ import org.gc.pipelines.application.ProgressServer
 import org.gc.pipelines.application.ProgressData._
 import org.gc.pipelines.util.ResourceConfig
 import org.gc.pipelines.util.StableSet
-import org.gc.pipelines.util.FastQHelpers
 import org.gc.pipelines.util.StableSet.syntax
 import java.io.File
 import com.typesafe.scalalogging.StrictLogging
@@ -382,6 +381,23 @@ object ProtoPipelineStages extends StrictLogging {
 
   }
 
+  val countReads = AsyncTask[SharedFile, Long]("__count-reads", 1) {
+    case file =>
+      implicit computationEnvironment =>
+        import akka.stream.scaladsl.{Framing, Compression}
+        import akka.util.ByteString
+        implicit val mat = computationEnvironment.components.actorMaterializer
+        for {
+          lines <- file.source
+            .via(Compression.gunzip(maxBytesPerChunk = 1024 * 1024))
+            .via(
+              Framing.delimiter(ByteString("\n"),
+                                maximumFrameLength = Int.MaxValue,
+                                allowTruncation = true))
+            .runFold(0L)((c, _) => c + 1L)
+        } yield lines / 4
+  }
+
   def liftAlreadyDemultiplexedFastQs(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext): Future[Seq[PerSamplePerRunFastQ]] = {
@@ -409,14 +425,20 @@ object ProtoPipelineStages extends StrictLogging {
                     case Some(umif: File) =>
                       SharedFile(umif, umif.getName, false).map(Some(_))
                   }
+                  read1Count <- countReads(read1SF)(ResourceConfig.minimal)
+                  read2Count <- countReads(read2SF)(ResourceConfig.minimal)
+                  umiCount <- umiSF match {
+                    case None => Future.successful(None)
+                    case Some(umi) =>
+                      countReads(umi)(ResourceConfig.minimal).map(Some(_))
+                  }
                 } yield
                   FastQPerLane(
                     runId,
                     inputFastQ.lane,
-                    FastQ(read1SF, FastQHelpers.getNumberOfReads(read1)),
-                    FastQ(read2SF, FastQHelpers.getNumberOfReads(read2)),
-                    umiSF.map(umiSF =>
-                      FastQ(umiSF, FastQHelpers.getNumberOfReads(umi.get))),
+                    FastQ(read1SF, read1Count),
+                    FastQ(read2SF, read2Count),
+                    umiSF.map(umiSF => FastQ(umiSF, umiCount.get)),
                     PartitionId(0)
                   )
 
