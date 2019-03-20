@@ -516,9 +516,12 @@ object Pipelinectl extends App {
           editedRunConfigurations.foreach { conf =>
             println(s"Resend run configuration as \n \n $conf ")
             println("Y if OK")
-            if (scala.io.Source.stdin.take(1).mkString != "Y") {
+            if (scala.io.Source.stdin.take(1).mkString == "Y") {
               import io.circe.syntax._
-              post("/v2/runs", conf.asJson.noSpaces)
+              val response = post("/v2/runs", conf.asJson.noSpaces)
+              if (response.code != 200) {
+                println("Request failed: " + response)
+              } else println("OK")
             }
           }
 
