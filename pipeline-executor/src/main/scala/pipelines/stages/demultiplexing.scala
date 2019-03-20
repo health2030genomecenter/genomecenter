@@ -88,7 +88,11 @@ object Demultiplexing {
         implicit val actorMaterializer =
           computationEnvironment.components.actorMaterializer
 
-        val partitionByLane = runFolder.partitionByLane.exists(identity)
+        val partitionByLane = runFolder.partitionByLane match {
+          case None       => true
+          case Some(bool) => bool
+        }
+
         val noPartition = runFolder.noPartition.exists(identity)
 
         def tilesOfLanes(lanes: Seq[Lane]): Seq[String] = {
