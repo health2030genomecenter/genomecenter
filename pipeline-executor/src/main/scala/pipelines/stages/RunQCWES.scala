@@ -339,7 +339,7 @@ object AlignmentQC {
   }
 
   val runQCTable =
-    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 2) {
+    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 3) {
       case RunQCTableInput(fileName, sampleMetrics, rnaAnalyses) =>
         implicit computationEnvironment =>
           def read(f: File) = fileutils.openSource(f)(_.mkString)
@@ -451,6 +451,19 @@ object AlignmentQC {
                 makeHtmlTable(laneMetrics, sampleMetrics, parsedRNAMetrics)
               SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
                          fileName + ".wes.qc.table.html")
+            }
+            _ <- {
+              val analyses
+                : Seq[AnalysisId] = (laneMetrics.map(_._3) ++ sampleMetrics.map(
+                _._6) ++ parsedRNAMetrics.map(_._1)).distinct
+              Future.traverse(analyses) { analysis =>
+                val table =
+                  makeHtmlTable(laneMetrics.filter(_._3 == analysis),
+                                sampleMetrics.filter(_._6 == analysis),
+                                parsedRNAMetrics.filter(_._1 == analysis))
+                SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
+                           fileName + "." + analysis + ".wes.qc.table.html")
+              }
             }
           } yield RunQCTable(htmlTable, rnaCSVTable)
 
