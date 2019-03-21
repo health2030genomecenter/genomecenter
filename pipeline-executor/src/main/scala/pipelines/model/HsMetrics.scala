@@ -31,8 +31,16 @@ object HsMetrics {
       pctTargetBases30: Double,
       pctTargetBases40: Double,
       pctTargetBases50: Double,
-      pctUsableBasesOnTarget: Double
-  )
+      pctUsableBasesOnTarget: Double,
+      pctExcDupe: Double,
+      pctExcMapQ: Double,
+      pctExcBaseQ: Double,
+      pctExcOverlap: Double,
+      pctExcOffTarget: Double
+  ) {
+    def meanTargetCoverageIncludingDuplicates: Double =
+      meanTargetCoverage / (1d - pctExcDupe)
+  }
 
   object Root {
 
@@ -85,6 +93,11 @@ object HsMetrics {
         val PCT_TARGET_BASES_40X = "PCT_TARGET_BASES_40X"
         val PCT_TARGET_BASES_50X = "PCT_TARGET_BASES_50X"
         val PCT_USABLE_BASES_ON_TARGET = "PCT_USABLE_BASES_ON_TARGET"
+        val PCT_EXC_DUPE = "PCT_EXC_DUPE"
+        val PCT_EXC_MAPQ = "PCT_EXC_MAPQ"
+        val PCT_EXC_BASEQ = "PCT_EXC_BASEQ"
+        val PCT_EXC_OVERLAP = "PCT_EXC_OVERLAP"
+        val PCT_EXC_OFF_TARGET = "PCT_EXC_OFF_TARGET"
 
         val allHeaders = List(
           READ_GROUP,
@@ -105,7 +118,12 @@ object HsMetrics {
           PCT_TARGET_BASES_30X,
           PCT_TARGET_BASES_40X,
           PCT_TARGET_BASES_50X,
-          PCT_USABLE_BASES_ON_TARGET
+          PCT_USABLE_BASES_ON_TARGET,
+          PCT_EXC_DUPE,
+          PCT_EXC_MAPQ,
+          PCT_EXC_BASEQ,
+          PCT_EXC_OVERLAP,
+          PCT_EXC_OFF_TARGET
         )
       }
 
@@ -135,7 +153,12 @@ object HsMetrics {
           pctTargetBases30 = g(H.PCT_TARGET_BASES_30X).toDouble,
           pctTargetBases40 = g(H.PCT_TARGET_BASES_40X).toDouble,
           pctTargetBases50 = g(H.PCT_TARGET_BASES_50X).toDouble,
-          pctUsableBasesOnTarget = g(H.PCT_USABLE_BASES_ON_TARGET).toDouble
+          pctUsableBasesOnTarget = g(H.PCT_USABLE_BASES_ON_TARGET).toDouble,
+          pctExcDupe = g(H.PCT_EXC_DUPE).toDouble,
+          pctExcMapQ = g(H.PCT_EXC_MAPQ).toDouble,
+          pctExcBaseQ = g(H.PCT_EXC_BASEQ).toDouble,
+          pctExcOverlap = g(H.PCT_EXC_OVERLAP).toDouble,
+          pctExcOffTarget = g(H.PCT_EXC_OFF_TARGET).toDouble,
         )
 
         val lane = laneFromReadGroup(g(H.READ_GROUP))

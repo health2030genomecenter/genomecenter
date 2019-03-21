@@ -223,6 +223,7 @@ object AlignmentQC {
               baitSet -> left,
               f"${totalReads / 1E6}%10.2fM" -> right,
               f"$meanTargetCoverage%13.1fx" -> right,
+              f"$meanTargetCoverageIncludingDuplicates%13.1fx" -> right,
               f"${pctPfReads * 100}%6.2f%%" -> right,
               f"${pctPfReadsAligned * 100}%13.2f%%" -> right,
               f"${pctUsableBasesOnTarget * 100}%13.2f%%" -> right,
@@ -233,6 +234,11 @@ object AlignmentQC {
               f"${pctTargetBases30 * 100}%11.2f%%" -> right,
               f"${pctTargetBases50 * 100}%11.2f%%" -> right,
               f"${coveragePerRead * 1E6}%11.3f" -> right,
+              f"${pctExcDupe * 100}%11.2f%%" -> right,
+              f"${pctExcMapQ * 100}%11.2f%%" -> right,
+              f"${pctExcBaseQ * 100}%11.2f%%" -> right,
+              f"${pctExcOverlap * 100}%11.2f%%" -> right,
+              f"${pctExcOffTarget * 100}%11.2f%%" -> right,
             ))
 
       }
@@ -243,6 +249,7 @@ object AlignmentQC {
       List(
         "TotalReads" -> right,
         "MeanTargetCoverage" -> right,
+        "MeanTargetCoverageDupeIncl" -> right,
         "PFReads" -> right,
         "PFReadsAligned" -> right,
         "OnTargetUsableBases" -> right,
@@ -252,7 +259,12 @@ object AlignmentQC {
         "TargetBase20" -> right,
         "TargetBase30" -> right,
         "TargetBase50" -> right,
-        "CoveragePerMillionRead" -> right
+        "CoveragePerMillionRead" -> right,
+        "ExclDupe" -> right,
+        "ExclMapQ" -> right,
+        "ExclBaseQ" -> right,
+        "ExclOverlap" -> right,
+        "ExclOffTarget" -> right,
       )
     )
 
