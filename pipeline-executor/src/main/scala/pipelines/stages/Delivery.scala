@@ -9,6 +9,8 @@ import scala.concurrent.Future
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import org.gc.pipelines.util.StableSet
+import org.gc.pipelines.application.{ProgressServer, ProgressData}
+import ProgressData.DeliveryListAvailable
 
 case class CollectDeliverablesInput(
     samples: StableSet[SampleResult],
@@ -137,6 +139,15 @@ object Delivery {
                   .map(_.runId)
                   .distinct
                   .sortBy(_.toString)
+
+                ProgressServer.send(
+                  DeliveryListAvailable(
+                    project,
+                    samples.map(_.sampleId).toSeq.toSet,
+                    pathList,
+                    runsIncluded
+                  )
+                )
 
                 val source =
                   Source.single(

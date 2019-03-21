@@ -67,6 +67,11 @@ object ProgressData {
                                  samples: Set[SampleId],
                                  vcfPath: String)
       extends ProgressData
+  case class DeliveryListAvailable(project: Project,
+                                   samples: Set[SampleId],
+                                   files: Seq[String],
+                                   runsIncluded: Seq[RunId])
+      extends ProgressData
 
   implicit val encoder: Encoder[ProgressData] = deriveEncoder[ProgressData]
   implicit val decoder: Decoder[ProgressData] = deriveDecoder[ProgressData]
@@ -284,6 +289,19 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                     }
                     .distinct
                     .mkString("", "\n", "\n")
+                }
+              }
+            } ~
+            path("deliveries" / Segment) { project =>
+              complete {
+                for {
+                  data <- getData
+                } yield {
+                  val event: Option[ProgressData] = data.collect {
+                    case d: DeliveryListAvailable if d.project == project => d
+
+                  }.lastOption
+                  event.asJson.noSpaces
                 }
               }
             }

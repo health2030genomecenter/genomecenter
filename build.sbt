@@ -112,7 +112,8 @@ lazy val pipelineExecutor = project
       "io.circe" %% "circe-generic" % "0.10.1",
       "org.scala-lang.modules" %% "scala-xml" % "1.1.1",
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
-      "org.scalaj" %% "scalaj-http" % "2.4.1"
+      "org.scalaj" %% "scalaj-http" % "2.4.1",
+      "com.hierynomus" % "sshj" % "0.27.0"
     ),
     unmanagedClasspath in Test += {
       val testFolder = System.getenv("GC_TESTFOLDER")
