@@ -320,10 +320,7 @@ object Pipelinectl extends App {
         .children(
           opt[String]('p', "project")
             .text("project name. If missing lists all projects. If present lists sample status per project.")
-            .action((v, c) => c.copy(project = Some(v))),
-          opt[Unit]("list-projects")
-            .text("List all projects with active analysis configuration")
-            .action((_, c) => c.copy(listProjects = Some(true)))
+            .action((v, c) => c.copy(project = Some(v)))
         ),
       cmd("query-runs")
         .text("Queries runs or progress of runs")
@@ -350,7 +347,10 @@ object Pipelinectl extends App {
             .action((v, c) => c.copy(project = Some(v))),
           opt[String]('a', "analysisID")
             .text("analysis id. If missing lists all. Only relevant if project is given as well.")
-            .action((v, c) => c.copy(analysisId = Some(v)))
+            .action((v, c) => c.copy(analysisId = Some(v))),
+          opt[Unit]("list-projects")
+            .text("List all projects with active analysis configuration")
+            .action((_, c) => c.copy(listProjects = Some(true)))
         ),
       cmd("analyse-resource-usage")
         .text("Analyses resource usage log")
