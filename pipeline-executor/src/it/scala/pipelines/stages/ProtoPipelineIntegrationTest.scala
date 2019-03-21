@@ -67,7 +67,6 @@ class ProtopipelineIntegrationTestSuite
         Then("Demultiplexing should happen")
         demultiplexedSamples.nonEmpty shouldBe true
         demultiplexedSamples.size shouldBe 1
-        demultiplexedSamples.toString shouldBe "List(PerSamplePerRunFastQ(StableSet(Set(FastQPerLane(whateverRunId,1,FastQ(SharedFile(/premade_fastqs/project1/papa.read1.fq.gz, size=275795, hash=1811967660),5000),FastQ(SharedFile(/premade_fastqs/project1/papa.read2.fq.gz, size=276137, hash=1388589452),5000),None,0))),project1,sample1,whateverRunId))"
         demultiplexedSamples.map(dm => (dm.project, dm.sampleId)).toSet shouldBe
           Set(("project1", "sample1"))
 
