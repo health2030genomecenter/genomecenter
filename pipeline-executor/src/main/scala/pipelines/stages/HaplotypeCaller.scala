@@ -4,7 +4,7 @@ import tasks._
 import tasks.circesupport._
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import scala.concurrent.Future
+import scala.concurrent.{Future, ExecutionContext}
 import org.gc.pipelines.util.{
   Exec,
   GATK,
@@ -92,17 +92,21 @@ case class TrainIndelVQSRInput(
 
 case class TrainVQSRResult(
     recal: SharedFile,
+    recalIdx: SharedFile,
     tranches: SharedFile
-) extends WithSharedFiles(recal, tranches)
+) extends WithSharedFiles(recal, recalIdx, tranches) {
+  def localRecalFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
+    for {
+      _ <- recalIdx.file
+      recal <- recal.file
+    } yield recal
+}
 
 case class ApplyVQSRInput(
     vcf: VCF,
-    snpRecal: SharedFile,
-    snpTranches: SharedFile,
-    indelRecal: SharedFile,
-    indelTranches: SharedFile
-) extends WithSharedFiles(
-      vcf.files ++ List(snpRecal, snpTranches, indelRecal, indelTranches): _*)
+    snp: TrainVQSRResult,
+    indel: TrainVQSRResult
+) extends WithSharedFiles(vcf.files ++ snp.files ++ indel.files: _*)
 
 case class JointCallInput(
     haplotypeCallerReferenceCalls: StableSet[VCF],
@@ -162,18 +166,14 @@ object HaplotypeCaller {
 
   val applyVQSR =
     AsyncTask[ApplyVQSRInput, VCF]("__apply-vqsr", 1) {
-      case ApplyVQSRInput(vcf,
-                          snpRecal,
-                          snpTranches,
-                          indelRecal,
-                          indelTranches) =>
+      case ApplyVQSRInput(vcf, snpTrain, indelTrain) =>
         implicit computationEnvironment =>
           for {
             localVCF <- vcf.localFile
-            snpRecal <- snpRecal.file
-            snpTranches <- snpTranches.file
-            indelRecal <- indelRecal.file
-            indelTranches <- indelTranches.file
+            snpRecal <- snpTrain.localRecalFile
+            snpTranches <- snpTrain.tranches.file
+            indelRecal <- indelTrain.localRecalFile
+            indelTranches <- indelTrain.tranches.file
             result <- {
 
               val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
@@ -203,7 +203,7 @@ object HaplotypeCaller {
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """)
 
-              Exec.bash(logDiscriminator = "vqsr-apply-indel",
+              Exec.bash(logDiscriminator = "vqsr-apply-snp",
                         onError = Exec.ThrowIfNonZero)(s"""\\
         java ${JVM.serial} $javaTmpDir ${JVM.maxHeap} \\
           ${GATK.javaArguments(5)} \\
@@ -263,7 +263,7 @@ object HaplotypeCaller {
               /* values are from the broad worfklow */
               val tranches =
                 List(100.0, 99.95, 99.9, 99.8, 99.6, 99.5, 99.4, 99.3, 99.0,
-                  98.0, 97.0, 90.0).mkString("-tranche", "-tranche", "")
+                  98.0, 97.0, 90.0).mkString(" -tranche ", " -tranche ", "")
 
               /* values are from the broad worfklow
                *  I removed DP annotation as some suggest
@@ -274,7 +274,7 @@ object HaplotypeCaller {
                 List("QD", "MQRankSum", "ReadPosRankSum", "FS", "MQ", "SOR")
                   .mkString(" -an ", " -an ", "")
 
-              Exec.bash(logDiscriminator = "vqsr-train-indel",
+              Exec.bash(logDiscriminator = "vqsr-train-snp",
                         onError = Exec.ThrowIfNonZero)(s"""\\
         java ${JVM.serial} $javaTmpDir ${JVM.maxHeap} \\
           ${GATK.javaArguments(5)} \\
@@ -297,15 +297,24 @@ object HaplotypeCaller {
 
               val nameStub = input.vcf.vcf.name + ".vqsr.train.snp"
 
+              val expectedRecalIndex =
+                new File(recalOutput.getAbsolutePath + ".idx")
+
               for {
                 _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
                 _ <- SharedFile(tmpStdErr, nameStub + ".stderr", true)
                 recal <- SharedFile(recalOutput, nameStub + ".recal", true)
+                recalIdx <- SharedFile(expectedRecalIndex,
+                                       nameStub + ".recal.idx",
+                                       true)
                 tranches <- SharedFile(trancheOutput,
                                        nameStub + ".tranches",
                                        true)
 
-              } yield TrainVQSRResult(recal = recal, tranches = tranches)
+              } yield
+                TrainVQSRResult(recal = recal,
+                                recalIdx = recalIdx,
+                                tranches = tranches)
             }
 
           } yield result
@@ -361,15 +370,24 @@ object HaplotypeCaller {
 
               val nameStub = input.vcf.vcf.name + ".vqsr.train.indel"
 
+              val expectedRecalIndex =
+                new File(recalOutput.getAbsolutePath + ".idx")
+
               for {
                 _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
                 _ <- SharedFile(tmpStdErr, nameStub + ".stderr", true)
                 recal <- SharedFile(recalOutput, nameStub + ".recal", true)
+                recalIdx <- SharedFile(expectedRecalIndex,
+                                       nameStub + ".recal.idx",
+                                       true)
                 tranches <- SharedFile(trancheOutput,
                                        nameStub + ".tranches",
                                        true)
 
-              } yield TrainVQSRResult(recal = recal, tranches = tranches)
+              } yield
+                TrainVQSRResult(recal = recal,
+                                recalIdx = recalIdx,
+                                tranches = tranches)
             }
 
           } yield result
@@ -428,19 +446,15 @@ object HaplotypeCaller {
                 intoScattersFolder { implicit computationEnvironment =>
                   applyVQSR(
                     ApplyVQSRInput(vcf,
-                                   snpRecal = vqsrSnpModel.recal,
-                                   snpTranches = vqsrSnpModel.tranches,
-                                   indelRecal = vqsrIndelModel.recal,
-                                   indelTranches = vqsrIndelModel.tranches))(
+                                   snp = vqsrSnpModel,
+                                   indel = vqsrIndelModel))(
                     ResourceConfig.vqsrApply)
                 }
               }
               recalibratedSitesOnly <- applyVQSR(
                 ApplyVQSRInput(gatheredSites,
-                               snpRecal = vqsrSnpModel.recal,
-                               snpTranches = vqsrSnpModel.tranches,
-                               indelRecal = vqsrIndelModel.recal,
-                               indelTranches = vqsrIndelModel.tranches))(
+                               snp = vqsrSnpModel,
+                               indel = vqsrIndelModel))(
                 ResourceConfig.vqsrApply)
               _ <- Future.traverse(scatteredGenotypes)(_.vcf.delete)
               _ <- gatheredSites.vcf.delete
