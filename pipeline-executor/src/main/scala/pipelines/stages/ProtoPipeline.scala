@@ -454,6 +454,14 @@ class ProtoPipeline(progressServer: SendProgressData)(
            labels =
              ResourceConfig.projectLabel(samplesForRNASeqAnalysis.project))
 
+      bamPath <- perSampleResultsRNA.star.bam.bam.file.uri.map(_.toString)
+      _ = progressServer.send(
+        BamAvailable(samplesForRNASeqAnalysis.project,
+                     samplesForRNASeqAnalysis.sampleId,
+                     samplesForRNASeqAnalysis.runId.toString,
+                     conf.analysisId,
+                     bamPath))
+
     } yield perSampleResultsRNA
 
   private def startFastpReports(perSampleFastQs: PerSamplePerRunFastQ)(
