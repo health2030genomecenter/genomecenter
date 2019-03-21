@@ -6,8 +6,10 @@ import com.typesafe.config.ConfigFactory
 import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   AnalysisConfiguration,
-  ProgressData
+  ProgressData,
+  ProgressDataWithSampleId
 }
+import ProgressData._
 import java.io.File
 import org.gc.pipelines.model.{Project, SampleId, AnalysisId, RunId}
 import org.gc.pipelines.util.StableSet.syntax
@@ -460,7 +462,39 @@ object Pipelinectl extends App {
             case None =>
               println(get("/v2/projects"))
             case Some(project) =>
-              println(get(s"/v2/projects/$project"))
+              val projectEvents =
+                io.circe.parser
+                  .decode[Seq[ProgressData]](get(s"/v2/projects/$project"))
+                  .right
+                  .get
+                  .collect {
+                    case v: ProgressDataWithSampleId =>
+                      v
+                  }
+              val bySamples = projectEvents.groupBy(_.sample)
+              val asString = bySamples
+                .map {
+                  case (sample, events) =>
+                    val eventsAsStrings = events.map {
+                      case _: DemultiplexedSample => "demultiplexed"
+                      case _: SampleProcessingStarted =>
+                        "sampleprocessing-started"
+                      case _: SampleProcessingFinished =>
+                        "sampleprocessing-finished"
+                      case _: SampleProcessingFailed =>
+                        "sampleprocessing-failed"
+                      case v: CoverageAvailable =>
+                        s"coverage(run=${v.runIdTag},analysis=${v.analysis},wgsCov=${v.wgsCoverage}"
+                      case v: BamAvailable =>
+                        s"bam(run=${v.runIdTag},analysis=${v.analysis},bam=${v.bamPath}"
+                      case v: VCFAvailable =>
+                        s"vcf(analysis=${v.analysis},bam=${v.vcfPath}"
+                    }
+
+                    sample + "\t" + eventsAsStrings.mkString(":")
+                }
+                .mkString("", "\n", "\n")
+              println(asString)
           }
         case LastRun =>
           val project = config.project.get

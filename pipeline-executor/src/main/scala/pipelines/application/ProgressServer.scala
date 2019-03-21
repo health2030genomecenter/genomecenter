@@ -14,6 +14,10 @@ import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
 sealed trait ProgressData
+sealed trait ProgressDataWithSampleId extends ProgressData {
+  def sample: SampleId
+  def project: Project
+}
 object ProgressData {
   case class DemultiplexStarted(run: RunId) extends ProgressData
   case class DemultiplexFailed(run: RunId) extends ProgressData
@@ -22,44 +26,42 @@ object ProgressData {
       samplesWithFastq: Seq[(Project, SampleId, Set[String])])
       extends ProgressData
 
-  case class DemultiplexedSample(project: Project,
-                                 sampleId: SampleId,
-                                 run: RunId)
-      extends ProgressData
+  case class DemultiplexedSample(project: Project, sample: SampleId, run: RunId)
+      extends ProgressDataWithSampleId
 
   case class SampleProcessingStarted(project: Project,
                                      sample: SampleId,
                                      runId: RunId)
-      extends ProgressData
+      extends ProgressDataWithSampleId
   case class SampleProcessingFinished(project: Project,
                                       sample: SampleId,
                                       run: RunId)
-      extends ProgressData
+      extends ProgressDataWithSampleId
   case class SampleProcessingFailed(project: Project,
                                     sample: SampleId,
                                     run: RunId)
-      extends ProgressData
+      extends ProgressDataWithSampleId
 
   case class CoverageAvailable(project: Project,
                                sample: SampleId,
                                runIdTag: String,
                                analysis: AnalysisId,
                                wgsCoverage: Double)
-      extends ProgressData
+      extends ProgressDataWithSampleId
 
   case class BamAvailable(project: Project,
                           sample: SampleId,
                           runIdTag: String,
                           analysis: AnalysisId,
                           bamPath: String)
-      extends ProgressData
+      extends ProgressDataWithSampleId
 
   case class VCFAvailable(project: Project,
                           sample: SampleId,
                           run: String,
                           analysis: AnalysisId,
                           vcfPath: String)
-      extends ProgressData
+      extends ProgressDataWithSampleId
 
   case class JointCallsAvailable(project: Project,
                                  samples: Set[SampleId],
