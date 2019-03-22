@@ -547,7 +547,9 @@ object Pipelinectl extends App {
           val runsInvolved = lastRunOfSelectedSamples.map(_._2).distinct
           println(s"Runs involved: ${runsInvolved.mkString(", ")}")
 
-          val samplesToFinishPerRun = lastRunOfSelectedSamples.groupBy(_._2)
+          val samplesToFinishPerRun = lastRunOfSelectedSamples.groupBy {
+            case (_, runId) => runId
+          }
 
           val editedRunConfigurations = samplesToFinishPerRun.map {
             case (run, group) =>
