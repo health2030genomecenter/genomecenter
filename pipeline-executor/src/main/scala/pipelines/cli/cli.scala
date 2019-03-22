@@ -130,6 +130,7 @@ object Pipelinectl extends App {
   case object PrintHelp extends CliCommand
   case object AppendRun extends CliCommand
   case object DeleteRun extends CliCommand
+  case object SendReprocessAllRuns extends CliCommand
   case object Assign extends CliCommand
   case object Unassign extends CliCommand
   case object QueryBam extends CliCommand
@@ -251,6 +252,9 @@ object Pipelinectl extends App {
             }
             .text("print template configuration for add-run and exit")
         ),
+      cmd("reprocess-all")
+        .text("Reprocesses all runs")
+        .action((_, c) => c.copy(command = SendReprocessAllRuns)),
       cmd("delete-run")
         .text(
           "Deletes an existing run. A deleted run won't get processed after restarting the pipeline. No files are deleted.")
@@ -508,7 +512,14 @@ object Pipelinectl extends App {
                 net.schmizz.sshj.userauth.password.PasswordUtils
                   .blankOut(password)
               }
+          }
 
+        case SendReprocessAllRuns =>
+          val response = post("v2/reprocess")
+          if (response.code != 200) {
+            println("Request failed: " + response)
+          } else {
+            println("OK")
           }
         case AnalyseResourceUsage =>
           ResourceUsage.plotSample(

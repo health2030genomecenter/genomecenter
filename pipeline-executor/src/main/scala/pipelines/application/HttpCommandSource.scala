@@ -86,37 +86,43 @@ class HttpCommandSource(implicit AS: ActorSystem)
     } ~
       pathPrefix("v2") {
         post {
-          path("analyses" / Segment) { project =>
-            entity(as[String]) { analysisConfigurationAsString =>
-              val parsedFromJson = io.circe.parser
-                .decode[AnalysisConfiguration](analysisConfigurationAsString)
+          path("reprocess") {
+            sourceActor ! ReprocessAllRuns
+            complete(akka.http.scaladsl.model.StatusCodes.OK)
+          } ~
+            path("analyses" / Segment) { project =>
+              entity(as[String]) { analysisConfigurationAsString =>
+                val parsedFromJson = io.circe.parser
+                  .decode[AnalysisConfiguration](analysisConfigurationAsString)
 
-              val maybeParsed =
-                if (parsedFromJson.isRight) parsedFromJson.left.map(_.toString)
-                else
-                  AnalysisConfiguration.fromConfig(
-                    ConfigFactory.parseString(analysisConfigurationAsString))
+                val maybeParsed =
+                  if (parsedFromJson.isRight)
+                    parsedFromJson.left.map(_.toString)
+                  else
+                    AnalysisConfiguration.fromConfig(
+                      ConfigFactory.parseString(analysisConfigurationAsString))
 
-              maybeParsed match {
-                case Left(error) =>
-                  logger.error(error.toString)
-                  complete(HttpResponse(StatusCodes.BadRequest,
-                                        entity = HttpEntity(error)))
-                case Right(configuration)
-                    if configuration.validationErrors.nonEmpty =>
-                  logger.error(s"Can't read $configuration")
-                  complete(HttpResponse(
-                    StatusCodes.BadRequest,
-                    entity = HttpEntity(
-                      s"can't read: ${configuration.validationErrors.mkString(";")}")))
-                case Right(configuration) =>
-                  logger.info(s"Assign ${configuration.analysisId} - $project")
-                  sourceActor ! Assign(Project(project), configuration)
-                  complete(akka.http.scaladsl.model.StatusCodes.OK)
+                maybeParsed match {
+                  case Left(error) =>
+                    logger.error(error.toString)
+                    complete(HttpResponse(StatusCodes.BadRequest,
+                                          entity = HttpEntity(error)))
+                  case Right(configuration)
+                      if configuration.validationErrors.nonEmpty =>
+                    logger.error(s"Can't read $configuration")
+                    complete(HttpResponse(
+                      StatusCodes.BadRequest,
+                      entity = HttpEntity(
+                        s"can't read: ${configuration.validationErrors.mkString(";")}")))
+                  case Right(configuration) =>
+                    logger.info(
+                      s"Assign ${configuration.analysisId} - $project")
+                    sourceActor ! Assign(Project(project), configuration)
+                    complete(akka.http.scaladsl.model.StatusCodes.OK)
+                }
+
               }
-
             }
-          }
         } ~
           delete {
             path("analyses" / Segment / Segment) {

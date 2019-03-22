@@ -8,6 +8,7 @@ sealed trait Command
 sealed trait AssignmentCommand extends Command
 sealed trait RunCommand extends Command
 
+case object ReprocessAllRuns extends RunCommand
 case class Append(runFolder: RunfolderReadyForProcessing) extends RunCommand
 case class Delete(runId: RunId) extends RunCommand
 case class Assign(project: Project, analysis: AnalysisConfiguration)

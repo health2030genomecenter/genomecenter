@@ -25,10 +25,13 @@ case class SampleFinished[T](project: Project,
 object PipelinesApplication extends StrictLogging {
   def persistCommands(pipelineState: PipelineState)(
       implicit ec: ExecutionContext)
-    : PartialFunction[Command, Future[Option[RunWithAnalyses]]] = {
+    : PartialFunction[Command, Future[List[RunWithAnalyses]]] = {
+    case ReprocessAllRuns =>
+      logger.info("Command: reprocess all runs")
+      pipelineState.pastRuns
     case Delete(runId) =>
       logger.info(s"Command: delete $runId")
-      pipelineState.invalidated(runId).map(_ => None)
+      pipelineState.invalidated(runId).map(_ => Nil)
     case Append(run) =>
       logger.info(s"Command: append ${run.runId}")
       val validationErrors = run.validationErrors
@@ -37,12 +40,12 @@ object PipelinesApplication extends StrictLogging {
       if (!valid) {
         logger.info(
           s"$run is not valid (readable?). Validation errors: $validationErrors")
-        Future.successful(None)
+        Future.successful(Nil)
       } else
         for {
           r <- {
             logger.debug(s"${run.runId} is valid")
-            pipelineState.registered(run)
+            pipelineState.registered(run).map(_.toList)
           }
         } yield r
     case Assign(project, analysisConfiguration) =>
@@ -53,20 +56,20 @@ object PipelinesApplication extends StrictLogging {
       if (!valid) {
         logger.info(
           s"Configuration is not valid. Validation errors: $validationErrors")
-        Future.successful(None)
+        Future.successful(Nil)
       } else {
         logger.info(
           s"Configuration is valid. Assign $project to ${analysisConfiguration.analysisId}")
         pipelineState
           .assigned(project, analysisConfiguration)
-          .map(_ => None)
+          .map(_ => Nil)
       }
 
     case Unassign(project, analysisId) =>
       logger.info(s"Command: Unassign $project from $analysisId")
       pipelineState
         .unassigned(project, analysisId)
-        .map(_ => None)
+        .map(_ => Nil)
   }
 
   def foldSample[SampleResult, DemultiplexedSample](
@@ -190,8 +193,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     : Flow[Command, RunWithAnalyses, _] =
     Flow[Command]
       .mapAsync(1)(persistCommandsFunction)
-      .filter(_.isDefined)
-      .map(_.get)
+      .mapConcat(identity)
 
   def futureRuns =
     commandSource.commands

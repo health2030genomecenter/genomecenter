@@ -90,7 +90,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
           .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
           .right
           .get
-          .nonEmpty shouldBe true
+          .size shouldBe 6
         getProgress("/v2/bams/project1") shouldBe "\n"
         getProgress("/v2/vcfs/project1") shouldBe "\n"
 
@@ -108,6 +108,19 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
           .right
           .get
           .isDefined shouldBe true
+        When("reprocessing all run")
+        postString("/v2/reprocess", "").status.intValue shouldBe 200
+        Then("The sample's processing should finish immediately")
+        probe.expectMsgPF(15 seconds) {
+          case sample: SampleFinished[_] =>
+            sample.sample shouldBe "sample1"
+        }
+        And("The progress data should reflect the 3rd set of processing steps")
+        io.circe.parser
+          .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
+          .right
+          .get
+          .size shouldBe 9
 
       }
     }
