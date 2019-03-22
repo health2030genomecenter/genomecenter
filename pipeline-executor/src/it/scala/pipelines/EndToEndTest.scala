@@ -13,7 +13,8 @@ import scala.concurrent.duration._
 import org.gc.pipelines.application.{
   SampleFinished,
   ProjectFinished,
-  RunfolderReadyForProcessing
+  RunfolderReadyForProcessing,
+  ProgressData
 }
 import org.gc.pipelines.model.Project
 
@@ -85,7 +86,11 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         getProgress("/v2/runs") shouldBe "runid1\n"
         getProgress("/v2/runs/runid1") shouldBe "demultiplex started\ndemultiplexed 1\ndemultiplex started\ndemultiplexed 1\n"
         getProgress("/v2/projects") shouldBe "project1\n"
-        getProgress("/v2/projects/project1") shouldBe """[{"DemultiplexedSample":{"project":"project1","sampleId":"sample1","run":"runid1"}},{"SampleProcessingStarted":{"project":"project1","sample":"sample1","runId":"runid1"}},{"SampleProcessingFinished":{"project":"project1","sample":"sample1","run":"runid1"}},{"DemultiplexedSample":{"project":"project1","sampleId":"sample1","run":"runid1"}},{"SampleProcessingStarted":{"project":"project1","sample":"sample1","runId":"runid1"}},{"SampleProcessingFinished":{"project":"project1","sample":"sample1","run":"runid1"}}]"""
+        io.circe.parser
+          .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
+          .right
+          .get
+          .nonEmpty shouldBe true
         getProgress("/v2/bams/project1") shouldBe "\n"
         getProgress("/v2/vcfs/project1") shouldBe "\n"
         getProgress("/v2/fastqs/project1").size > 3 shouldBe true
