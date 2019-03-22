@@ -704,8 +704,15 @@ object Pipelinectl extends App {
               }
           }
 
-          val maybeParsed = AnalysisConfiguration.fromConfig(
-            ConfigFactory.parseString(configuration))
+          val maybeParsed = {
+            val parsedFromJson = io.circe.parser
+              .decode[AnalysisConfiguration](configuration)
+
+            if (parsedFromJson.isRight) parsedFromJson.left.map(_.toString)
+            else
+              AnalysisConfiguration.fromConfig(
+                ConfigFactory.parseString(configuration))
+          }
 
           maybeParsed match {
             case Left(error) =>
