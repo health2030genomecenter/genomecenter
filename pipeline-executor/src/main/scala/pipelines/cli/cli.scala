@@ -397,11 +397,11 @@ object Pipelinectl extends App {
           "Modifies the 'lastRunOfSamples' field of the runs of a project and resends the run. Use it to force analysis of samples irrespective of the read coverage. ")
         .action((_, c) => c.copy(command = LastRun))
         .children(
-          arg[String]("project")
+          opt[String]("project")
             .text("project name")
             .required
             .action((v, c) => c.copy(project = Some(v))),
-          arg[String]("samples-file")
+          opt[String]("samples-file")
             .text(
               "path to a file listing sample ids. Use stdin for standard input.")
             .action((v, c) => c.copy(samplesFile = Some(v)))
