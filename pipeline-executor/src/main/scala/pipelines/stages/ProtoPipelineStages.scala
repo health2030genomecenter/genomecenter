@@ -384,18 +384,9 @@ object ProtoPipelineStages extends StrictLogging {
   val countReads = AsyncTask[SharedFile, Long]("__count-reads", 1) {
     case file =>
       implicit computationEnvironment =>
-        import akka.stream.scaladsl.{Framing, Compression}
-        import akka.util.ByteString
-        implicit val mat = computationEnvironment.components.actorMaterializer
         for {
-          lines <- file.source
-            .via(Compression.gunzip(maxBytesPerChunk = 1024 * 1024))
-            .via(
-              Framing.delimiter(ByteString("\n"),
-                                maximumFrameLength = Int.MaxValue,
-                                allowTruncation = true))
-            .runFold(0L)((c, _) => c + 1L)
-        } yield lines / 4
+          file <- file.file
+        } yield org.gc.pipelines.util.FastQHelpers.getNumberOfReads(file)
   }
 
   def liftAlreadyDemultiplexedFastQs(r: RunfolderReadyForProcessing)(
