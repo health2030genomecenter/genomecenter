@@ -155,7 +155,7 @@ object ResourceUsage {
       labels("project") == project && sampleId
         .map(sampleId => labels("sample") == sampleId)
         .getOrElse(true) &&
-      analysisId.map(a => labels("analysis") == a).getOrElse(true) &&
+      analysisId.map(a => labels("analysisId") == a).getOrElse(true) &&
       runId.map(a => labels("run") == a).getOrElse(true)
     }
 
