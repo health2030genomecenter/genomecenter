@@ -9,7 +9,7 @@ import scala.concurrent.Future
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import org.gc.pipelines.util.StableSet
-import org.gc.pipelines.application.{ProgressServer, ProgressData}
+import org.gc.pipelines.application.ProgressData
 import ProgressData.DeliveryListAvailable
 
 case class CollectDeliverablesInput(
@@ -18,7 +18,7 @@ case class CollectDeliverablesInput(
 ) extends WithSharedFiles(
       samples.toSeq.flatMap(_.files) ++ other.toSeq.map(_._2): _*)
 
-case class DeliverableList(lists: Seq[(Project, SharedFile)])
+case class DeliverableList(lists: Seq[(Project, SharedFile, ProgressData)])
     extends WithSharedFiles(lists.map(_._2): _*)
 
 object Delivery {
@@ -140,13 +140,11 @@ object Delivery {
                   .distinct
                   .sortBy(_.toString)
 
-                ProgressServer.send(
-                  DeliveryListAvailable(
-                    project,
-                    samples.map(_.sampleId).toSeq.toSet,
-                    pathList,
-                    runsIncluded
-                  )
+                val deliveryAvailable = DeliveryListAvailable(
+                  project,
+                  samples.map(_.sampleId).toSeq.sortBy(_.toString),
+                  pathList.sorted,
+                  runsIncluded.sortBy(_.toString)
                 )
 
                 val source =
@@ -161,7 +159,7 @@ object Delivery {
                         source,
                         project + s".r${runsIncluded.size}-#${runsIncluded.hashCode}.s" + samples.size + ".deliverables.list")
                   }
-                } yield (project, pathListFile)
+                } yield (project, pathListFile, deliveryAvailable)
             }
           } yield DeliverableList(fileList)
 

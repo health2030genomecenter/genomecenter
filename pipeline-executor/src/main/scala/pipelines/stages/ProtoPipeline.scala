@@ -224,7 +224,15 @@ class ProtoPipeline(progressServer: SendProgressData)(
           CollectDeliverablesInput(samples.toSet.toStable, files))(
           ResourceConfig.minimal)
       }
-    } yield (project, true, Some(deliverables))
+    } yield {
+      deliverables.lists.foreach {
+        case (_, _, deliveryListAvailable) =>
+          progressServer.send(
+            deliveryListAvailable
+          )
+      }
+      (project, true, Some(deliverables))
+    }
   }
 
   def sendFastQPathsToProgressServer(runId: RunId,

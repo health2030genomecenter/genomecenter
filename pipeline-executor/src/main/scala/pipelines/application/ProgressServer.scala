@@ -68,7 +68,7 @@ object ProgressData {
                                  vcfPath: String)
       extends ProgressData
   case class DeliveryListAvailable(project: Project,
-                                   samples: Set[SampleId],
+                                   samples: Seq[SampleId],
                                    files: Seq[String],
                                    runsIncluded: Seq[RunId])
       extends ProgressData

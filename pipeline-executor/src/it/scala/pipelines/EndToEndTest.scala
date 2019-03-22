@@ -93,6 +93,11 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
           .nonEmpty shouldBe true
         getProgress("/v2/bams/project1") shouldBe "\n"
         getProgress("/v2/vcfs/project1") shouldBe "\n"
+        io.circe.parser
+          .decode[Option[ProgressData]](getProgress("/v2/deliveries/project1"))
+          .right
+          .get
+          .isDefined shouldBe true
         getProgress("/v2/fastqs/project1").size > 3 shouldBe true
         getProgress("/v2/analyses") shouldBe "[]"
         io.circe.parser
@@ -100,6 +105,12 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             getProgress("/v2/runconfigurations/runid1"))
           .right
           .get
+
+        io.circe.parser
+          .decode[Option[ProgressData]](getProgress("/v2/deliveries/project1"))
+          .right
+          .get
+          .isDefined shouldBe true
 
       }
     }

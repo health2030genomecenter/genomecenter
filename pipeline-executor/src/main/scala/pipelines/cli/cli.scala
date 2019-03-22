@@ -440,7 +440,7 @@ object Pipelinectl extends App {
         case Deliver =>
           val project = config.project.get
           val deliveryList = io.circe.parser
-            .decode[Option[ProgressData]](get(s"v2/deliveries/$project"))
+            .decode[Option[ProgressData]](get(s"/v2/deliveries/$project"))
             .right
             .get
             .collect {
