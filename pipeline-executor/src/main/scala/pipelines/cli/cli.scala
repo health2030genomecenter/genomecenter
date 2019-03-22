@@ -135,6 +135,7 @@ object Pipelinectl extends App {
   case object QueryBam extends CliCommand
   case object QueryVcf extends CliCommand
   case object QueryFastq extends CliCommand
+  case object QueryCoverage extends CliCommand
   case object QueryRuns extends CliCommand
   case object QueryProjects extends CliCommand
   case object QueryRunConfigurations extends CliCommand
@@ -346,6 +347,15 @@ object Pipelinectl extends App {
             .text("run id. If given shows progress of run. Otherwise lists all runs.")
             .action((v, c) => c.copy(runId = Some(v)))
         ),
+      cmd("query-coverages")
+        .text("Queries coverages of project")
+        .action((_, c) => c.copy(command = QueryCoverage))
+        .children(
+          opt[String]('p', "project")
+            .text("project name.")
+            .action((v, c) => c.copy(project = Some(v)))
+            .required
+        ),
       cmd("query-runconfig")
         .text("Query run configurations")
         .action((_, c) => c.copy(command = QueryRunConfigurations))
@@ -532,6 +542,9 @@ object Pipelinectl extends App {
         case QueryBam =>
           val project = config.project.get
           println(get(s"/v2/bams/$project"))
+        case QueryCoverage =>
+          val project = config.project.get
+          println(get(s"/v2/coverages/$project"))
         case QueryFastq =>
           val project = config.project.get
           println(get(s"/v2/fastqs/$project"))

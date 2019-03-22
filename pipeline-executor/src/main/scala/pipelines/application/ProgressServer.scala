@@ -304,6 +304,25 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                   event.asJson.noSpaces
                 }
               }
+            } ~
+            path("coverages" / Segment) { project =>
+              complete {
+                for {
+                  data <- getData
+                } yield {
+                  data
+                    .collect {
+                      case CoverageAvailable(project0,
+                                             sample,
+                                             run,
+                                             analysis,
+                                             coverage) if project0 == project =>
+                        sample + "\t" + run + "\t" + analysis + "\t" + coverage
+                    }
+                    .distinct
+                    .mkString("", "\n", "\n")
+                }
+              }
             }
         }
     }
