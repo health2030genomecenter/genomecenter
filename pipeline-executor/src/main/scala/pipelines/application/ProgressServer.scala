@@ -31,7 +31,7 @@ object ProgressData {
 
   case class SampleProcessingStarted(project: Project,
                                      sample: SampleId,
-                                     runId: RunId)
+                                     run: RunId)
       extends ProgressDataWithSampleId
   case class SampleProcessingFinished(project: Project,
                                       sample: SampleId,
@@ -58,7 +58,7 @@ object ProgressData {
 
   case class VCFAvailable(project: Project,
                           sample: SampleId,
-                          run: String,
+                          runIdTag: String,
                           analysis: AnalysisId,
                           vcfPath: String)
       extends ProgressDataWithSampleId

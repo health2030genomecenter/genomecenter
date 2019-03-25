@@ -587,25 +587,47 @@ object Pipelinectl extends App {
               val asString = bySamples
                 .map {
                   case (sample, events) =>
-                    val eventsAsStrings = events.map {
-                      case _: DemultiplexedSample => "demultiplexed"
-                      case _: SampleProcessingStarted =>
-                        "sampleprocessing-started"
-                      case _: SampleProcessingFinished =>
-                        "sampleprocessing-finished"
-                      case _: SampleProcessingFailed =>
-                        "sampleprocessing-failed"
-                      case v: CoverageAvailable =>
-                        s"coverage(run=${v.runIdTag},analysis=${v.analysis},wgsCov=${v.wgsCoverage}"
-                      case v: BamAvailable =>
-                        s"bam(run=${v.runIdTag},analysis=${v.analysis},bam=${v.bamPath}"
-                      case v: VCFAvailable =>
-                        s"vcf(analysis=${v.analysis},bam=${v.vcfPath}"
+                    case class Status(
+                        demultiplexed: Seq[RunId] = Nil,
+                        processing: Seq[RunId] = Nil,
+                        coverage: Seq[String] = Nil,
+                        bam: Seq[String] = Nil,
+                        vcf: Seq[String] = Nil,
+                        failed: Seq[RunId] = Nil
+                    )
+                    val folded: Status = events.foldLeft(Status()) {
+                      case (status, event) =>
+                        event match {
+                          case ev: DemultiplexedSample =>
+                            status.copy(
+                              demultiplexed = status.demultiplexed :+ ev.run)
+                          case ev: SampleProcessingStarted =>
+                            status.copy(
+                              processing = status.processing :+ ev.run)
+                          case ev: SampleProcessingFinished =>
+                            status.copy(processing =
+                              status.processing.filterNot(_ == ev.run))
+                          case ev: SampleProcessingFailed =>
+                            status.copy(
+                              processing =
+                                status.processing.filterNot(_ == ev.run),
+                              failed = status.failed :+ ev.run)
+                          case ev: CoverageAvailable =>
+                            status.copy(
+                              coverage = status.coverage :+ ev.runIdTag)
+                          case ev: BamAvailable =>
+                            status.copy(bam = status.bam :+ ev.runIdTag)
+                          case ev: VCFAvailable =>
+                            status.copy(vcf = status.vcf :+ ev.runIdTag)
+                        }
                     }
 
-                    sample + "\t" + eventsAsStrings.mkString(":")
+                    sample + "\t" + folded.demultiplexed.last + "\t" + folded.processing.last + "\t" + folded.coverage.last + "\t" + folded.bam.last + "\t" + folded.vcf.last + "\t" + folded.failed
+                      .mkString(",")
                 }
-                .mkString("", "\n", "\n")
+                .mkString("sample\tdemux\tprocessing\tcov\tbam\tvcf\tfail",
+                          "\n",
+                          "\n")
               println(asString)
           }
         case LastRun =>
@@ -643,7 +665,7 @@ object Pipelinectl extends App {
                      sampleProcessingStarted.sample))
                 .toSeq
                 .map {
-                  case (sample, group) => (sample, group.last.runId)
+                  case (sample, group) => (sample, group.last.run)
                 }
             lastRunOfSamples.filter {
               case ((_, sample), _) =>
