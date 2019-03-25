@@ -15,7 +15,7 @@ import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 
 object MainConfig {
-  val port = 9099
+  val httpPort = 9099
 }
 
 class Application(implicit ec: ExecutionContext,
@@ -32,7 +32,7 @@ class Application(implicit ec: ExecutionContext,
 
   val httpServer =
     new HttpServer(
-      port = MainConfig.port,
+      port = MainConfig.httpPort,
       Seq(commandSource.route, progressServer.route, queryComponent.route))
 
   val httpBinding = httpServer.startServer
