@@ -23,6 +23,9 @@ case class SampleFinished[T](project: Project,
                              result: Option[T])
 
 object PipelinesApplication extends StrictLogging {
+
+  /* Validates commands and persists events into `pipelineState`
+   */
   def persistCommands(pipelineState: PipelineState)(
       implicit ec: ExecutionContext)
     : PartialFunction[Command, Future[List[RunWithAnalyses]]] = {
@@ -72,6 +75,9 @@ object PipelinesApplication extends StrictLogging {
         .map(_ => Nil)
   }
 
+  /* Processes a sample with respect to a configuration and potential past
+   * results of the same sample
+   */
   def foldSample[SampleResult, DemultiplexedSample](
       pipeline: Pipeline[DemultiplexedSample, SampleResult, _],
       processingFinishedListener: akka.actor.ActorRef,
@@ -145,6 +151,22 @@ object PipelinesApplication extends StrictLogging {
   }
 }
 
+/* Integrates the main components of the application
+ * Starts sample processing in reaction to commands
+ *
+ * All domain specific bioinformatic steps are abstracted out to
+ * Pipeline
+ *
+ * This class starts a closed stream processing graph which runs the
+ * command source and executes the processing steps in turn of those commands.
+ *
+ * In addition to persisting events to pipelineState this class maintains
+ * an in memory ephemeral state (in the scan Flow of `accountWorkDone`) which
+ * keeps track of which sample, run or project is being processed. If a
+ * command is received to process the run twice, this run is deferred from processing
+ * until the first invocation is finished.
+ *
+ */
 class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     val commandSource: CommandSource,
     val pipelineState: PipelineState,
@@ -202,6 +224,11 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   implicit val taskSystemComponents = taskSystem.components
   implicit val materializer = taskSystemComponents.actorMaterializer
 
+  /* This is a side effecting expression (the .run at the end) which constructs and
+   * runs the stream processing engine (see akka stream)
+   *
+   * The rest of the fields in this class are definitions for stages in this graph.
+   */
   (previousRuns ++ futureRuns)
     .filter(runWithAnalyses => pipeline.canProcess(runWithAnalyses.run))
     .via(accountAndProcess)
