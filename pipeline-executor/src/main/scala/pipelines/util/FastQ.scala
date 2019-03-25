@@ -6,7 +6,7 @@ import com.intel.gkl.compression.IntelDeflaterFactory
 import com.intel.gkl.compression.IntelInflaterFactory
 
 object FastQHelpers {
-  def splitFastQ(input: File, maxReads: Long): Seq[File] = {
+  def splitFastQ(input: File, maxReads: Long): Seq[(File, Long)] = {
 
     def openOutputStream[T](fileName: File)(
         func: java.io.OutputStream => T): T =
@@ -22,24 +22,26 @@ object FastQHelpers {
 
     def loop(first: Byte,
              inputStream: InputStream,
-             files: List[File]): List[File] =
+             files: List[(File, Long)]): List[(File, Long)] =
       if (first == -1) files
       else {
         val tmp = Files.createTempFile(".gz")
         var b = first
-        openOutputStream(tmp) { os =>
-          var i = 0L
-          val maxLines = maxReads * 4
-          val lineBreak = '\n'.toByte
-          while (i < maxLines && b >= 0) {
-            if (b == lineBreak) {
-              i += 1L
+        val numberOfLines =
+          openOutputStream(tmp) { os =>
+            val maxLines = maxReads * 4
+            val lineBreak = '\n'.toByte
+            var i = 0L
+            while (i < maxLines && b >= 0) {
+              if (b == lineBreak) {
+                i += 1L
+              }
+              os.write(b.toInt)
+              b = inputStream.read.toByte
             }
-            os.write(b.toInt)
-            b = inputStream.read.toByte
+            i / 4
           }
-        }
-        loop(b, inputStream, tmp :: files)
+        loop(b, inputStream, (tmp, numberOfLines) :: files)
 
       }
 

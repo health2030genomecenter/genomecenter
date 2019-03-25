@@ -19,29 +19,38 @@ class FastQHelpersTestSuite
     Then("the number of splits should be 10")
     splits.size shouldBe 6
     And(" no data should be lost")
-    splits.map(f => FastQHelpers.getNumberOfReads(f)).sum shouldBe FastQHelpers
+    splits
+      .map(f => FastQHelpers.getNumberOfReads(f._1))
+      .sum shouldBe FastQHelpers
       .getNumberOfReads(originalFile)
     And("concatenating the splits should equal the original")
     fileutils
       .openSource(originalFile) { source1 =>
-        splits.foreach { fp =>
-          fileutils.openSource(fp) { source2 =>
-            while (source2.hasNext) {
-              source1.next shouldBe source2.next
+        splits.foreach {
+          case (fp, _) =>
+            fileutils.openSource(fp) { source2 =>
+              while (source2.hasNext) {
+                source1.next shouldBe source2.next
+              }
             }
-          }
         }
       }
     And("each partition should be ok to gunzip")
-    splits.foreach { f =>
-      fileutils.openSource(f) { s =>
-        s.mkString
-      }
+    splits.foreach {
+      case (f, _) =>
+        fileutils.openSource(f) { s =>
+          s.mkString
+        }
     }
-    splits.dropRight(1).foreach { f =>
-      FastQHelpers.getNumberOfReads(f) shouldBe 999
+    And("each partition should have the correct size")
+    splits.dropRight(1).foreach {
+      case (f, _) =>
+        FastQHelpers.getNumberOfReads(f) shouldBe 999
     }
-    FastQHelpers.getNumberOfReads(splits.last) shouldBe 5
+    FastQHelpers.getNumberOfReads(splits.last._1) shouldBe 5
+
+    And("each partition should have the correct computed size")
+    splits.map(_._2).toList shouldBe List(999, 999, 999, 999, 999, 5)
 
   }
 }
