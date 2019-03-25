@@ -15,13 +15,26 @@ object Sftp {
     try {
       ssh.authPassword(user, password)
       val sftp = ssh.newSFTPClient()
+
+      def mkdirs(to: String) = {
+        val folders = to
+          .split("/")
+          .scanLeft(List.empty[String])((acc, elem) => acc :+ elem)
+          .drop(1)
+        folders.foreach { folder =>
+          sftp.mkdir(folder.mkString("/"))
+        }
+      }
+
       try {
         files.foreach {
           case (from, to) =>
-            val sizeOnRemote = sftp.statExistence(to).getSize
+            val existence = Option(sftp.statExistence(to))
+            val sizeOnRemote = existence.map(_.getSize)
             val sizeOnLocal = new java.io.File(from).length
-            if (sizeOnLocal != sizeOnRemote) {
+            if (sizeOnRemote.isEmpty || sizeOnLocal != sizeOnRemote.get) {
               println(s"Copy local $from to remote $to ($user@$host).")
+              mkdirs(to)
               sftp.put(new FileSystemFile(from), to)
               println("Done.")
             } else {
