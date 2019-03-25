@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import tasks._
 
-/** Main entrypoint of the application
+/** Main entrypoint of the application process (main method)
   *
   * It is not expected that the application stops on its own
   * Shutting down the JVM via a signal shuts down gracefully the application
