@@ -10,6 +10,7 @@
     <logger name="tasks.boot" level="INFO"/>
     <logger name="akka" level="INFO"/>
     <logger name="com.typesafe.sslconfig" level="INFO"/>
+    <logger name="net.schmizz" level="ERROR"/>
 
   <root level="DEBUG">
     <appender-ref ref="STDOUT" />

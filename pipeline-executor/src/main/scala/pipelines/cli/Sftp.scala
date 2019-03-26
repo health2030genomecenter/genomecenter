@@ -33,7 +33,8 @@ object Sftp {
             val sizeOnRemote = existence.map(_.getSize)
             val sizeOnLocal = new java.io.File(from).length
             if (sizeOnRemote.isEmpty || sizeOnLocal != sizeOnRemote.get) {
-              println(s"Copy local $from to remote $to ($user@$host).")
+              println(
+                s"Copy local $from to remote $to ($user@$host) $sizeOnRemote $sizeOnLocal.")
               mkdirs(to)
               sftp.put(new FileSystemFile(from), to)
               println("Done.")

@@ -496,7 +496,10 @@ object Pipelinectl extends App {
               }
               println(
                 s"\nFiles included (${files.size}) total), local -> remote pairs:\n")
-              files.foreach(println)
+              files.foreach {
+                case (from, to) =>
+                  println(s"$from -> $to")
+              }
 
               println("\nIf not ok do not give password.")
 
