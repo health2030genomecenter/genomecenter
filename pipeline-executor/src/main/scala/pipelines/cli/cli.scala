@@ -628,7 +628,7 @@ object Pipelinectl extends App {
                       "") + "\t" + folded.vcf.lastOption.getOrElse("") + "\t" + folded.failed
                       .mkString(",")
                 }
-                .mkString("sample\tdemux\tprocessing\tcov\tbam\tvcf\tfail",
+                .mkString("sample\tdemux\tprocessing\tcov\tbam\tvcf\tfail\n",
                           "\n",
                           "\n")
               println(asString)
