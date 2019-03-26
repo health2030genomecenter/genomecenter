@@ -22,7 +22,7 @@ object Sftp {
           .scanLeft(List.empty[String])((acc, elem) => acc :+ elem)
           .drop(1)
         folders.foreach { folder =>
-          sftp.mkdir(folder.mkString("/"))
+          scala.util.Try(sftp.mkdir(folder.mkString("/")))
         }
       }
 
