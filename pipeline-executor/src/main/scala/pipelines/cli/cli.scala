@@ -622,7 +622,10 @@ object Pipelinectl extends App {
                         }
                     }
 
-                    sample + "\t" + folded.demultiplexed.last + "\t" + folded.processing.last + "\t" + folded.coverage.last + "\t" + folded.bam.last + "\t" + folded.vcf.last + "\t" + folded.failed
+                    sample + "\t" + folded.demultiplexed.lastOption.getOrElse(
+                      "") + "\t" + folded.processing.lastOption.getOrElse("") + "\t" + folded.coverage.lastOption
+                      .getOrElse("") + "\t" + folded.bam.lastOption.getOrElse(
+                      "") + "\t" + folded.vcf.lastOption.getOrElse("") + "\t" + folded.failed
                       .mkString(",")
                 }
                 .mkString("sample\tdemux\tprocessing\tcov\tbam\tvcf\tfail",
