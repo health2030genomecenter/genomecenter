@@ -101,6 +101,9 @@ object ResourceConfig {
   val uncompressedBamSizeBytePerRead =
     config.getDouble("uncompressedBamSizeBytePerRead")
 
+  val compressedFastQSizeBytePerRead =
+    config.getDouble("compressedFastQSizeBytePerRead")
+
   val genotypeGvcfScratchSpaceMegabytePerSample =
     config.getDouble("genotypeGvcfScratchSpaceMegabytePerSample")
 

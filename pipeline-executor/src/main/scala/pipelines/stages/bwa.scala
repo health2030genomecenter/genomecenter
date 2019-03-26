@@ -158,13 +158,28 @@ object BWAAlignment {
                 Future.successful(Left(fastqPerLane))
               } else
                 for {
-                  split <- splitFastQTriple(
-                    SplitFastQInput(read1 = fastqPerLane.read1,
-                                    read2 = fastqPerLane.read2,
-                                    umi = fastqPerLane.umi,
-                                    demultiplexingPartition =
-                                      fastqPerLane.partition,
-                                    maxPerSplit))(ResourceConfig.minimal)
+                  split <- {
+
+                    val totalReads = fastqPerLane.read1.numberOfReads * 2 + fastqPerLane.umi
+                      .map(_ => fastqPerLane.read1.numberOfReads)
+                      .getOrElse(0L)
+
+                    val scratchNeeded =
+                      ResourceConfig.compressedFastQSizeBytePerRead.toDouble * totalReads.toDouble * 1E-6
+                    val resourceRequest =
+                      ResourceConfig.minimal.copy(
+                        cpuMemoryRequest =
+                          ResourceConfig.minimal.cpuMemoryRequest
+                            .copy(scratch = scratchNeeded.toInt))
+
+                    splitFastQTriple(
+                      SplitFastQInput(read1 = fastqPerLane.read1,
+                                      read2 = fastqPerLane.read2,
+                                      umi = fastqPerLane.umi,
+                                      demultiplexingPartition =
+                                        fastqPerLane.partition,
+                                      maxPerSplit))(resourceRequest)
+                  }
                 } yield {
                   Right(split.split.map {
                     case (read1, read2, umi, partition) =>
