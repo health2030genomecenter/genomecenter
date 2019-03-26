@@ -47,6 +47,25 @@ object MainConfig {
  * The utility of this mode is that it is much simpler than the long lived mode,
  * thus in case of emergency, it is easier to debug (and fix).
  * As of now I never used it, but prepared it for PHRT.
+ *
+ * ## Data flow
+ * The application ingests a stream of commands (e.g. add run, assign analysis to a project) and
+ * starts batch processing based on the sequence of commands.
+ * The handling of transactional data (i.e. commands) follows an event sourcing pattern, while the
+ * handling of data flow through the batch processing pipeline is implemented separately.
+ * In particular all batch transformations are treated as memoized pure functions,
+ * with memoization data written to durable storage.
+ *
+ * Commands are validated, converted to events and the events are both persisted into an append only event log, and folded into the in memory representation of the application state.
+ * Upon startup the event log is read from the very beginning and replayed. As a consequence all
+ * batch processing is also replayed, but potentially served from the memoization cache.
+ *
+ * The advantage of this architecture is that the application automatically handles executing
+ * all outstanding work items and dependencies, and always reaches a constistent state.
+ * The advantage of event sourcing is its simplicity both conceptually and in implementation (no mutable state, no transactions, no diff generation).
+ * The disadvantage is that upon startup the application takes some time to replay the past, and
+ * greater care has to be taken not to unintentionally invalidate the memoization caches
+ * (which would trigger unintended reprocessing of past data).
  */
 class Application(implicit ec: ExecutionContext,
                   actorSystem: ActorSystem,

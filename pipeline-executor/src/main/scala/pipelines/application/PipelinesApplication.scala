@@ -24,8 +24,7 @@ case class SampleFinished[T](project: Project,
 
 object PipelinesApplication extends StrictLogging {
 
-  /* Validates commands and persists events into `pipelineState`
-   */
+  /* Validates commands and persists events into `pipelineState`*/
   def persistCommands(pipelineState: PipelineState)(
       implicit ec: ExecutionContext)
     : PartialFunction[Command, Future[List[RunWithAnalyses]]] = {
