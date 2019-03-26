@@ -3,12 +3,23 @@ package org.gc.pipelines.util
 import java.io.File
 import java.nio.file.{Files => JFiles, FileSystems}
 import scala.collection.JavaConverters._
+import com.typesafe.scalalogging.StrictLogging
 
-object Files {
+object Files extends StrictLogging {
+
+  private val tempFiles = scala.collection.concurrent.TrieMap[File, File]()
+
+  scala.sys.addShutdownHook {
+    val size = tempFiles.size
+    logger.info(s"Deleting $size temp files.")
+    tempFiles.foreach(p => println(p._2))
+    logger.info(s"Deleted $size temp files.")
+  }
 
   def createTempFile(suffix: String) = {
     val f = fileutils.TempFile.createTempFile(suffix)
     f.deleteOnExit
+    tempFiles.update(f, f)
     f
   }
 
