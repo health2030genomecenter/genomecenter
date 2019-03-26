@@ -11,7 +11,7 @@ object FastQHelpers {
     def openOutputStream[T](fileName: File)(
         func: java.io.OutputStream => T): T =
       fileutils.useResource(
-        new BlockCompressedOutputStream(fileName, 0, new IntelDeflaterFactory))(
+        new BlockCompressedOutputStream(fileName, 1, new IntelDeflaterFactory))(
         func)
 
     def openInputStream[T](fileName: File)(func: java.io.InputStream => T): T =
