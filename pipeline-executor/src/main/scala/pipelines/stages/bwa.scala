@@ -43,12 +43,18 @@ case class SplitFastQsInput(fastqs: StableSet[FastQPerLane],
         .flatMap(fq =>
           List(fq.read1.file, fq.read2.file) ++ fq.umi.toSeq.map(_.file)): _*
     )
-case class SplitFastQsResult(fastqs: StableSet[FastQPerLane])
+case class SplitFastQsResult(intacts: StableSet[FastQPerLane],
+                             splits: StableSet[FastQPerLane])
     extends WithSharedFiles(
-      fastqs.toSeq
+      (intacts.toSeq ++ splits.toSeq)
         .flatMap(fq =>
           List(fq.read1.file, fq.read2.file) ++ fq.umi.toSeq.map(_.file)): _*
-    )
+    ) {
+  def splitFiles =
+    splits.toSeq
+      .flatMap(fq =>
+        List(fq.read1.file, fq.read2.file) ++ fq.umi.toSeq.map(_.file))
+}
 case class SplitFastQInput(read1: FastQ,
                            read2: FastQ,
                            umi: Option[FastQ],
@@ -58,9 +64,9 @@ case class SplitFastQInput(read1: FastQ,
       read1.files ++ read2.files ++ umi.toSeq.flatMap(_.files): _*)
 
 case class SplitFastQResult(
-    splitted: Seq[(FastQ, FastQ, Option[FastQ], PartitionId)])
+    split: Seq[(FastQ, FastQ, Option[FastQ], PartitionId)])
     extends WithSharedFiles(
-      splitted.flatMap {
+      split.flatMap {
         case (read1, read2, umi, _) =>
           read1.files ++ read2.files ++ umi.toSeq.flatMap(_.files)
       }: _*
@@ -148,28 +154,41 @@ object BWAAlignment {
           releaseResources
           for {
             fqPerLanesSplit <- traverseAll(fastqs.toSeq) { fastqPerLane =>
-              for {
-                split <- splitFastQTriple(
-                  SplitFastQInput(read1 = fastqPerLane.read1,
-                                  read2 = fastqPerLane.read2,
-                                  umi = fastqPerLane.umi,
-                                  demultiplexingPartition =
-                                    fastqPerLane.partition,
-                                  maxPerSplit))(ResourceConfig.minimal)
-              } yield {
-                split.splitted.map {
-                  case (read1, read2, umi, partition) =>
-                    FastQPerLane(fastqPerLane.runId,
-                                 fastqPerLane.lane,
-                                 read1,
-                                 read2,
-                                 umi,
-                                 partition)
+              if (fastqPerLane.read1.numberOfReads <= maxPerSplit) {
+                Future.successful(Left(fastqPerLane))
+              } else
+                for {
+                  split <- splitFastQTriple(
+                    SplitFastQInput(read1 = fastqPerLane.read1,
+                                    read2 = fastqPerLane.read2,
+                                    umi = fastqPerLane.umi,
+                                    demultiplexingPartition =
+                                      fastqPerLane.partition,
+                                    maxPerSplit))(ResourceConfig.minimal)
+                } yield {
+                  Right(split.split.map {
+                    case (read1, read2, umi, partition) =>
+                      FastQPerLane(fastqPerLane.runId,
+                                   fastqPerLane.lane,
+                                   read1,
+                                   read2,
+                                   umi,
+                                   partition)
+                  })
+
                 }
-              }
 
             }
-          } yield SplitFastQsResult(fqPerLanesSplit.flatten.toSet.toStable)
+          } yield {
+            val keptIntact = fqPerLanesSplit.collect {
+              case Left(fqPerLane) => fqPerLane
+            }
+            val splits = fqPerLanesSplit.collect {
+              case Right(splits) => splits
+            }
+            SplitFastQsResult(keptIntact.toSet.toStable,
+                              splits.flatten.toSet.toStable)
+          }
     }
 
   val indexReference =
@@ -274,7 +293,8 @@ object BWAAlignment {
             splitFastQs <- splitFastQs(
               SplitFastQsInput(fastqs, maxReadsPerChunk))(
               ResourceConfig.minimal)
-            alignedLanes <- traverseAll(splitFastQs.fastqs.toSeq)(alignLane)
+            alignedLanes <- traverseAll(
+              splitFastQs.splits.toSeq ++ splitFastQs.intacts.toSeq)(alignLane)
             merged <- mergeAndMarkDuplicate(
               BamsWithSampleMetadata(
                 project,
@@ -283,7 +303,7 @@ object BWAAlignment {
                   alignedLanes.map(_.bam) ++ bamOfPreviousRuns.toSet: _*)))(
               ResourceConfig.picardMergeAndMarkDuplicates)
             _ <- Future.traverse(alignedLanes.map(_.bam))(_.file.delete)
-            _ <- Future.traverse(splitFastQs.files)((_: SharedFile).delete)
+            _ <- Future.traverse(splitFastQs.splitFiles)((_: SharedFile).delete)
 
           } yield merged
     }
