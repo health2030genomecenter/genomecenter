@@ -148,7 +148,7 @@ object BWAAlignment {
     }
 
   val splitFastQs =
-    AsyncTask[SplitFastQsInput, SplitFastQsResult]("__split-fastq", 1) {
+    AsyncTask[SplitFastQsInput, SplitFastQsResult]("__split-fastqs", 1) {
       case SplitFastQsInput(fastqs, maxPerSplit) =>
         implicit computationEnvironment =>
           releaseResources
