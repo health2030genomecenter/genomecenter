@@ -126,18 +126,18 @@ object BWAAlignment {
                   for {
                     fq1 <- SharedFile(
                       split1,
-                      read1.file.name + ".split." + newPartitionId + ".fq.gz",
+                      read1.file.name + ".part." + demuxPartition + ".split." + newPartitionId + ".fq.gz",
                       deleteFile = true).map(FastQ(_, split1Reads))
                     fq2 <- SharedFile(
                       split2,
-                      read2.file.name + ".split." + newPartitionId + ".fq.gz",
+                      read2.file.name + ".part." + demuxPartition + ".split." + newPartitionId + ".fq.gz",
                       deleteFile = true).map(FastQ(_, split2Reads))
                     umi <- mayUmi match {
                       case None => Future.successful(None)
                       case Some((splitUmi, splitUmiReads)) =>
                         SharedFile(
                           splitUmi,
-                          umi.get.file.name + ".split." + newPartitionId + ".fq.gz",
+                          umi.get.file.name + ".part." + demuxPartition + ".split." + newPartitionId + ".fq.gz",
                           deleteFile = true).map(sf =>
                           Some(FastQ(sf, splitUmiReads)))
                     }
