@@ -355,7 +355,7 @@ object Pipelinectl extends App {
         .text("Queries coverages of project")
         .action((_, c) => c.copy(command = QueryCoverage))
         .children(
-          opt[String]('p', "project")
+          arg[String]("project")
             .text("project name.")
             .action((v, c) => c.copy(project = Some(v)))
             .required
@@ -626,9 +626,10 @@ object Pipelinectl extends App {
                     }
 
                     sample + "\t" + folded.demultiplexed.lastOption.getOrElse(
-                      "") + "\t" + folded.processing.lastOption.getOrElse("") + "\t" + folded.coverage.lastOption
-                      .getOrElse("") + "\t" + folded.bam.lastOption.getOrElse(
-                      "") + "\t" + folded.vcf.lastOption.getOrElse("") + "\t" + folded.failed
+                      "NA") + "\t" + folded.processing.lastOption.getOrElse(
+                      "NA") + "\t" + folded.coverage.lastOption
+                      .getOrElse("NA") + "\t" + folded.bam.lastOption.getOrElse(
+                      "NA") + "\t" + folded.vcf.lastOption.getOrElse("NA") + "\t" + folded.failed
                       .mkString(",")
                 }
                 .mkString("sample\tdemux\tprocessing\tcov\tbam\tvcf\tfail\n",
