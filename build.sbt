@@ -11,7 +11,7 @@ lazy val commonSettings = Seq(
   git.useGitDescribe := true
 )
 
-lazy val tasksVersion = "0.0.40"
+lazy val tasksVersion = "0.0.41"
 
 lazy val stagingIvy1Repository =
   Resolver.url("gc-ivy1",
