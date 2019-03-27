@@ -469,6 +469,17 @@ class ProtoPipeline(progressServer: SendProgressData)(
         case _ => Future.successful(())
       }
 
+      wgsMeanCoverage <- AlignmentQC.getWGSMeanCoverage(
+        perSampleResultsWES.wgsQC,
+        sampleForWESAnalysis.project,
+        sampleForWESAnalysis.sampleId)
+      _ = progressServer.send(
+        CoverageAvailable(sampleForWESAnalysis.project,
+                          sampleForWESAnalysis.sampleId,
+                          sampleForWESAnalysis.runId,
+                          conf.analysisId,
+                          wgsMeanCoverage))
+
     } yield
       (perSampleResultsWES,
        SingleSampleConfiguration(conf.analysisId,
