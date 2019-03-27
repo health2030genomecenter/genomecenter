@@ -26,9 +26,10 @@ class ProtopipelineTestSuite
 
   test("parse RunInfo.xml") {
     new Fixture {
-      ProtoPipelineStages.parseReadLength(runInfoContent) shouldBe Map(1 -> 50,
-                                                                       2 -> 7,
-                                                                       3 -> 50)
+      ProtoPipelineStages.parseReadLengthFromRunInfoXML(runInfoContent) shouldBe Map(
+        1 -> 50,
+        2 -> 7,
+        3 -> 50)
     }
   }
 
