@@ -122,7 +122,9 @@ case class FastQPerLane(runId: RunId,
                         read1: FastQ,
                         read2: FastQ,
                         umi: Option[FastQ],
-                        partition: PartitionId)
+                        partition: PartitionId) {
+  def fastqs = List(read1, read2) ++ umi.toList
+}
 
 case class VCF(vcf: SharedFile, index: Option[SharedFile])
     extends WithSharedFiles(vcf +: index.toList: _*) {

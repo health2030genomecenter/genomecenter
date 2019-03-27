@@ -33,6 +33,8 @@ import akka.util.ByteString
 import akka.testkit.TestProbe
 import akka.stream.scaladsl.Sink
 
+object MyTestKit extends akka.testkit.TestKit(ActorSystem())
+
 case class TestApplication[A, B, C](
     pipelinesApplication: PipelinesApplication[A, B, C],
     httpServer: HttpServer

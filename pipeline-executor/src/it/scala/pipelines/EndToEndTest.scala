@@ -14,9 +14,25 @@ import org.gc.pipelines.application.{
   SampleFinished,
   ProjectFinished,
   RunfolderReadyForProcessing,
-  ProgressData
+  ProgressData,
+  WESConfiguration,
+  AnalysisConfiguration
 }
 import org.gc.pipelines.model.Project
+
+import org.scalatest._
+
+import tasks._
+
+import org.gc.pipelines.model._
+import org.gc.pipelines.util.StableSet
+
+import org.gc.pipelines.util.StableSet
+
+import org.gc.pipelines.GenericTestHelpers._
+import org.gc.pipelines.PipelineFixtures._
+
+import io.circe.syntax._
 
 class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
 
@@ -48,7 +64,14 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
               }
             ]
         """
-        When("registering that runconfiguration to the application")
+        And("A WES analysis configuration")
+
+        When("assigning the analysis to the project")
+        postString(
+          "/v2/analyses/project1",
+          (wesConfiguration: AnalysisConfiguration).asJson.noSpaces).status.intValue shouldBe 200
+
+        And("registering that runconfiguration to the application")
         postString("/v2/runs", runConfiguration).status.intValue shouldBe 200
 
         Then("The sample's processing should finish")
@@ -86,17 +109,25 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         getProgress("/v2/runs") shouldBe "runid1\n"
         getProgress("/v2/runs/runid1") shouldBe "demultiplex started\ndemultiplexed 1\ndemultiplex started\ndemultiplexed 1\n"
         getProgress("/v2/projects") shouldBe "project1\n"
-        io.circe.parser
-          .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
-          .right
-          .get
-          .size shouldBe 6
-        getProgress("/v2/bams/project1") shouldBe "\n"
+        MyTestKit.awaitAssert(
+          io.circe.parser
+            .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
+            .right
+            .get
+            .size shouldBe 10,
+          30 seconds)
+        getProgress("/v2/bams/project1").size > 3 shouldBe true
         getProgress("/v2/vcfs/project1") shouldBe "\n"
 
-        getProgress("/v2/coverages/project1") shouldBe "\n"
+        getProgress("/v2/coverages/project1") shouldBe "sample1\trunid1\tdefault\t0.005563\n"
         getProgress("/v2/fastqs/project1").size > 3 shouldBe true
-        getProgress("/v2/analyses") shouldBe "[]"
+
+        io.circe.parser
+          .decode[Seq[(String, Seq[AnalysisConfiguration])]](
+            getProgress("/v2/analyses"))
+          .right
+          .get
+
         io.circe.parser
           .decode[Seq[RunfolderReadyForProcessing]](
             getProgress("/v2/runconfigurations/runid1"))
@@ -116,17 +147,39 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             sample.sample shouldBe "sample1"
         }
         And("The progress data should reflect the 3rd set of processing steps")
-        io.circe.parser
-          .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
-          .right
-          .get
-          .size shouldBe 9
+        MyTestKit.awaitAssert(
+          io.circe.parser
+            .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
+            .right
+            .get
+            .size shouldBe 15,
+          5 seconds)
 
       }
     }
 
   }
 
-  trait Fixture {}
+  trait Fixture {
+
+    val wesConfiguration = WESConfiguration(
+      analysisId = AnalysisId("default"),
+      referenceFasta = referenceFasta,
+      targetIntervals = targetIntervals,
+      bqsrKnownSites = StableSet(knownSitesVCF.getAbsolutePath),
+      dbSnpVcf = knownSitesVCF.getAbsolutePath,
+      variantEvaluationIntervals = targetIntervals,
+      vqsrMillsAnd1Kg = None,
+      vqsrHapmap = None,
+      vqsrOneKgOmni = None,
+      vqsrOneKgHighConfidenceSnps = None,
+      vqsrDbSnp138 = None,
+      doVariantCalls = Some(false),
+      doJointCalls = Some(false),
+      minimumTargetCoverage = None,
+      minimumWGSCoverage = None,
+      variantCallingContigs = None
+    )
+  }
 
 }

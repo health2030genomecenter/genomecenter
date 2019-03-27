@@ -12,6 +12,11 @@ import htsjdk.samtools.util.BlockCompressedStreamConstants
 
 object Bgzf {
 
+  def isBlockCompressed(f: File): Boolean = fileutils.openFileInputStream(f) {
+    is =>
+      BlockCompressedInputStream.isValidFile(is)
+  }
+
   def partition(f: File, maxFileSize: Long): List[File] =
     fileutils.openFileInputStream(f)(partition(_, maxFileSize))
 

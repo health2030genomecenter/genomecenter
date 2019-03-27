@@ -11,7 +11,7 @@ lazy val commonSettings = Seq(
   git.useGitDescribe := true
 )
 
-lazy val tasksVersion = "0.0.41"
+lazy val tasksVersion = "0.0.42"
 
 lazy val stagingIvy1Repository =
   Resolver.url("gc-ivy1",
@@ -52,6 +52,26 @@ lazy val readqc = project
       "io.github.pityka" %% "fileutils" % "1.2.2" % "test"
     ),
     assemblyJarName := "readqc",
+    test in assembly := {},
+    unmanagedClasspath in Test += {
+      val testFolder = System.getenv("GC_TESTFOLDER")
+      if (testFolder == null) baseDirectory.value
+      else new File(testFolder).getCanonicalFile
+    }
+  )
+
+lazy val fqsplit = project
+  .in(file("fqsplit"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "fqsplit",
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      "com.github.samtools" % "htsjdk" % "2.16.1",
+      "io.github.pityka" %% "fileutils" % "1.2.2",
+      "com.intel.gkl" % "gkl" % "0.8.5" exclude ("com.github.samtools", "htsjdk")
+    ),
+    assemblyJarName := "fqsplit",
     test in assembly := {},
     unmanagedClasspath in Test += {
       val testFolder = System.getenv("GC_TESTFOLDER")
@@ -122,7 +142,7 @@ lazy val pipelineExecutor = project
       else new File(testFolder).getCanonicalFile
     }
   )
-  .dependsOn(tasksSlurm, readqc)
+  .dependsOn(tasksSlurm, readqc, fqsplit)
   .enablePlugins(JavaServerAppPackaging)
   .enablePlugins(BuildInfoPlugin)
   .settings(
@@ -148,7 +168,10 @@ lazy val pipelineExecutor = project
     resources in IntegrationTest += (assembly in Compile in umiProcessor).value,
     mappings in Universal += (assembly in Compile in readqcCLI).value -> "resources/readqc",
     resources in Test += (assembly in Compile in readqcCLI).value,
-    resources in IntegrationTest += (assembly in Compile in readqcCLI).value
+    resources in IntegrationTest += (assembly in Compile in readqcCLI).value,
+    mappings in Universal += (assembly in Compile in fqsplit).value -> "resources/fqsplit",
+    resources in Test += (assembly in Compile in fqsplit).value,
+    resources in IntegrationTest += (assembly in Compile in fqsplit).value
   )
   .settings(unmanagedClasspath in IntegrationTest += {
     val testFolder = System.getenv("GC_TESTFOLDER")
@@ -165,7 +188,12 @@ lazy val root = (project in file("."))
   .settings(
     publishArtifact := false
   )
-  .aggregate(tasksSlurm, pipelineExecutor, umiProcessor, readqc, readqcCLI)
+  .aggregate(tasksSlurm,
+             pipelineExecutor,
+             umiProcessor,
+             readqc,
+             readqcCLI,
+             fqsplit)
   .enablePlugins(GitVersioning)
 
 scalafmtOnCompile in ThisBuild := true

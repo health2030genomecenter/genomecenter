@@ -9,6 +9,7 @@ import org.gc.pipelines.util.{
   Files,
   FastQHelpers
 }
+import FastQHelpers.VirtualPointerInterval
 import org.gc.pipelines.util
 import org.gc.pipelines.util.{StableSet, traverseAll}
 import org.gc.pipelines.util.StableSet.syntax
@@ -31,7 +32,8 @@ case class PerLaneBWAAlignmentInput(
     lane: Lane,
     partition: PartitionId,
     reference: IndexedReferenceFasta,
-    umi: Option[FastQ]
+    umi: Option[FastQ],
+    interval: Option[IntervalTriplet]
 ) extends WithSharedFiles(
       Seq(read1.file, read2.file, reference.fasta) ++ umi.toList
         .map(_.file): _*)
@@ -43,34 +45,9 @@ case class SplitFastQsInput(fastqs: StableSet[FastQPerLane],
         .flatMap(fq =>
           List(fq.read1.file, fq.read2.file) ++ fq.umi.toSeq.map(_.file)): _*
     )
-case class SplitFastQsResult(intacts: StableSet[FastQPerLane],
-                             splits: StableSet[FastQPerLane])
-    extends WithSharedFiles(
-      (intacts.toSeq ++ splits.toSeq)
-        .flatMap(fq =>
-          List(fq.read1.file, fq.read2.file) ++ fq.umi.toSeq.map(_.file)): _*
-    ) {
-  def splitFiles =
-    splits.toSeq
-      .flatMap(fq =>
-        List(fq.read1.file, fq.read2.file) ++ fq.umi.toSeq.map(_.file))
-}
-case class SplitFastQInput(read1: FastQ,
-                           read2: FastQ,
-                           umi: Option[FastQ],
-                           demultiplexingPartition: PartitionId,
-                           maxReadsPerFastQ: Long)
-    extends WithSharedFiles(
-      read1.files ++ read2.files ++ umi.toSeq.flatMap(_.files): _*)
-
-case class SplitFastQResult(
-    split: Seq[(FastQ, FastQ, Option[FastQ], PartitionId)])
-    extends WithSharedFiles(
-      split.flatMap {
-        case (read1, read2, umi, _) =>
-          read1.files ++ read2.files ++ umi.toSeq.flatMap(_.files)
-      }: _*
-    )
+case class SplitIntervalsResult(
+    intervals: StableSet[(FastQ, Seq[VirtualPointerInterval])])
+    extends WithSharedFiles(intervals.toSeq.flatMap(_._1.files): _*)
 
 case class PerSampleBWAAlignmentInput(
     fastqs: StableSet[FastQPerLane],
@@ -92,118 +69,49 @@ case class MarkDuplicateResult(
     duplicateMetric: DuplicationQCResult
 ) extends WithSharedFiles(bam.files ++ duplicateMetric.files: _*)
 
+case class ComputeSplitIntervalInput(fq: FastQ, maxReads: Long)
+    extends WithSharedFiles(fq.files: _*)
+
+case class IntervalTriplet(read1: VirtualPointerInterval,
+                           read2: VirtualPointerInterval,
+                           umi: Option[VirtualPointerInterval])
+
 object BWAAlignment {
 
-  val splitFastQTriple =
-    AsyncTask[SplitFastQInput, SplitFastQResult]("__split-fastq", 1) {
-      case SplitFastQInput(read1, read2, umi, demuxPartition, maxPerSplit) =>
+  val computeSplitIntervals =
+    AsyncTask[ComputeSplitIntervalInput, Seq[VirtualPointerInterval]](
+      "__split-interval",
+      1) {
+      case ComputeSplitIntervalInput(FastQ(file, _), maxReads) =>
         implicit computationEnvironment =>
           for {
-            read1Local <- read1.file.file
-            read2Local <- read2.file.file
-            umiLocal <- umi match {
-              case None      => Future.successful(None)
-              case Some(umi) => umi.file.file.map(Some(_))
-            }
-            result <- {
-              val partitionsRead1 =
-                FastQHelpers.splitFastQ(read1Local, maxPerSplit)
-              val partitionsRead2 =
-                FastQHelpers.splitFastQ(read2Local, maxPerSplit)
-              val partitionsUmi =
-                umiLocal.map(f => FastQHelpers.splitFastQ(f, maxPerSplit))
-              val read1And2 = partitionsRead1 zip partitionsRead2
-              val withUmi = (partitionsUmi match {
-                case Some(umi) => read1And2 zip umi.map(Some(_))
-                case None      => read1And2.map(x => (x, None))
-              }).zipWithIndex
+            file <- file.file
+          } yield {
+            FastQHelpers.indexFastQSplits(file, maxReads)
+          }
 
-              Future.traverse(withUmi) {
-                case ((((split1, split1Reads), (split2, split2Reads)), mayUmi),
-                      idx) =>
-                  val newPartitionId =
-                    PartitionId((demuxPartition + 1) * 10000 + idx)
-                  for {
-                    fq1 <- SharedFile(
-                      split1,
-                      read1.file.name + ".part." + demuxPartition + ".split." + newPartitionId + ".fq.gz",
-                      deleteFile = true).map(FastQ(_, split1Reads))
-                    fq2 <- SharedFile(
-                      split2,
-                      read2.file.name + ".part." + demuxPartition + ".split." + newPartitionId + ".fq.gz",
-                      deleteFile = true).map(FastQ(_, split2Reads))
-                    umi <- mayUmi match {
-                      case None => Future.successful(None)
-                      case Some((splitUmi, splitUmiReads)) =>
-                        SharedFile(
-                          splitUmi,
-                          umi.get.file.name + ".part." + demuxPartition + ".split." + newPartitionId + ".fq.gz",
-                          deleteFile = true).map(sf =>
-                          Some(FastQ(sf, splitUmiReads)))
-                    }
-                  } yield (fq1, fq2, umi, newPartitionId)
-              }
-            }
-          } yield SplitFastQResult(result)
     }
 
-  val splitFastQs =
-    AsyncTask[SplitFastQsInput, SplitFastQsResult]("__split-fastqs", 1) {
+  val computeManySplitIntervals =
+    AsyncTask[SplitFastQsInput, SplitIntervalsResult]("__split-fastqs", 1) {
       case SplitFastQsInput(fastqs, maxPerSplit) =>
         implicit computationEnvironment =>
           releaseResources
+          val allFastQs = fastqs.toSeq.flatMap(_.fastqs)
           for {
-            fqPerLanesSplit <- traverseAll(fastqs.toSeq) { fastqPerLane =>
-              if (fastqPerLane.read1.numberOfReads <= maxPerSplit) {
-                Future.successful(Left(fastqPerLane))
-              } else
+            intervalsPerFastQs <- traverseAll(allFastQs) { fastq =>
+              if (fastq.numberOfReads <= maxPerSplit)
+                Future.successful(fastq -> Nil)
+              else
                 for {
-                  split <- {
-
-                    val totalReads = fastqPerLane.read1.numberOfReads * 2 + fastqPerLane.umi
-                      .map(_ => fastqPerLane.read1.numberOfReads)
-                      .getOrElse(0L)
-
-                    val scratchNeeded =
-                      ResourceConfig.compressedFastQSizeBytePerRead.toDouble * totalReads.toDouble * 1E-6
-                    val resourceRequest =
-                      ResourceConfig.minimal.copy(
-                        cpuMemoryRequest =
-                          ResourceConfig.minimal.cpuMemoryRequest
-                            .copy(scratch = scratchNeeded.toInt))
-
-                    splitFastQTriple(
-                      SplitFastQInput(read1 = fastqPerLane.read1,
-                                      read2 = fastqPerLane.read2,
-                                      umi = fastqPerLane.umi,
-                                      demultiplexingPartition =
-                                        fastqPerLane.partition,
-                                      maxPerSplit))(resourceRequest)
-                  }
-                } yield {
-                  Right(split.split.map {
-                    case (read1, read2, umi, partition) =>
-                      FastQPerLane(fastqPerLane.runId,
-                                   fastqPerLane.lane,
-                                   read1,
-                                   read2,
-                                   umi,
-                                   partition)
-                  })
-
-                }
+                  intervals <- computeSplitIntervals(
+                    ComputeSplitIntervalInput(fastq, maxPerSplit))(
+                    ResourceConfig.minimal)
+                } yield (fastq, intervals)
 
             }
-          } yield {
-            val keptIntact = fqPerLanesSplit.collect {
-              case Left(fqPerLane) => fqPerLane
-            }
-            val splits = fqPerLanesSplit.collect {
-              case Right(splits) => splits
-            }
-            SplitFastQsResult(keptIntact.toSet.toStable,
-                              splits.flatten.toSet.toStable)
-          }
+          } yield SplitIntervalsResult(intervalsPerFastQs.toSet.toStable)
+
     }
 
   val indexReference =
@@ -275,10 +183,53 @@ object BWAAlignment {
         implicit computationEnvironment =>
           releaseResources
 
-          def alignLane(lane: FastQPerLane) = {
-            val totalReads = lane.read1.numberOfReads + lane.read2.numberOfReads + lane.umi
-              .map(_.numberOfReads)
-              .getOrElse(0L)
+          val maxReadsPerChunk = ResourceConfig.bwaMaxReadsPerChunk
+
+          def alignLane(lane: FastQPerLane,
+                        intervals: Map[FastQ, Seq[VirtualPointerInterval]]) = {
+            val read1Intervals = intervals(lane.read1)
+            val read2Intervals = intervals(lane.read2)
+            val umiIntervals = lane.umi.map(umi => intervals(umi))
+            require(
+              read1Intervals.size == read2Intervals.size,
+              "Programmer error, number of reads thus number of intervals should be the same.")
+            if (read1Intervals.isEmpty) {
+              log.debug(
+                s"Aligning lane of $project $sampleId in one piece (no interval based scatter).")
+              alignLaneInterval(lane, None, 0).map(List(_))
+            } else {
+              log.debug(
+                s"Aligning lane of $project $sampleId in ${read1Intervals.size} pieces.")
+
+              val zipped = umiIntervals match {
+                case None =>
+                  (read1Intervals zip read2Intervals).map(iv => (iv, None))
+                case Some(umiIntervals) =>
+                  read1Intervals zip read2Intervals zip umiIntervals.map(
+                    Some(_))
+              }
+              traverseAll(zipped.zipWithIndex) {
+                case (((read1, read2), umi), idx) =>
+                  val triplet =
+                    IntervalTriplet(read1 = read1, read2 = read2, umi)
+                  alignLaneInterval(lane, Some(triplet), idx)
+              }
+            }
+
+          }
+
+          def alignLaneInterval(lane: FastQPerLane,
+                                intervals: Option[IntervalTriplet],
+                                intervalIdx: Int) = {
+            val totalReads = intervals match {
+              case None =>
+                lane.read1.numberOfReads + lane.read2.numberOfReads + lane.umi
+                  .map(_.numberOfReads)
+                  .getOrElse(0L)
+              case Some(_) =>
+                val f = lane.umi.map(_ => 3).getOrElse(2)
+                maxReadsPerChunk * f
+            }
 
             val scratchNeeded = ((math.max(
               ResourceConfig.bwa.scratch.toDouble,
@@ -290,6 +241,10 @@ object BWAAlignment {
 
             log.info("BWA scratch space computed: " + scratchNeeded + "MB ")
 
+            // add +1 so that intervalIdx=0 is uniquely the non-chunked interval
+            val newPartitionId =
+              PartitionId((lane.partition + 1) * 100000 + intervalIdx + 1)
+
             alignSingleLane(
               PerLaneBWAAlignmentInput(lane.read1,
                                        lane.read2,
@@ -297,19 +252,20 @@ object BWAAlignment {
                                        sampleId,
                                        lane.runId,
                                        lane.lane,
-                                       lane.partition,
+                                       newPartitionId,
                                        reference,
-                                       lane.umi))(resourceRequest)
+                                       lane.umi,
+                                       intervals))(resourceRequest)
           }
 
-          val maxReadsPerChunk = 5000000L
-
           for {
-            splitFastQs <- splitFastQs(
+            splitIntervals <- computeManySplitIntervals(
               SplitFastQsInput(fastqs, maxReadsPerChunk))(
-              ResourceConfig.minimal)
-            alignedLanes <- traverseAll(
-              splitFastQs.splits.toSeq ++ splitFastQs.intacts.toSeq)(alignLane)
+              ResourceConfig.minimal).map(_.intervals.toSeq)
+
+            alignedLanes <- traverseAll(fastqs.toSeq)(fqPerLane =>
+              alignLane(fqPerLane, splitIntervals.toMap)).map(_.flatten)
+
             merged <- mergeAndMarkDuplicate(
               BamsWithSampleMetadata(
                 project,
@@ -318,7 +274,6 @@ object BWAAlignment {
                   alignedLanes.map(_.bam) ++ bamOfPreviousRuns.toSet: _*)))(
               ResourceConfig.picardMergeAndMarkDuplicates)
             _ <- Future.traverse(alignedLanes.map(_.bam))(_.file.delete)
-            _ <- Future.traverse(splitFastQs.splitFiles)((_: SharedFile).delete)
 
           } yield merged
     }
@@ -491,7 +446,8 @@ object BWAAlignment {
                                     lane,
                                     partition,
                                     reference,
-                                    maybeUmi) =>
+                                    maybeUmi,
+                                    maybeInterval) =>
         implicit computationEnvironment =>
           val picardJar = extractPicardJar()
 
@@ -535,23 +491,52 @@ object BWAAlignment {
           val tmpDir =
             s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
+          /* Extrats the interval from the fastq file
+           *
+           * Picard can't read a stream (it opens-closes the file at least twice), thus
+           * we have to write it to disk
+           */
+          def fastqLoader(file: File,
+                          interval: Option[VirtualPointerInterval]) =
+            interval match {
+              case None => (file.getAbsolutePath, false)
+              case Some(VirtualPointerInterval(from, length)) =>
+                import org.gc.fqsplit.FqSplitHelpers
+                val buffer = Array.ofDim[Byte](8192)
+                val tmp = Files.createTempFile("fq.gz")
+                fileutils
+                  .openFileOutputStream(tmp) { os =>
+                    FqSplitHelpers.zipOutputStream(os) { os =>
+                      FqSplitHelpers.readFastQSplit(file, from, length) { is =>
+                        FqSplitHelpers.copy(is, os, buffer)
+                      }
+                    }
+                  }
+                (tmp.getAbsolutePath, true)
+            }
+
           val resultF = for {
-            read1 <- read1.file.file.map(_.getAbsolutePath)
-            read2 <- read2.file.file.map(_.getAbsolutePath)
+            read1 <- read1.file.file
+            read2 <- read2.file.file
             umi <- maybeUmi match {
               case Some(umi) =>
-                umi.file.file.map(_.getAbsolutePath).map(Some(_))
+                umi.file.file.map(Some(_))
               case None => Future.successful(None)
             }
             reference <- reference.localFile
             result <- {
 
+              val (read1Fq, deleteRead1Fq) =
+                fastqLoader(read1, maybeInterval.map(_.read1))
+              val (read2Fq, deleteRead2Fq) =
+                fastqLoader(read2, maybeInterval.map(_.read2))
+
               umi match {
                 case None =>
                   val fastqToUnmappedBam = s"""\\
         java ${JVM.serial} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
-                --FASTQ $read1 \\
-                --FASTQ2 $read2 \\
+                --FASTQ $read1Fq \\
+                --FASTQ2 $read2Fq \\
                 --OUTPUT ${tmpIntermediateUnmappedBam.getAbsolutePath} \\
                 --QUIET true \\
                 --SORT_ORDER queryname \\
@@ -571,10 +556,12 @@ object BWAAlignment {
                             onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
                 case Some(umi) =>
                   val umiProcessor = extractUmiProcessorJar()
+                  val (umiFq, deleteUmiFq) =
+                    fastqLoader(umi, maybeInterval.flatMap(_.umi))
                   val fastqToUnmappedBam = s"""\\
         java ${JVM.serial} -Xmx2G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar FastqToSam \\
-                --FASTQ $read1 \\
-                --FASTQ2 $read2 \\
+                --FASTQ $read1Fq \\
+                --FASTQ2 $read2Fq \\
                 --OUTPUT /dev/stdout \\
                 --SORT_ORDER unsorted \\
                 --MAX_RECORDS_IN_RAM 0 \\
@@ -588,7 +575,7 @@ object BWAAlignment {
                 --TMP_DIR ${unmappedBamTempFolder.getAbsolutePath} \\
                 --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                 \\
-        java ${JVM.serial} -Xmx2G $tmpDir -jar $umiProcessor $umi \\
+        java ${JVM.serial} -Xmx2G $tmpDir -jar $umiProcessor $umiFq \\
               2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                  \\
         java ${JVM.g1} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
@@ -602,6 +589,17 @@ object BWAAlignment {
 
                   Exec.bash(logDiscriminator = "bwa.fastq2ubam_umi." + sampleId,
                             onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
+
+                  if (deleteUmiFq) {
+                    new File(umiFq).delete
+                  }
+              }
+
+              if (deleteRead1Fq) {
+                new File(read1Fq).delete
+              }
+              if (deleteRead2Fq) {
+                new File(read2Fq).delete
               }
 
               log.info(s"Fastq of $sampleId sorted.")
@@ -757,11 +755,11 @@ object DuplicationQCResult {
   implicit val decoder: Decoder[DuplicationQCResult] =
     deriveDecoder[DuplicationQCResult]
 }
-object SplitFastQInput {
-  implicit val encoder: Encoder[SplitFastQInput] =
-    deriveEncoder[SplitFastQInput]
-  implicit val decoder: Decoder[SplitFastQInput] =
-    deriveDecoder[SplitFastQInput]
+object ComputeSplitIntervalInput {
+  implicit val encoder: Encoder[ComputeSplitIntervalInput] =
+    deriveEncoder[ComputeSplitIntervalInput]
+  implicit val decoder: Decoder[ComputeSplitIntervalInput] =
+    deriveDecoder[ComputeSplitIntervalInput]
 }
 object SplitFastQsInput {
   implicit val encoder: Encoder[SplitFastQsInput] =
@@ -769,15 +767,15 @@ object SplitFastQsInput {
   implicit val decoder: Decoder[SplitFastQsInput] =
     deriveDecoder[SplitFastQsInput]
 }
-object SplitFastQResult {
-  implicit val encoder: Encoder[SplitFastQResult] =
-    deriveEncoder[SplitFastQResult]
-  implicit val decoder: Decoder[SplitFastQResult] =
-    deriveDecoder[SplitFastQResult]
+object SplitIntervalsResult {
+  implicit val encoder: Encoder[SplitIntervalsResult] =
+    deriveEncoder[SplitIntervalsResult]
+  implicit val decoder: Decoder[SplitIntervalsResult] =
+    deriveDecoder[SplitIntervalsResult]
 }
-object SplitFastQsResult {
-  implicit val encoder: Encoder[SplitFastQsResult] =
-    deriveEncoder[SplitFastQsResult]
-  implicit val decoder: Decoder[SplitFastQsResult] =
-    deriveDecoder[SplitFastQsResult]
+object IntervalTriplet {
+  implicit val encoder: Encoder[IntervalTriplet] =
+    deriveEncoder[IntervalTriplet]
+  implicit val decoder: Decoder[IntervalTriplet] =
+    deriveDecoder[IntervalTriplet]
 }

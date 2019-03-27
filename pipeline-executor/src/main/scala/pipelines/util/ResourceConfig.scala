@@ -123,4 +123,6 @@ object ResourceConfig {
   def projectPriority(project: Project) =
     projectPriorities.get(project).getOrElse(1000000)
 
+  val bwaMaxReadsPerChunk = config.getLong("bwaMaxReadsPerChunk")
+
 }

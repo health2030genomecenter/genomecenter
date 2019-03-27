@@ -5,7 +5,7 @@ import scala.concurrent.duration._
 import com.typesafe.config.ConfigFactory
 
 object GenericTestHelpers {
-  val timeout = 180 seconds
+  val timeout = 600 seconds
   def await[T](f: Future[T]) = Await.result(f, atMost = timeout)
 
   def makeTestConfig = {

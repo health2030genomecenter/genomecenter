@@ -5,20 +5,75 @@ import htsjdk.samtools.util._
 import com.intel.gkl.compression.IntelDeflaterFactory
 import com.intel.gkl.compression.IntelInflaterFactory
 
+import io.circe.{Decoder, Encoder}
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+
 object FastQHelpers {
+
+  def openOutputStream[T](fileName: File)(func: java.io.OutputStream => T): T =
+    fileutils.useResource(
+      new BlockCompressedOutputStream(fileName, 1, new IntelDeflaterFactory))(
+      func)
+
+  def openInputStream[T](fileName: File)(
+      func: BlockCompressedInputStream => T): T =
+    fileutils.useResource(
+      new BlockCompressedInputStream(new FileInputStream(fileName),
+                                     true,
+                                     new IntelInflaterFactory))(func)
+
+  case class VirtualPointerInterval(from: Long, byteLength: Long)
+  object VirtualPointerInterval {
+    implicit val encoder: Encoder[VirtualPointerInterval] =
+      deriveEncoder[VirtualPointerInterval]
+    implicit val decoder: Decoder[VirtualPointerInterval] =
+      deriveDecoder[VirtualPointerInterval]
+  }
+
+  def indexFastQSplits(input: File,
+                       maxReads: Long): Seq[VirtualPointerInterval] = {
+
+    def loop(
+        first: Byte,
+        firstPointer: Long,
+        inputStream: BlockCompressedInputStream,
+        intervals: List[VirtualPointerInterval]): List[VirtualPointerInterval] =
+      if (first == -1) intervals
+      else {
+        var b = first
+        var pointer = firstPointer
+        val maxLines = maxReads * 4
+        val lineBreak = '\n'.toByte
+        var i = 0L
+        var byteCounter = 0L
+        while (i < maxLines && b >= 0) {
+          if (b == lineBreak) {
+            i += 1L
+            pointer = inputStream.getFilePointer
+          }
+          byteCounter += 1L
+          b = inputStream.read.toByte
+        }
+        i / 4
+        loop(b,
+             pointer,
+             inputStream,
+             VirtualPointerInterval(firstPointer, byteCounter) :: intervals)
+
+      }
+
+    val isBgzip = Bgzf.isBlockCompressed(input)
+
+    if (!isBgzip) Nil
+    else
+      openInputStream(input) { inputStream =>
+        val pointer = inputStream.getFilePointer
+        loop(inputStream.read.toByte, pointer, inputStream, Nil).reverse
+      }
+
+  }
+
   def splitFastQ(input: File, maxReads: Long): Seq[(File, Long)] = {
-
-    def openOutputStream[T](fileName: File)(
-        func: java.io.OutputStream => T): T =
-      fileutils.useResource(
-        new BlockCompressedOutputStream(fileName, 1, new IntelDeflaterFactory))(
-        func)
-
-    def openInputStream[T](fileName: File)(func: java.io.InputStream => T): T =
-      fileutils.useResource(
-        new BlockCompressedInputStream(new FileInputStream(fileName),
-                                       true,
-                                       new IntelInflaterFactory))(func)
 
     def loop(first: Byte,
              inputStream: InputStream,
