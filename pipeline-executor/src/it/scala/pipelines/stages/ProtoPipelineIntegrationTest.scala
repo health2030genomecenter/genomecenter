@@ -29,14 +29,6 @@ class ProtopipelineIntegrationTestSuite
     with Matchers
     with GivenWhenThen {
 
-  test("parse RunInfo.xml") {
-    new Fixture {
-      ProtoPipelineStages.parseReadLength(runInfoContent) shouldBe Map(1 -> 50,
-                                                                       2 -> 7,
-                                                                       3 -> 50)
-    }
-  }
-
   test("Prototype pipelien should accept fastq file") {
     new Fixture {
       Given("a runfolder and a reference file")
