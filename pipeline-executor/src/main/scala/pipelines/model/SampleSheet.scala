@@ -56,7 +56,7 @@ object SampleSheet extends StrictLogging {
       distinctColumnValues(laneColumnIdx).map(value => Lane(value.toInt))
     val projects = distinctColumnValues(projectColumnIdx).map(Project(_))
 
-    /** bcl2fastq source code Layout.cpp 804
+    /** bcl2fastq source code Layout.cpp line 804
       *
       * Sample number is the number in which the Sample_IDs are occuring.
       */

@@ -469,6 +469,16 @@ object BWAAlignment {
 
     }
 
+  /* Task in which bwa is executed
+   *
+   * Converts a pair (triple, if umi) of fastqs and metadata to an bam
+   * Steps follow https://github.com/gatk-workflows/broad-prod-wgs-germline-snps-indels
+   *
+   * Roughly:
+   * 1. fastq to unmapped query sorted bam. copy umis into bam attribute if needed
+   * 2. mark adapter, convert back to fastq, bwa, make bam. This second step is executed in
+   *    a single pipe.
+   */
   val alignSingleLane =
     AsyncTask[PerLaneBWAAlignmentInput, BamWithSampleMetadataPerLane](
       "__bwa-perlane",

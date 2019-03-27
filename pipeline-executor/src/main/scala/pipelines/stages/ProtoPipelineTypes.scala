@@ -87,14 +87,6 @@ case class SingleSamplePipelineInput(analysisId: AnalysisId,
       .flatMap(_.files) ++ selectionTargetIntervals.files ++ bamOfPreviousRuns.toSeq
       .flatMap(_.files): _*)
 
-//   ,
-// analysisId: AnalysisId,
-// referenceFasta: IndexedReferenceFasta,
-// dbSnpVcf: VCF,
-// vqsrTrainingFiles: Option[VQSRTrainingFiles],
-// wesConfiguration: Option[WESConfiguration],
-// variantCallingContigs: Option[ContigsFile]
-
 case class SingleSamplePipelineResult(
     bam: CoordinateSortedBam,
     uncalibrated: Bam,

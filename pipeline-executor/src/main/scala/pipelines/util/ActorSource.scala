@@ -19,6 +19,12 @@ object ActorSource extends StrictLogging {
         listeners.foreach(_ ! other)
     }
   }
+
+  /* A convenient way to make a Source which can be fed from an actor
+   *
+   * The price of the convenience is that the actor is started before the
+   * stream is materialized (as opposed to normal Source.actorRef)
+   */
   def make[T](implicit AS: ActorSystem) = {
     val fw = AS.actorOf(Props[Forwarder])
     val source = Source

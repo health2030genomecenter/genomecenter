@@ -121,8 +121,6 @@ object ProtoPipelineStages extends StrictLogging {
                   priorityBam)
             }
 
-            // _ <- alignedSample.bam.file.delete
-
             bqsrTable <- intoIntermediateFolder {
               implicit computationEnvironment =>
                 BaseQualityScoreRecalibration.trainBQSR(
@@ -358,7 +356,7 @@ object ProtoPipelineStages extends StrictLogging {
         if (file.canRead) {
           val content = fileutils.openSource(
             new File((runFolderPath: String) + "/RunInfo.xml"))(_.mkString)
-          Right(parseReadLength(content))
+          Right(parseReadLengthFromRunInfoXML(content))
         } else Left("Can't read " + file)
       case None =>
         logger.warn("Unimplemented: read length from 3rd party fasqs")
@@ -367,7 +365,7 @@ object ProtoPipelineStages extends StrictLogging {
 
   }
 
-  def parseReadLength(s: String) = {
+  def parseReadLengthFromRunInfoXML(s: String) = {
     val root = scala.xml.XML.loadString(s)
     (root \ "Run" \ "Reads" \ "Read")
       .map { node =>

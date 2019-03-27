@@ -17,6 +17,10 @@ import org.gc.pipelines.util.StableSet.syntax
 import com.typesafe.scalalogging.StrictLogging
 import scala.util.{Success, Failure}
 
+/* Implementation of `Pipeline`
+ *
+ * This class is the root of all the bioinformatic processing steps
+ */
 class ProtoPipeline(progressServer: SendProgressData)(
     implicit EC: ExecutionContext)
     extends Pipeline[PerSamplePerRunFastQ, SampleResult, DeliverableList]
@@ -280,6 +284,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
     }
   }
 
+  /* Entry point of per sample processing */
   def processSample(r: RunfolderReadyForProcessing,
                     analysisAssignments: AnalysisAssignments,
                     pastSampleResult: Option[SampleResult],
@@ -332,31 +337,34 @@ class ProtoPipeline(progressServer: SendProgressData)(
             logger.info(
               demultiplexedSample.runId + " " + demultiplexedSample.project + " " + demultiplexedSample.sampleId + " past result: " + pastSampleResult
                 .map(_.runFolders.map(_.runId)))
+
+            val matchingPastResults = pastSampleResult
+              .flatMap(_.wes
+                .find {
+                  case (_, wesConfigurationOfPastSample) =>
+                    val matchingAnalysisId = wesConfigurationOfPastSample.analysisId == conf.analysisId
+                    val matchingMigratedOldAnalysisId = wesConfigurationOfPastSample.analysisId == "" && conf.analysisId == "hg19"
+
+                    logger.debug(
+                      "matchingAnalysisId: " + matchingAnalysisId + " matchingMigratedOldAnalysisId: " + matchingMigratedOldAnalysisId + " " + demultiplexedSample + " " + conf)
+
+                    matchingAnalysisId || matchingMigratedOldAnalysisId
+                }
+                .map {
+                  case (wesResultOfPastSample, _) =>
+                    wesResultOfPastSample.uncalibrated
+                })
+
             wes(
               demultiplexedSample,
               conf,
-              pastSampleResult
-                .flatMap(_.wes
-                  .find {
-                    case (_, wesConfigurationOfPastSample) =>
-                      val matchingAnalysisId = wesConfigurationOfPastSample.analysisId == conf.analysisId
-                      val matchingMigratedOldAnalysisId = wesConfigurationOfPastSample.analysisId == "" && conf.analysisId == "hg19"
-
-                      logger.debug(
-                        "matchingAnalysisId: " + matchingAnalysisId + " matchingMigratedOldAnalysisId: " + matchingMigratedOldAnalysisId + " " + demultiplexedSample + " " + conf)
-
-                      matchingAnalysisId || matchingMigratedOldAnalysisId
-                  }
-                  .map {
-                    case (wesResultOfPastSample, _) =>
-                      wesResultOfPastSample.uncalibrated
-                  }),
+              matchingPastResults
             )
           }
 
         val perSampleResultsRNA = if (readLengths.isEmpty) {
           logger.warn(
-            "Empty read lengths. RNASeq analysis on 3rd party fastqs not implemented.")
+            "Empty read lengths. RNASeq analysis on 3rd party fastqs not implemented. A rough read length estimate is needed by STAR.")
           Future.successful(Nil)
 
         } else
@@ -413,8 +421,11 @@ class ProtoPipeline(progressServer: SendProgressData)(
         .fetchVariantEvaluationIntervals(conf)
       vqsrTrainingFiles <- ProtoPipelineStages.fetchVqsrTrainingFiles(conf)
       perSampleResultsWES <- {
-        logger.info(
+        logger.debug(
           s"Start main wes task of ${sampleForWESAnalysis.project} ${sampleForWESAnalysis.sampleId}")
+        // at this point the job is sent to the tasks library
+        // further execution will happen on a worker node
+        // results will be checkpointed
         ProtoPipelineStages.singleSampleWES(
           SingleSamplePipelineInput(
             conf.analysisId,

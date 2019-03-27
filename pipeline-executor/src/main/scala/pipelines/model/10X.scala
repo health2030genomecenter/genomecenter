@@ -18,6 +18,14 @@ object TenX extends StrictLogging {
         IndexId(name) -> indices.split(",").toList.map(Index(_))
     }.toMap
   }
+  /* Creates a new sample sheet with 10x indices resolved
+   *
+   * In a 10X sample sheet regular index fields are occupied with a 10X
+   * index name, each of which refer to multiple real indices.
+   *
+   * This function resolves this relationship and creates a sample sheet
+   * which may be used with bcl2fastq to correctly demultiplex the samples
+   */
   def resolve(sampleSheet: SampleSheet.ParsedData): SampleSheet = {
     val samples = sampleSheet.poolingLayout
     val resolvedSamples = samples.flatMap { multiplex =>

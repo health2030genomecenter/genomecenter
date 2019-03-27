@@ -4,7 +4,7 @@ import io.circe.Decoder
 
 /** A set with stable serialization
   *
-  * Circe delegetes the ordering of a serialized Set to the `iterator` method.
+  * Circe delegates the ordering of a serialized Set to the `iterator` method.
   * HashSet has stable iteration order, but not in its contract
   * The factory method scala.collection.Set.apply returns sets not stable for sizes 2,3,4
   *

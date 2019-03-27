@@ -272,7 +272,6 @@ object AlignmentQC {
       List("Proj", "Sample", "Analysis"),
       List(
         "GenomeSize" -> right,
-        // "TotalReads" -> right,
         "MeanCoverage" -> right,
         "Dup" -> right,
         "DupReadPairs" -> right,
