@@ -41,10 +41,12 @@ object Delivery {
     singleSampleResults.toSeq
       .flatMap { singleSampleResult =>
         List(
-          (singleSampleResult.project, singleSampleResult.bam.bam)
-        ) ++ singleSampleResult.gvcf.toSeq
-          .map(vcf => (singleSampleResult.project, vcf.vcf))
-          .toList ++
+          (singleSampleResult.project, singleSampleResult.bam.bam),
+          (singleSampleResult.project, singleSampleResult.referenceFasta.fasta)
+        ) ++
+          singleSampleResult.gvcf.toSeq
+            .map(vcf => (singleSampleResult.project, vcf.vcf))
+            .toList ++
           singleSampleResult.haplotypeCallerReferenceCalls.toSeq
             .map(vcf => (singleSampleResult.project, vcf.vcf))
             .toList
@@ -52,7 +54,7 @@ object Delivery {
       .groupBy { case (project, _) => project }
       .map {
         case (project, pairs) =>
-          (project, pairs.map(_._2))
+          (project, pairs.map(_._2).distinct)
       }
 
   def extractBamListFromRnaSeqResults(rnaSeqResults: Set[StarResult]) =
