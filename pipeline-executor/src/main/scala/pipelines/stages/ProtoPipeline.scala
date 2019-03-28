@@ -383,6 +383,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
           val pastDemultiplexed =
             pastSampleResult.toSeq.flatMap(_.demultiplexed)
           val pastRunFolders = pastSampleResult.toSeq.flatMap(_.runFolders)
+          val pastRNASeqResults = pastSampleResult.toSeq.flatMap(_.rna)
 
           progressServer.send(
             SampleProcessingFinished(demultiplexedSample.project,
@@ -392,7 +393,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
           Some(
             SampleResult(
               wes = perSampleResultsWES,
-              rna = perSampleResultsRNA,
+              rna = pastRNASeqResults ++ perSampleResultsRNA,
               demultiplexed = pastDemultiplexed :+ demultiplexedSample,
               fastpReports = pastFastpReports :+ fastpReport,
               runFolders = pastRunFolders :+ r,
