@@ -138,6 +138,8 @@ object HaplotypeCaller {
         implicit computationEnvironment =>
           releaseResources
 
+          val samples = haplotypeCallerReferenceCalls + "#" + haplotypeCallerReferenceCalls.hashCode
+
           def intoIntermediateFolder[T] =
             appendToFilePrefix[T](Seq("intermediate").filter(_.nonEmpty))
 
@@ -156,8 +158,9 @@ object HaplotypeCaller {
             }
 
             genotypesVCF <- HaplotypeCaller.mergeVcfs(
-              MergeVCFInput(genotypesScattered,
-                            outputFileName + ".joint.genotyped.vcf.gz"))(
+              MergeVCFInput(
+                genotypesScattered,
+                outputFileName + s".joint.$samples.genotyped.vcf.gz"))(
               ResourceConfig.minimal)
 
           } yield genotypesVCF
