@@ -134,11 +134,18 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
           .right
           .get
 
-        io.circe.parser
+        val deliveryList = io.circe.parser
           .decode[Option[ProgressData]](getProgress("/v2/deliveries/project1"))
           .right
           .get
+          .get
+          .asInstanceOf[ProgressData.DeliveryListAvailable]
+          .files
+
+        deliveryList
+          .find(_.endsWith("sources.jar"))
           .isDefined shouldBe true
+
         When("reprocessing all run")
         postString("/v2/reprocess", "").status.intValue shouldBe 200
         Then("The sample's processing should finish immediately")

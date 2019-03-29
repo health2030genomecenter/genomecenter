@@ -23,6 +23,14 @@ case class DeliverableList(lists: Seq[(Project, SharedFile, ProgressData)])
 
 object Delivery {
 
+  val extraFilesInsertedToEachProjectDeliveries = {
+    val sources = Option(
+      getClass
+        .getResource("/sources.jar")).map(_.getFile)
+
+    sources.toList
+  }
+
   def extractFastqList(
       fastqs: Set[PerSamplePerRunFastQ]): Map[Project, Seq[SharedFile]] =
     fastqs.toSeq
@@ -131,7 +139,11 @@ object Delivery {
               case (project, files) =>
                 for {
                   pathList <- Future.traverse(files)(_.uri.map(_.path))
-                } yield (project, pathList)
+                } yield {
+
+                  (project,
+                   pathList ++ extraFilesInsertedToEachProjectDeliveries)
+                }
             }
             fileList <- Future.traverse(pathLists) {
               case (project, pathList) =>

@@ -173,6 +173,14 @@ lazy val pipelineExecutor = project
     resources in Test += (assembly in Compile in fqsplit).value,
     resources in IntegrationTest += (assembly in Compile in fqsplit).value
   )
+  .settings(
+    artifactName in packageSrc in Compile := {
+      (sv: ScalaVersion, module: ModuleID, artifact: Artifact) =>
+        "sources.jar"
+    },
+    resources in IntegrationTest += (packageSrc in Compile).value,
+    mappings in Universal += (packageSrc in Compile).value -> "resources/sources.jar"
+  )
   .settings(unmanagedClasspath in IntegrationTest += {
     val testFolder = System.getenv("GC_TESTFOLDER")
     if (testFolder == null) baseDirectory.value
