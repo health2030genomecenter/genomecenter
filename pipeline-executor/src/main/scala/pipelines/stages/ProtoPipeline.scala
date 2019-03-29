@@ -123,7 +123,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
         .toSeq
         .map { case (analysisId, group) => (analysisId, group.map(_._2)) }
 
-    def projectQC = inProjectQCFolder(project) { implicit tsc =>
+    val startProjectQC = inProjectQCFolder(project) { implicit tsc =>
       for {
 
         qctables <- AlignmentQC.runQCTable(
@@ -150,7 +150,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
         Left(s"Unicity failed on configuration settings of $project $s")
       }
 
-    def jointCalls =
+    val startJointCalls =
       Future
         .traverse(wesResultsByAnalysisId) {
           case (analysisId, wesResults) =>
@@ -212,8 +212,8 @@ class ProtoPipeline(progressServer: SendProgressData)(
         .map(_.collect { case Some(calls) => calls })
 
     for {
-      (qcTables, reads) <- projectQC
-      jointCallsVCF <- jointCalls
+      (qcTables, reads) <- startProjectQC
+      jointCallsVCF <- startJointCalls
       deliverables <- inDeliverablesFolder { implicit tsc =>
         val jointCallVcfFileSet = jointCallsVCF
           .map(vcfWithIndex => project -> vcfWithIndex.vcf)
