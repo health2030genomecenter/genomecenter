@@ -300,7 +300,7 @@ object BWAAlignment {
                 logDiscriminator = "sortbam.sort",
                 onError = Exec.ThrowIfNonZero)(s"""$samtoolsExecutable sort \\
                       -l 5 \\
-                      -m ${(resourceAllocated.memory * 0.95 / resourceAllocated.cpu).toInt}M \\
+                      -m ${(resourceAllocated.memory * 0.85 / resourceAllocated.cpu).toInt}M \\
                       -T ${tempFolder}/ \\
                       -\\@ ${resourceAllocated.cpu} \\
                       ${localBam.getAbsolutePath} \\
