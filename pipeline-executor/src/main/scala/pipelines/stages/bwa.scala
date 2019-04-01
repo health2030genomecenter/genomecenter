@@ -241,9 +241,10 @@ object BWAAlignment {
 
             log.info("BWA scratch space computed: " + scratchNeeded + "MB ")
 
-            // add +1 so that intervalIdx=0 is uniquely the non-chunked interval
             val newPartitionId =
-              PartitionId((lane.partition + 1) * 100000 + intervalIdx + 1)
+              if (intervals.isDefined)
+                PartitionId((lane.partition + 1) * 100000 + intervalIdx)
+              else lane.partition
 
             alignSingleLane(
               PerLaneBWAAlignmentInput(lane.read1,
