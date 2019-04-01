@@ -518,7 +518,7 @@ object Pipelinectl extends App {
           }
 
         case SendReprocessAllRuns =>
-          val response = post("v2/reprocess")
+          val response = post("/v2/reprocess")
           if (response.code != 200) {
             println("Request failed: " + response)
           } else {
