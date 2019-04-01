@@ -38,7 +38,6 @@ class BwaAlignmentTestSuite
           BWAAlignment.alignSingleLane(input)(ResourceRequest(1, 500))
         val bamWithSampleMetadata = await(future)
         val bamFile = await(bamWithSampleMetadata.bam.file.file)
-        await(bamWithSampleMetadata.bam.file.history).context.get.dependencies.size shouldBe 3
         (bamWithSampleMetadata, bamFile)
       }
 
@@ -85,7 +84,6 @@ class BwaAlignmentTestSuite
           BWAAlignment.alignSingleLane(input)(ResourceRequest(1, 500))
         val bamWithSampleMetadata = await(future)
         val bamFile = await(bamWithSampleMetadata.bam.file.file)
-        await(bamWithSampleMetadata.bam.file.history).context.get.dependencies.size shouldBe 4
         (bamWithSampleMetadata, bamFile)
       }
 
@@ -136,7 +134,6 @@ class BwaAlignmentTestSuite
           BWAAlignment.alignSingleLane(input)(ResourceRequest(1, 500))
         val bamWithSampleMetadata = await(future)
         val bamFile = await(bamWithSampleMetadata.bam.file.file)
-        await(bamWithSampleMetadata.bam.file.history).context.get.dependencies.size shouldBe 4
         (bamWithSampleMetadata, bamFile)
       }
 
@@ -185,7 +182,6 @@ class BwaAlignmentTestSuite
           BWAAlignment.alignSingleLane(input)(ResourceRequest(1, 500))
         val bamWithSampleMetadata = await(future)
         val bamFile = await(bamWithSampleMetadata.bam.file.file)
-        await(bamWithSampleMetadata.bam.file.history).context.get.dependencies.size shouldBe 3
         (bamWithSampleMetadata, bamFile)
       }
 

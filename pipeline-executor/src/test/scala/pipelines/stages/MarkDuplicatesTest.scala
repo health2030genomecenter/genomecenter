@@ -29,7 +29,6 @@ class MarkDuplicatesTestSuite
           BWAAlignment.mergeAndMarkDuplicate(input)(ResourceRequest(1, 500))
         val markDupResult = await(future)
         val bamFile = await(markDupResult.bam.bam.file.file)
-        await(markDupResult.bam.bam.file.history).context.get.dependencies.size shouldBe 1
         (markDupResult, bamFile)
       }
 
