@@ -430,7 +430,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
         ProtoPipelineStages.singleSampleWES(
           SingleSamplePipelineInput(
             conf.analysisId,
-            sampleForWESAnalysis.withoutRunId,
+            sampleForWESAnalysis.withoutRunId.withoutReadLength,
             reference,
             knownSites.toSet.toStable,
             selectionTargetIntervals,

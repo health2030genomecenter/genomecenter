@@ -80,9 +80,9 @@ class ProtopipelineTestSuite
         lanes = List(
           FastQPerLane(runId = RunId("r1"),
                        lane = Lane(1),
-                       read1 = FastQ(sf, 1L),
-                       read2 = FastQ(sf, 1L),
-                       umi = Some(FastQ(sf, 1L)),
+                       read1 = FastQ(sf, 1L, None),
+                       read2 = FastQ(sf, 1L, None),
+                       umi = Some(FastQ(sf, 1L, None)),
                        partition = PartitionId(1))).toSet.toStable,
         project = Project("p1"),
         sampleId = SampleId("s1"),

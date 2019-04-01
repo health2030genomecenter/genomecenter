@@ -22,8 +22,10 @@ class BwaAlignmentTestSuite
 
         val input =
           PerLaneBWAAlignmentInput(
-            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
-            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
+            read1 =
+              FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L, Some(100)),
+            read2 =
+              FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, Some(100)),
             project = project,
             sampleId = sampleId,
             runId = runId,
@@ -68,15 +70,16 @@ class BwaAlignmentTestSuite
 
         val input =
           PerLaneBWAAlignmentInput(
-            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
-            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
+            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L, None),
+            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, None),
             project = project,
             sampleId = sampleId,
             runId = runId,
             lane = lane,
             partition = PartitionId(0),
             reference = indexedFasta,
-            umi = Some(FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L)),
+            umi =
+              Some(FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, None)),
             interval = None
           )
 
@@ -115,15 +118,16 @@ class BwaAlignmentTestSuite
 
         val input =
           PerLaneBWAAlignmentInput(
-            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
-            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
+            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L, None),
+            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, None),
             project = project,
             sampleId = sampleId,
             runId = runId,
             lane = lane,
             partition = PartitionId(0),
             reference = indexedFasta,
-            umi = Some(FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L)),
+            umi =
+              Some(FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, None)),
             interval = Some(
               IntervalTriplet(read1Intervals.head,
                               read2Intervals.head,
@@ -163,8 +167,8 @@ class BwaAlignmentTestSuite
 
         val input =
           PerLaneBWAAlignmentInput(
-            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
-            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
+            read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L, None),
+            read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, None),
             project = project,
             sampleId = sampleId,
             runId = runId,
@@ -215,9 +219,10 @@ class BwaAlignmentTestSuite
               FastQPerLane(
                 runId,
                 lane,
-                FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
-                FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
-                Some(FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L)),
+                FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L, None),
+                FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, None),
+                Some(
+                  FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, None)),
                 PartitionId(2)
               )),
             project = project,

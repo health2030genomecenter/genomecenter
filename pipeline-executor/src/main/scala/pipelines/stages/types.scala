@@ -75,6 +75,8 @@ case class PerSampleFastQ(
       .map(_.toString)
       .sorted
       .mkString(".")
+
+  def withoutReadLength = copy(lanes = lanes.map(_.withoutReadLength))
 }
 
 case class FastQPerLaneWithMetadata(
@@ -104,8 +106,10 @@ case class CoordinateSortedBamWithSampleMetadata(project: Project,
                                                  bam: CoordinateSortedBam)
     extends WithSharedFiles(bam.files: _*)
 
-case class FastQ(file: SharedFile, numberOfReads: Long)
-    extends ResultWithSharedFiles(file)
+case class FastQ(file: SharedFile, numberOfReads: Long, readLength: Option[Int])
+    extends ResultWithSharedFiles(file) {
+  def withoutReadLength = copy(readLength = None)
+}
 
 case class Bam(file: SharedFile) extends ResultWithSharedFiles(file)
 
@@ -124,6 +128,8 @@ case class FastQPerLane(runId: RunId,
                         umi: Option[FastQ],
                         partition: PartitionId) {
   def fastqs = List(read1, read2) ++ umi.toList
+  def withoutReadLength =
+    copy(read1 = read1.withoutReadLength, read2 = read2.withoutReadLength)
 }
 
 case class VCF(vcf: SharedFile, index: Option[SharedFile])

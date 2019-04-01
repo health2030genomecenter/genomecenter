@@ -105,13 +105,12 @@ object ProtoPipelineStages extends StrictLogging {
               implicit computationEnvironment =>
                 BWAAlignment
                   .alignFastqPerSample(
-                    PerSampleBWAAlignmentInput(demultiplexed.lanes,
-                                               demultiplexed.project,
-                                               demultiplexed.sampleId,
-                                               indexedReference,
-                                               bamOfPreviousRuns))(
-                    ResourceConfig.minimal,
-                    priorityBam)
+                    PerSampleBWAAlignmentInput(
+                      demultiplexed.lanes.map(_.withoutReadLength),
+                      demultiplexed.project,
+                      demultiplexed.sampleId,
+                      indexedReference,
+                      bamOfPreviousRuns))(ResourceConfig.minimal, priorityBam)
             }
 
             coordinateSorted <- intoIntermediateFolder {
@@ -302,6 +301,15 @@ object ProtoPipelineStages extends StrictLogging {
           val priorityBam = Priority(10000 + projectPriority)
           val priorityPostBam = Priority(20000 + projectPriority)
 
+          val maxReadLength = {
+            val readLengthsFromFastQs = demultiplexed.lanes.toSeq
+              .flatMap(fqPerLane =>
+                fqPerLane.read1.readLength.toSeq ++ fqPerLane.read2.readLength.toSeq)
+              .distinct
+            if (readLengthsFromFastQs.isEmpty) readLengths.map(_._2).toSeq.max
+            else readLengthsFromFastQs.max
+          }
+
           computationEnvironment.withFilePrefix(Seq("projects")) {
             implicit computationEnvironment =>
               def inProjectFolder[T] =
@@ -326,7 +334,7 @@ object ProtoPipelineStages extends StrictLogging {
                           runId = demultiplexed.lanes.toSeq.head.runId,
                           reference = indexedFasta,
                           gtf = geneModelGtf.file,
-                          readLength = readLengths.map(_._2).toSeq.max
+                          readLength = maxReadLength
                         ))(ResourceConfig.starAlignment, priorityBam)
                       coordinateSorted <- BWAAlignment.sortByCoordinateAndIndex(
                         starResult.bam.bam)(ResourceConfig.sortBam, priorityBam)
@@ -425,9 +433,9 @@ object ProtoPipelineStages extends StrictLogging {
                   FastQPerLane(
                     runId,
                     inputFastQ.lane,
-                    FastQ(read1SF, read1Count),
-                    FastQ(read2SF, read2Count),
-                    umiSF.map(umiSF => FastQ(umiSF, umiCount.get)),
+                    FastQ(read1SF, read1Count, None),
+                    FastQ(read2SF, read2Count, None),
+                    umiSF.map(umiSF => FastQ(umiSF, umiCount.get, None)),
                     PartitionId(0)
                   )
 

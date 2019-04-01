@@ -82,7 +82,7 @@ object BWAAlignment {
     AsyncTask[ComputeSplitIntervalInput, Seq[VirtualPointerInterval]](
       "__split-interval",
       1) {
-      case ComputeSplitIntervalInput(FastQ(file, _), maxReads) =>
+      case ComputeSplitIntervalInput(FastQ(file, _, _), maxReads) =>
         implicit computationEnvironment =>
           for {
             file <- file.file

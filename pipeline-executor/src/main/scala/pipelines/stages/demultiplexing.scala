@@ -27,7 +27,59 @@ case class DemultiplexingInput(
     partitionByLane: Option[Boolean],
     noPartition: Option[Boolean],
     partitionByTileCount: Option[Int]
-) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*)
+) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*) {
+  def readLengths: Map[ReadType, Int] = {
+
+    def parsingLoop(input: List[Char],
+                    subLength: Int,
+                    subChar: Option[Char],
+                    acc: List[(Char, Int)]): Either[String, List[(Char, Int)]] =
+      input match {
+        case Nil if subChar.isDefined =>
+          Right((subChar.get, subLength) :: acc)
+        case Nil => Right(acc)
+        case c :: cs if c.isDigit && subChar.isDefined =>
+          val (lenString, remaining) = (c :: cs).span(_.isDigit)
+          parsingLoop(
+            remaining,
+            0,
+            None,
+            (subChar.get, lenString.mkString.toInt + subLength) :: acc)
+        case c :: _ if c.isDigit =>
+          Left("Illegal input. Expected non digit. " + input.mkString)
+        case c :: cs => parsingLoop(cs, subLength + 1, Some(c), acc)
+
+      }
+
+    val idx = extraBcl2FastqCliArguments.indexOf("--use-bases-mask")
+    if (extraBcl2FastqCliArguments.size >= idx + 2) {
+      val argument = extraBcl2FastqCliArguments(idx + 1)
+      val spl = argument.split(",")
+      val sections = spl.map { section =>
+        val parsedSection = parsingLoop(section.toSeq.toList, 0, None, Nil)
+        parsedSection match {
+          case Left(error) => throw new RuntimeException(error)
+          case Right(parsedSection) =>
+            parsedSection
+              .filter(_._1 == 'y')
+              .map(_._2)
+              .sum
+
+        }
+
+      }
+      sections
+        .filter(_ > 0)
+        .zipWithIndex
+        .map {
+          case (length, idx) =>
+            ReadType(idx + 1) -> length
+        }
+        .toMap
+
+    } else Map.empty
+  }
+}
 
 case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
                                       tiles: StableSet[String],
@@ -184,13 +236,13 @@ object Demultiplexing {
       "__demultiplex-per-lane",
       5) {
       case DemultiplexSingleLaneInput(
-          DemultiplexingInput(runFolderPath,
-                              sampleSheet,
-                              extraArguments,
-                              _,
-                              _,
-                              _,
-                              _),
+          dmInput @ DemultiplexingInput(runFolderPath,
+                                        sampleSheet,
+                                        extraArguments,
+                                        _,
+                                        _,
+                                        _,
+                                        _),
           tilesToProcess,
           partitionIndex
           ) =>
@@ -246,13 +298,19 @@ object Demultiplexing {
                       _.SampleId == sampleSheetSampleId)
                   } yield sampleStats.NumberReads
 
+                  val readType = ReadType(read.toInt)
+
                   Some(
-                    FastQWithSampleMetadata(sampleSheetProject,
-                                            sampleSheetSampleId,
-                                            parsedLane,
-                                            ReadType(read.toInt),
-                                            PartitionId(partitionIndex),
-                                            FastQ(fastq, numberOfReads.get)))
+                    FastQWithSampleMetadata(
+                      sampleSheetProject,
+                      sampleSheetSampleId,
+                      parsedLane,
+                      readType,
+                      PartitionId(partitionIndex),
+                      FastQ(fastq,
+                            numberOfReads.get,
+                            Some(dmInput.readLengths(readType)))
+                    ))
                 } else {
                   val numberOfReads = for {
                     laneStats <- stats.ConversionResults.find(
@@ -260,12 +318,13 @@ object Demultiplexing {
                   } yield laneStats.Undetermined.NumberReads
 
                   Some(
-                    FastQWithSampleMetadata(Project("NA"),
-                                            SampleId("Undetermined"),
-                                            Lane(lane.toInt),
-                                            ReadType(read.toInt),
-                                            PartitionId(partitionIndex),
-                                            FastQ(fastq, numberOfReads.get)))
+                    FastQWithSampleMetadata(
+                      Project("NA"),
+                      SampleId("Undetermined"),
+                      Lane(lane.toInt),
+                      ReadType(read.toInt),
+                      PartitionId(partitionIndex),
+                      FastQ(fastq, numberOfReads.get, None)))
                 }
               case _ =>
                 log.error(

@@ -23,8 +23,10 @@ class FastpTestSuite
             StableSet(
               FastQPerLane(
                 lane = lane,
-                read1 = FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L),
-                read2 = FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L),
+                read1 =
+                  FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L, None),
+                read2 =
+                  FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, None),
                 umi = None,
                 runId = runId,
                 partition = PartitionId(0)
