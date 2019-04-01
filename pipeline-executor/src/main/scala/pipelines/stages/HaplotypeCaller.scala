@@ -138,7 +138,7 @@ object HaplotypeCaller {
         implicit computationEnvironment =>
           releaseResources
 
-          val samples = haplotypeCallerReferenceCalls + "#" + haplotypeCallerReferenceCalls.hashCode
+          val samples = haplotypeCallerReferenceCalls.size + "#" + haplotypeCallerReferenceCalls.hashCode
 
           def intoIntermediateFolder[T] =
             appendToFilePrefix[T](Seq("intermediate").filter(_.nonEmpty))
