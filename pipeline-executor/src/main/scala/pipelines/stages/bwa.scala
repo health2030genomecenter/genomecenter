@@ -291,7 +291,7 @@ object BWAAlignment {
             localBam <- bam.file
             result <- {
 
-              Exec.bash(
+              Exec.bashAudit(
                 logDiscriminator = "sortbam.sort",
                 onError = Exec.ThrowIfNonZero)(s"""$samtoolsExecutable sort \\
                       -l 5 \\
@@ -388,8 +388,8 @@ object BWAAlignment {
           > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
         """
 
-              Exec.bash(logDiscriminator = "markduplicates." + sampleId,
-                        onError = Exec.ThrowIfNonZero)(bashScript)
+              Exec.bashAudit(logDiscriminator = "markduplicates." + sampleId,
+                             onError = Exec.ThrowIfNonZero)(bashScript)
 
               val nameStub = project + "." + sampleId
 
@@ -547,8 +547,9 @@ object BWAAlignment {
                 --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
               """
 
-                  Exec.bash(logDiscriminator = "bwa.fastq2ubam." + sampleId,
-                            onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
+                  Exec.bashAudit(
+                    logDiscriminator = "bwa.fastq2ubam." + sampleId,
+                    onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
                 case Some(umi) =>
                   val umiProcessor = extractUmiProcessorJar()
                   val (umiFq, deleteUmiFq) =
@@ -582,8 +583,9 @@ object BWAAlignment {
                 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
               """
 
-                  Exec.bash(logDiscriminator = "bwa.fastq2ubam_umi." + sampleId,
-                            onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
+                  Exec.bashAudit(
+                    logDiscriminator = "bwa.fastq2ubam_umi." + sampleId,
+                    onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
 
                   if (deleteUmiFq) {
                     new File(umiFq).delete
@@ -638,8 +640,8 @@ object BWAAlignment {
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)        
       """
 
-              Exec.bash(logDiscriminator = "bwa.pipes." + sampleId,
-                        onError = Exec.ThrowIfNonZero)(bashScript)
+              Exec.bashAudit(logDiscriminator = "bwa.pipes." + sampleId,
+                             onError = Exec.ThrowIfNonZero)(bashScript)
 
               log.info(
                 s"Deleting intermediate unmapped bam $tmpIntermediateUnmappedBam .")

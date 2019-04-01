@@ -11,6 +11,14 @@ object Exec {
   case object ThrowIfNonZero extends OnError
   case object DoNothing extends OnError
 
+  def bashAudit(logDiscriminator: String,
+                atMost: Duration = Duration.Inf,
+                onError: OnError = DoNothing)(script: String)(
+      implicit ce: tasks.queue.ComputationEnvironment) {
+    tasks.audit(script)
+    bash(logDiscriminator, atMost, onError)(script)
+  }
+
   def bash(logDiscriminator: String,
            atMost: Duration = Duration.Inf,
            onError: OnError = DoNothing)(

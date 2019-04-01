@@ -570,8 +570,8 @@ object HaplotypeCaller {
       """)
               }
 
-              Exec.bash(logDiscriminator = "genotypegvcfs",
-                        onError = Exec.ThrowIfNonZero)(s"""\\
+              Exec.bashAudit(logDiscriminator = "genotypegvcfs",
+                             onError = Exec.ThrowIfNonZero)(s"""\\
         java -Xmx5G ${JVM.serial} \\
           ${GATK.javaArguments(compressionLevel = 1)} \\
           -jar $gatkJar GenotypeGVCFs \\
@@ -590,8 +590,8 @@ object HaplotypeCaller {
               /* For the 54.69 magic number refer to
                * https://github.com/gatk-workflows/broad-prod-wgs-germline-snps-indels/blob/5585cdf7877104f2c61b2720ddfe7235f2fad577/JointGenotypingWf.wdl#L58
                */
-              Exec.bash(logDiscriminator = "variantfilter",
-                        onError = Exec.ThrowIfNonZero)(s"""\\
+              Exec.bashAudit(logDiscriminator = "variantfilter",
+                             onError = Exec.ThrowIfNonZero)(s"""\\
         java -Xmx5G ${JVM.serial} \\
           ${GATK.javaArguments(compressionLevel = 5)} \\
           -jar $gatkJar VariantFiltration \\
@@ -701,8 +701,8 @@ object HaplotypeCaller {
               .map(_.getAbsolutePath)
               .mkString(" --INPUT ")
 
-            Exec.bash(logDiscriminator = "gathervcf",
-                      onError = Exec.ThrowIfNonZero)(s""" \\
+            Exec.bashAudit(logDiscriminator = "gathervcf",
+                           onError = Exec.ThrowIfNonZero)(s""" \\
                   java ${JVM.serial} -Xmx3G $javaTmpDir -Dpicard.useLegacyParser=false -jar $picardJar MergeVcfs \\
                   $input \\
                   --OUTPUT $vcfOutput \\
@@ -757,8 +757,8 @@ object HaplotypeCaller {
       > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """
 
-              Exec.bash(logDiscriminator = "haplotypecaller",
-                        onError = Exec.ThrowIfNonZero)(bashScript)
+              Exec.bashAudit(logDiscriminator = "haplotypecaller",
+                             onError = Exec.ThrowIfNonZero)(bashScript)
 
               val nameStub = bam.bam.name + "." + interval + ".hc.gvcf.vcf.gz"
 
