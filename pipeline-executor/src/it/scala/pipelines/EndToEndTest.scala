@@ -107,7 +107,13 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             sample.sample shouldBe "sample1"
         }
         getProgress("/v2/runs") shouldBe "runid1\n"
-        getProgress("/v2/runs/runid1") shouldBe "demultiplex started\ndemultiplexed 1\ndemultiplex started\ndemultiplexed 1\n"
+        MyTestKit.awaitAssert(
+          io.circe.parser
+            .decode[Seq[ProgressData]](getProgress("/v2/runs/runid1"))
+            .right
+            .get
+            .size > 0 shouldBe true,
+          30 seconds)
         getProgress("/v2/projects") shouldBe "project1\n"
         MyTestKit.awaitAssert(
           io.circe.parser

@@ -11,8 +11,15 @@ import org.gc.pipelines.application.{
 }
 import ProgressData._
 import java.io.File
-import org.gc.pipelines.model.{Project, SampleId, AnalysisId, RunId}
+import org.gc.pipelines.model.{
+  Project,
+  SampleId,
+  AnalysisId,
+  RunId,
+  DemultiplexingSummary
+}
 import org.gc.pipelines.util.StableSet.syntax
+import org.gc.pipelines.stages.Demultiplexing
 import scalaj.http.Http
 import io.circe.parser.decode
 
@@ -569,8 +576,32 @@ object Pipelinectl extends App {
           config.runId match {
             case None =>
               println(get("/v2/runs"))
-            case Some(r) =>
-              println(get(s"/v2/runs/$r"))
+            case Some(runId) =>
+              val runEvents = io.circe.parser
+                .decode[Seq[ProgressData]](get(s"/v2/runs/$runId"))
+                .right
+                .get
+                .collect {
+                  case v: Demultiplexed => v
+                }
+
+              val asString = runEvents
+                .flatMap {
+                  case Demultiplexed(_, _, stats) =>
+                    stats.map {
+                      case (demultiplexingId, stats) =>
+                        "Demultiplexing run with ID: " + demultiplexingId + ":\n"
+                        DemultiplexingSummary.renderAsTable(
+                          DemultiplexingSummary.fromStats(
+                            stats,
+                            Map.empty,
+                            Demultiplexing.readGlobalIndexSetFromClassPath))
+                    }
+                }
+                .mkString("", "\n", "\n")
+
+              println(asString)
+
           }
         case QueryProjects =>
           config.project match {

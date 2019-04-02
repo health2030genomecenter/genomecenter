@@ -23,7 +23,8 @@ object ProgressData {
   case class DemultiplexFailed(run: RunId) extends ProgressData
   case class Demultiplexed(
       run: RunId,
-      samplesWithFastq: Seq[(Project, SampleId, Set[String])])
+      samplesWithFastq: Seq[(Project, SampleId, Set[String])],
+      statistics: Seq[(DemultiplexingId, DemultiplexingStats.Root)])
       extends ProgressData
 
   case class DemultiplexedSample(project: Project, sample: SampleId, run: RunId)
@@ -146,17 +147,17 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
               for {
                 data <- getData
               } yield {
-                data
+                val events: Seq[ProgressData] = data
                   .collect {
-                    case DemultiplexStarted(run) if run == runId =>
-                      "demultiplex started"
-                    case DemultiplexFailed(run) if run == runId =>
-                      "demultiplex failed"
-                    case Demultiplexed(run, samples) if run == runId =>
-                      s"demultiplexed ${samples.size}"
+                    case v @ DemultiplexStarted(run) if run == runId =>
+                      v
+                    case v @ DemultiplexFailed(run) if run == runId =>
+                      v
+                    case v @ Demultiplexed(run, _, _) if run == runId =>
+                      v
                   }
-                  .map(_.toString)
-                  .mkString("", "\n", "\n")
+
+                events.asJson.noSpaces
               }
             }
           } ~
@@ -181,7 +182,7 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                 } yield {
                   data
                     .collect {
-                      case Demultiplexed(_, samples) =>
+                      case Demultiplexed(_, samples, _) =>
                         samples.map(_._1).distinct
                     }
                     .flatten
@@ -196,7 +197,7 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                   data <- getData
                 } yield {
                   val sampleStates: Seq[ProgressData] = data.collect {
-                    case Demultiplexed(run, samples)
+                    case Demultiplexed(run, samples, _)
                         if samples.map(_._1).contains(project) =>
                       samples
                         .filter(_._1 == project)
@@ -234,7 +235,7 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                   data <- getData
                 } yield {
                   val files = data.collect {
-                    case Demultiplexed(run, samples) =>
+                    case Demultiplexed(run, samples, _) =>
                       val samplesOfProject = samples.filter {
                         case (project0, _, _) => project0 == project
                       }

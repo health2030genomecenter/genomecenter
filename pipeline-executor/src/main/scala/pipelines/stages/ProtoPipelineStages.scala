@@ -456,9 +456,11 @@ object ProtoPipelineStages extends StrictLogging {
 
   def executeDemultiplexing(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) =
+      ec: ExecutionContext)
+    : Future[(Seq[PerSamplePerRunFastQ],
+              Seq[(DemultiplexingId, DemultiplexingStats.Root)])] =
     r.runFolderPath match {
-      case None => Future.successful(Nil)
+      case None => Future.successful((Nil, Nil))
       case Some(runFolderPath) =>
         Future
           .traverse(r.runConfiguration.demultiplexingRuns.toSeq) {
@@ -488,29 +490,40 @@ object ProtoPipelineStages extends StrictLogging {
                          labels = ResourceConfig.projectLabel(
                            parsedSampleSheet.projects: _*))
 
+                    stats <- demultiplexed.stats.get
+
                     perSampleFastQs = ProtoPipelineStages
                       .groupBySample(demultiplexed.withoutUndetermined,
                                      demultiplexingConfig.readAssignment,
                                      demultiplexingConfig.umi,
                                      r.runId)
 
-                  } yield perSampleFastQs
+                  } yield
+                    (perSampleFastQs,
+                     demultiplexingConfig.demultiplexingId,
+                     stats)
 
               }
           }
-          .map { demultiplexingRuns =>
-            val flattened = demultiplexingRuns.flatten
-            flattened
-              .groupBy(sample => (sample.project, sample.sampleId))
-              .toSeq
-              .flatMap {
-                case (_, group) =>
-                  if (group.size > 1) {
-                    logger.warn(
-                      s"The same sample have been demultiplexed several times. Dropping all from further analyses. $group")
-                    Nil
-                  } else List(group.head)
-              }
+          .map {
+            case demultiplexingRuns =>
+              val samples = demultiplexingRuns.map(_._1)
+              val statsPerDemultiplexingRun =
+                demultiplexingRuns.map(d => d._2 -> d._3)
+              val flattened = samples.flatten
+              val deduplicatedSamples = flattened
+                .groupBy(sample => (sample.project, sample.sampleId))
+                .toSeq
+                .flatMap {
+                  case (_, group) =>
+                    if (group.size > 1) {
+                      logger.warn(
+                        s"The same sample have been demultiplexed several times. Dropping all from further analyses. $group")
+                      Nil
+                    } else List(group.head)
+                }
+
+              (deduplicatedSamples, statsPerDemultiplexingRun)
           }
     }
 
