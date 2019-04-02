@@ -26,7 +26,7 @@ object Delivery {
   val extraFilesInsertedToEachProjectDeliveries = {
     val sources = Option(
       getClass
-        .getResource("/sources.jar")).map(_.getFile)
+        .getResource("/sources.jar")).map(_.getPath)
 
     sources.toList
   }
@@ -142,7 +142,7 @@ object Delivery {
                 } yield {
 
                   (project,
-                   pathList ++ extraFilesInsertedToEachProjectDeliveries)
+                   pathList.distinct ++ extraFilesInsertedToEachProjectDeliveries)
                 }
             }
             fileList <- Future.traverse(pathLists) {
