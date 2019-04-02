@@ -174,8 +174,8 @@ object StarAlignment {
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """
 
-              Exec.bash(logDiscriminator = "star.pipes." + sampleId,
-                        onError = Exec.ThrowIfNonZero)(bashScript)
+              Exec.bashAudit(logDiscriminator = "star.pipes." + sampleId,
+                             onError = Exec.ThrowIfNonZero)(bashScript)
 
               val nameStub = readGroupName
 
