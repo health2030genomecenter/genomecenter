@@ -140,10 +140,14 @@ class HttpCommandSourceTest
           None,
           Some(
             Seq(
-              InputSampleAsFastQ(Set(InputFastQPerLane(Lane(1),
-                                                       fqFile.toString,
-                                                       fqFile.toString,
-                                                       None, None,None,None)),
+              InputSampleAsFastQ(Set(
+                                   InputFastQPerLane(Lane(1),
+                                                     fqFile.toString,
+                                                     fqFile.toString,
+                                                     None,
+                                                     None,
+                                                     None,
+                                                     None)),
                                  Project("project"),
                                  SampleId("s1"))
             )),
