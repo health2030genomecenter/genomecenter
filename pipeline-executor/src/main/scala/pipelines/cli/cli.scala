@@ -588,7 +588,7 @@ object Pipelinectl extends App {
                   }
               val bySamples = projectEvents.groupBy(_.sample)
               val asString = bySamples
-                .map {
+                .flatMap {
                   case (sample, events) =>
                     case class Status(
                         demultiplexed: Seq[RunId] = Nil,
@@ -625,16 +625,26 @@ object Pipelinectl extends App {
                         }
                     }
 
-                    sample + "\t" + folded.demultiplexed.lastOption.getOrElse(
-                      "NA") + "\t" + folded.processing.lastOption.getOrElse(
-                      "NA") + "\t" + folded.coverage.lastOption
-                      .getOrElse("NA") + "\t" + folded.bam.lastOption.getOrElse(
-                      "NA") + "\t" + folded.vcf.lastOption.getOrElse("NA") + "\t" + folded.failed
-                      .mkString(",")
+                    (folded.demultiplexed.map { run =>
+                      List(sample, "DEMULTIPLEX", run)
+                    } ++
+                      folded.processing.map { run =>
+                        List(sample, "PROCESSING ", run)
+                      } ++
+                      folded.coverage.map { run =>
+                        List(sample, "COV DONE   ", run)
+                      } ++
+                      folded.bam.map { run =>
+                        List(sample, "BAM DONE   ", run)
+                      } ++
+                      folded.vcf.map { run =>
+                        List(sample, "VCF DONE   ", run)
+                      } ++
+                      folded.failed.map { run =>
+                        List(sample, "FAILED     ", run)
+                      }).map(_.mkString("\t"))
                 }
-                .mkString("sample\tdemux\tprocessing\tcov\tbam\tvcf\tfail\n",
-                          "\n",
-                          "\n")
+                .mkString("", "\n", "\n")
               println(asString)
           }
         case LastRun =>
