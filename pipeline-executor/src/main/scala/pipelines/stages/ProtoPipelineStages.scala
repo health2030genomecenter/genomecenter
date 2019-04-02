@@ -113,29 +113,14 @@ object ProtoPipelineStages extends StrictLogging {
                       bamOfPreviousRuns))(ResourceConfig.minimal, priorityBam)
             }
 
-            coordinateSorted <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                BWAAlignment.sortByCoordinateAndIndex(alignedSample.bam)(
-                  ResourceConfig.sortBam,
-                  priorityBam)
-            }
-
-            bqsrTable <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                BaseQualityScoreRecalibration.trainBQSR(
-                  TrainBQSRInput(coordinateSorted,
-                                 indexedReference,
-                                 knownSites))(ResourceConfig.trainBqsr,
-                                              priorityBam)
-            }
-            recalibrated <- intoFinalFolder { implicit computationEnvironment =>
-              BaseQualityScoreRecalibration.applyBQSR(
-                ApplyBQSRInput(coordinateSorted, indexedReference, bqsrTable))(
-                ResourceConfig.applyBqsr,
-                priorityBam)
-            }
-            _ <- coordinateSorted.bam.delete
-            _ <- coordinateSorted.bai.delete
+            recalibrated <- BaseQualityScoreRecalibration.bqsr(
+              BQSRInput(alignedSample.bam,
+                        indexedReference,
+                        knownSites,
+                        demultiplexed.project,
+                        demultiplexed.sampleId,
+                        runIdTag,
+                        analysisId))(ResourceConfig.minimal, priorityBam)
 
             recalibratedPath <- recalibrated.bam.uri.map(_.toString)
             _ = ProgressServer.send(

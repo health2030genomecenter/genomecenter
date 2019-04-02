@@ -17,7 +17,17 @@ import org.gc.pipelines.util.{
 }
 import scala.collection.JavaConverters._
 import java.io.File
+import org.gc.pipelines.model.{Project, SampleId, AnalysisId}
 
+case class BQSRInput(bam: Bam,
+                     reference: IndexedReferenceFasta,
+                     knownSites: StableSet[VCF],
+                     project: Project,
+                     sampleId: SampleId,
+                     runIdTag: String,
+                     analysisId: AnalysisId)
+    extends WithSharedFiles(
+      bam.files ++ reference.files ++ knownSites.toSeq.flatMap(_.files): _*)
 case class TrainBQSRInput(bam: CoordinateSortedBam,
                           reference: IndexedReferenceFasta,
                           knownSites: StableSet[VCF])
@@ -43,6 +53,53 @@ case class ApplyBQSRInputScatteredPiece(bam: CoordinateSortedBam,
     extends WithSharedFiles(bam.files ++ reference.files ++ bqsrTable.files: _*)
 
 object BaseQualityScoreRecalibration {
+
+  val bqsr = AsyncTask[BQSRInput, CoordinateSortedBam]("__bqsr", 1) {
+    case BQSRInput(bam,
+                   reference,
+                   knownSites,
+                   project,
+                   sampleId,
+                   runIdTag,
+                   analysisId) =>
+      implicit computationEnvironment =>
+        releaseResources
+        def intoIntermediateFolder[T] =
+          appendToFilePrefix[T](
+            Seq("projects",
+                project,
+                sampleId,
+                runIdTag,
+                analysisId,
+                "intermediate").filter(_.nonEmpty))
+
+        def intoFinalFolder[T] =
+          appendToFilePrefix[T](
+            Seq("projects", project, sampleId, runIdTag, analysisId).filter(
+              _.nonEmpty))
+
+        for {
+          coordinateSorted <- intoIntermediateFolder {
+            implicit computationEnvironment =>
+              BWAAlignment.sortByCoordinateAndIndex(bam)(ResourceConfig.sortBam)
+          }
+
+          bqsrTable <- intoIntermediateFolder {
+            implicit computationEnvironment =>
+              BaseQualityScoreRecalibration.trainBQSR(
+                TrainBQSRInput(coordinateSorted, reference, knownSites))(
+                ResourceConfig.trainBqsr)
+          }
+          recalibrated <- intoFinalFolder { implicit computationEnvironment =>
+            BaseQualityScoreRecalibration.applyBQSR(
+              ApplyBQSRInput(coordinateSorted, reference, bqsrTable))(
+              ResourceConfig.applyBqsr
+            )
+          }
+          _ <- coordinateSorted.bam.delete
+          _ <- coordinateSorted.bai.delete
+        } yield recalibrated
+  }
 
   def createIntervals(dict: File): Seq[String] = {
     val samSequenceDictionary = Fasta.parseDict(dict)
@@ -332,4 +389,10 @@ object ApplyBQSRInputScatteredPiece {
     deriveEncoder[ApplyBQSRInputScatteredPiece]
   implicit val decoder: Decoder[ApplyBQSRInputScatteredPiece] =
     deriveDecoder[ApplyBQSRInputScatteredPiece]
+}
+object BQSRInput {
+  implicit val encoder: Encoder[BQSRInput] =
+    deriveEncoder[BQSRInput]
+  implicit val decoder: Decoder[BQSRInput] =
+    deriveDecoder[BQSRInput]
 }
