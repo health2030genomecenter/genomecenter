@@ -433,9 +433,10 @@ object ProtoPipelineStages extends StrictLogging {
                   FastQPerLane(
                     runId,
                     inputFastQ.lane,
-                    FastQ(read1SF, read1Count, None),
-                    FastQ(read2SF, read2Count, None),
-                    umiSF.map(umiSF => FastQ(umiSF, umiCount.get, None)),
+                    FastQ(read1SF, read1Count, inputFastQ.read1Length),
+                    FastQ(read2SF, read2Count, inputFastQ.read2Length),
+                    umiSF.map(umiSF =>
+                      FastQ(umiSF, umiCount.get, inputFastQ.umiLength)),
                     PartitionId(0)
                   )
 

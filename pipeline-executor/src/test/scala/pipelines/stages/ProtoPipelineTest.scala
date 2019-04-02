@@ -101,7 +101,10 @@ class ProtopipelineTestSuite
                   Lane(1),
                   "path1",
                   "path2",
-                  Some("path3")
+                  Some("path3"),
+                  None,
+                  None,
+                  None
                 )
               ),
               Project("p1"),

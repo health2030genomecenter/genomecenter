@@ -143,7 +143,7 @@ class HttpCommandSourceTest
               InputSampleAsFastQ(Set(InputFastQPerLane(Lane(1),
                                                        fqFile.toString,
                                                        fqFile.toString,
-                                                       None)),
+                                                       None, None,None,None)),
                                  Project("project"),
                                  SampleId("s1"))
             )),

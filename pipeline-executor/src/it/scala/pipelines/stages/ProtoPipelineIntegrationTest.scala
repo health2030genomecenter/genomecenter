@@ -44,7 +44,13 @@ class ProtopipelineIntegrationTestSuite
               List(
                 InputSampleAsFastQ(
                   lanes = Set(
-                    InputFastQPerLane(Lane(1), read1, read2, None)
+                    InputFastQPerLane(Lane(1),
+                                      read1,
+                                      read2,
+                                      None,
+                                      None,
+                                      None,
+                                      None)
                   ),
                   project = Project("project1"),
                   sampleId = SampleId("sample1")

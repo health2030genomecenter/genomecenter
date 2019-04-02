@@ -148,7 +148,10 @@ case class InputSampleAsFastQ(
 case class InputFastQPerLane(lane: Lane,
                              read1Path: String,
                              read2Path: String,
-                             umi: Option[String])
+                             umi: Option[String],
+                             read1Length: Option[Int],
+                             read2Length: Option[Int],
+                             umiLength: Option[Int])
 
 case class RunfolderReadyForProcessing(
     runId: RunId,
@@ -403,7 +406,16 @@ object InputFastQPerLane {
     val read1 = config.getString("read1")
     val read2 = config.getString("read2")
     val umi = if (config.hasPath("umi")) Some(config.getString("umi")) else None
-    InputFastQPerLane(Lane(lane), read1, read2, umi)
+    val read1Length = option(config, "read1Length")(c => p => c.getInt(p))
+    val read2Length = option(config, "read2Length")(c => p => c.getInt(p))
+    val umiLength = option(config, "umiLength")(c => p => c.getInt(p))
+    InputFastQPerLane(Lane(lane),
+                      read1,
+                      read2,
+                      umi,
+                      read1Length,
+                      read2Length,
+                      umiLength)
   }
 
 }
