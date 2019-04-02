@@ -68,8 +68,6 @@ sbt-package:
   only:
     - master
 
-sftp.gctp.vital-it.ch
-
 deploy-to-sftp:
   stage: deploy
   before_script: 
