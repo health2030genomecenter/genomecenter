@@ -6,6 +6,8 @@ import tasks._
 import java.io.File
 
 import org.gc.pipelines.model._
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 import org.gc.pipelines.util.{FastQHelpers, StableSet}
 
 class BwaAlignmentTestSuite
@@ -227,30 +229,36 @@ class BwaAlignmentTestSuite
               )),
             project = project,
             sampleId = sampleId,
-            reference = indexedFasta,
-            bamOfPreviousRuns = None
+            reference = indexedFasta
           )
 
         val future =
           BWAAlignment.alignFastqPerSample(input)(ResourceRequest(1, 500))
         val bamWithSampleMetadata = await(future)
-        val bamFile = await(bamWithSampleMetadata.bam.bam.file.file)
-        (bamWithSampleMetadata, bamFile)
+        println("XXXXX")
+        println(bamWithSampleMetadata.alignedLanes.toSeq)
+        val bamFiles =
+          await(
+            Future.traverse(bamWithSampleMetadata.alignedLanes.toSeq)(
+              _.bam.file.file))
+        (bamWithSampleMetadata, bamFiles)
       }
 
-      val (_, localBam) = result.get
-      localBam.canRead shouldBe true
-      new File(localBam.getParentFile, localBam.getName + ".stderr").canRead shouldBe true
+      val (_, localBams) = result.get
+      localBams.forall(_.canRead) shouldBe true
+      localBams.foreach { localBam =>
+        new File(localBam.getParentFile, localBam.getName + ".stderr").canRead shouldBe true
 
-      recordsInBamFile(localBam) shouldBe 10000
+        getSortOrder(localBam) shouldBe "queryname"
 
-      getSortOrder(localBam) shouldBe "queryname"
-
-      takeRecordsInBamFile(localBam, 100).foreach { record =>
-        record.getReadUnmappedFlag shouldBe false
-        record.getReferenceName.take(5) shouldBe "chr19"
-        record.getAttribute("OX").toString.size shouldBe 151
+        takeRecordsInBamFile(localBam, 100).foreach { record =>
+          record.getReadUnmappedFlag shouldBe false
+          record.getReferenceName.take(5) shouldBe "chr19"
+          record.getAttribute("OX").toString.size shouldBe 151
+        }
       }
+
+      localBams.map(localBam => recordsInBamFile(localBam)).sum shouldBe 10000
 
     }
   }

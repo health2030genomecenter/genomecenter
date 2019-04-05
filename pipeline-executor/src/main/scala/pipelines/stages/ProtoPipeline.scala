@@ -14,6 +14,7 @@ import org.gc.pipelines.application.{SendProgressData}
 import org.gc.pipelines.application.ProgressData._
 import org.gc.pipelines.util.{ResourceConfig, traverseAll}
 import org.gc.pipelines.util.StableSet.syntax
+import org.gc.pipelines.util.StableSet
 import com.typesafe.scalalogging.StrictLogging
 import scala.util.{Success, Failure}
 
@@ -104,20 +105,27 @@ class ProtoPipeline(progressServer: SendProgressData)(
 
     val wesResultsByAnalysisId
       : Seq[(AnalysisId,
-             Seq[(SingleSamplePipelineResult, SingleSampleConfiguration)])] =
+             Seq[(PerSampleMergedWESResult, SingleSampleConfiguration)])] =
       samples
         .flatMap { sampleResult =>
-          sampleResult.wes.map {
-            case (wesResult, wesConfig) =>
-              val analysisId =
-                // this replacement is due to the migration which introduced analysis ids
-                // analyses without an id were given the empty string, but semantically they are
-                // equivalent to the hg19
-                if (wesConfig.analysisId == "") AnalysisId("hg19")
-                else wesConfig.analysisId
+          sampleResult.wes
+            .flatMap {
+              case (wesResult, wesConfig) =>
+                wesResult.mergedRuns.map { result =>
+                  (result, wesConfig)
+                }
+            }
+            .map {
+              case (wesResult, wesConfig) =>
+                val analysisId =
+                  // this replacement is due to the migration which introduced analysis ids
+                  // analyses without an id were given the empty string, but semantically they are
+                  // equivalent to the hg19
+                  if (wesConfig.analysisId == "") AnalysisId("hg19")
+                  else wesConfig.analysisId
 
-              (analysisId, (wesResult, wesConfig))
-          }
+                (analysisId, (wesResult, wesConfig))
+            }
         }
         .groupBy(_._1)
         .toSeq
@@ -346,7 +354,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
               demultiplexedSample.runId + " " + demultiplexedSample.project + " " + demultiplexedSample.sampleId + " past result: " + pastSampleResult
                 .map(_.runFolders.map(_.runId)))
 
-            val matchingPastResults = pastSampleResult
+            val pastResultsMatchingAnalysisId = pastSampleResult.toSeq
               .flatMap(_.wes
                 .find {
                   case (_, wesConfigurationOfPastSample) =>
@@ -358,15 +366,16 @@ class ProtoPipeline(progressServer: SendProgressData)(
 
                     matchingAnalysisId || matchingMigratedOldAnalysisId
                 }
-                .map {
+                .toSeq
+                .flatMap {
                   case (wesResultOfPastSample, _) =>
-                    wesResultOfPastSample.uncalibrated
+                    wesResultOfPastSample.alignedLanes.toSeq
                 })
 
             wes(
               demultiplexedSample,
               conf,
-              matchingPastResults
+              pastResultsMatchingAnalysisId.toSet.toStable
             )
           }
 
@@ -414,9 +423,10 @@ class ProtoPipeline(progressServer: SendProgressData)(
     }
   }
 
-  private def wes(sampleForWESAnalysis: PerSamplePerRunFastQ,
-                  conf: WESConfiguration,
-                  previousUncalibratedBam: Option[Bam])(
+  private def wes(
+      sampleForWESAnalysis: PerSamplePerRunFastQ,
+      conf: WESConfiguration,
+      previouslyAlignedLanes: StableSet[BamWithSampleMetadataPerLane])(
       implicit tsc: TaskSystemComponents) =
     for {
       reference <- ProtoPipelineStages.fetchReferenceFasta(conf.referenceFasta,
@@ -444,7 +454,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
             selectionTargetIntervals,
             dbSnpVcf,
             variantEvaluationIntervals,
-            previousUncalibratedBam,
+            previouslyAlignedLanes,
             !conf.doVariantCalls.exists(_ == false),
             minimumWGSCoverage = conf.minimumWGSCoverage,
             minimumTargetCoverage = conf.minimumTargetCoverage,
@@ -458,36 +468,11 @@ class ProtoPipeline(progressServer: SendProgressData)(
                                                  sampleForWESAnalysis.runId)
         )
       }
-      bamPath <- perSampleResultsWES.bam.bam.uri.map(_.toString)
-      _ = progressServer.send(
-        BamAvailable(sampleForWESAnalysis.project,
-                     sampleForWESAnalysis.sampleId,
-                     sampleForWESAnalysis.runId.toString,
-                     conf.analysisId,
-                     bamPath))
-      _ <- perSampleResultsWES.gvcf match {
-        case Some(vcf) =>
-          vcf.vcf.uri.map(_.toString).map { vcfPath =>
-            progressServer.send(
-              VCFAvailable(sampleForWESAnalysis.project,
-                           sampleForWESAnalysis.sampleId,
-                           sampleForWESAnalysis.runId.toString,
-                           conf.analysisId,
-                           vcfPath))
-          }
-        case _ => Future.successful(())
-      }
-
-      wgsMeanCoverage <- AlignmentQC.getWGSMeanCoverage(
-        perSampleResultsWES.wgsQC,
-        sampleForWESAnalysis.project,
-        sampleForWESAnalysis.sampleId)
-      _ = progressServer.send(
-        CoverageAvailable(sampleForWESAnalysis.project,
-                          sampleForWESAnalysis.sampleId,
-                          sampleForWESAnalysis.runId,
-                          conf.analysisId,
-                          wgsMeanCoverage))
+      _ <- sendUpdatesProgressServer(perSampleResultsWES,
+                                     sampleForWESAnalysis.runId,
+                                     sampleForWESAnalysis.project,
+                                     sampleForWESAnalysis.sampleId,
+                                     conf.analysisId)
 
     } yield
       (perSampleResultsWES,
@@ -496,6 +481,50 @@ class ProtoPipeline(progressServer: SendProgressData)(
                                  vqsrTrainingFiles,
                                  conf,
                                  contigsFile))
+
+  private def sendUpdatesProgressServer(
+      wesResult: SingleSamplePipelineResult,
+      runId: RunId,
+      project: Project,
+      sampleId: SampleId,
+      analysisId: AnalysisId)(implicit tsc: TaskSystemComponents) = {
+    wesResult.mergedRuns match {
+      case None => Future.successful(())
+      case Some(mergedResults) =>
+        for {
+          bamPath <- mergedResults.bam.bam.uri.map(_.toString)
+          _ = progressServer.send(
+            BamAvailable(mergedResults.project,
+                         mergedResults.sampleId,
+                         runId.toString,
+                         analysisId,
+                         bamPath))
+          _ <- mergedResults.gvcf match {
+            case Some(vcf) =>
+              vcf.vcf.uri.map(_.toString).map { vcfPath =>
+                progressServer.send(
+                  VCFAvailable(project,
+                               sampleId,
+                               runId.toString,
+                               analysisId,
+                               vcfPath))
+              }
+            case _ => Future.successful(())
+          }
+
+          wgsMeanCoverage <- AlignmentQC.getWGSMeanCoverage(mergedResults.wgsQC,
+                                                            project,
+                                                            sampleId)
+          _ = progressServer.send(
+            CoverageAvailable(project,
+                              sampleId,
+                              runId,
+                              analysisId,
+                              wgsMeanCoverage))
+        } yield ()
+    }
+
+  }
 
   private def rna(
       samplesForRNASeqAnalysis: PerSamplePerRunFastQ,

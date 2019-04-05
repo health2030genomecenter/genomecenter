@@ -39,6 +39,7 @@ object Delivery {
   def extractBamAndVcfList(
       singleSampleResults: Set[SingleSamplePipelineResult]) =
     singleSampleResults.toSeq
+      .flatMap(_.mergedRuns)
       .flatMap { singleSampleResult =>
         List(
           (singleSampleResult.project, singleSampleResult.bam.bam),

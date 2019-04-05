@@ -2,220 +2,39 @@
   "wes" : [
     [
       {
-        "bam" : {
+        "alignedLanes" : [
+          {
+            "project" : "project1",
+            "sampleId" : "smapleId1",
+            "runId" : "whateverRunId",
+            "lane" : 1,
+            "bam" : {
+              "file" : {
+                "path" : {
+                  "ManagedFilePath" : {
+                    "pathElements" : [
+                    ]
+                  }
+                },
+                "byteSize" : 123,
+                "hash" : 13
+              }
+            }
+          }
+        ],
+        "mergedRuns" : {
           "bam" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
+            "bam" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
             },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "bai" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          }
-        },
-        "uncalibrated" : {
-          "file" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          }
-        },
-        "haplotypeCallerReferenceCalls" : {
-          "vcf" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "index" : null
-        },
-        "gvcf" : {
-          "vcf" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "index" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          }
-        },
-        "project" : "project1",
-        "sampleId" : "sampleId1",
-        "alignmentQC" : {
-          "alignmentSummary" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "biasDetail" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "biasSummary" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "errorSummary" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "preAdapterDetail" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "preAdapterSummary" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "insertSizeMetrics" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          }
-        },
-        "duplicationQC" : {
-          "markDuplicateMetrics" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          }
-        },
-        "targetSelectionQC" : {
-          "hsMetrics" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          }
-        },
-        "wgsQC" : {
-          "wgsMetrics" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          }
-        },
-        "gvcfQC" : {
-          "details" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "summary" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          }
-        },
-        "referenceFasta" : {
-          "fasta" : {
-            "path" : {
-              "ManagedFilePath" : {
-                "pathElements" : [
-                ]
-              }
-            },
-            "byteSize" : 123,
-            "hash" : 13
-          },
-          "indexFiles" : [
-            {
+            "bai" : {
               "path" : {
                 "ManagedFilePath" : {
                   "pathElements" : [
@@ -225,7 +44,198 @@
               "byteSize" : 123,
               "hash" : 13
             }
-          ]
+          },
+          "haplotypeCallerReferenceCalls" : {
+            "vcf" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "index" : null
+          },
+          "gvcf" : {
+            "vcf" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "index" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            }
+          },
+          "project" : "project1",
+          "sampleId" : "sampleId1",
+          "alignmentQC" : {
+            "alignmentSummary" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "biasDetail" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "biasSummary" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "errorSummary" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "preAdapterDetail" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "preAdapterSummary" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "insertSizeMetrics" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            }
+          },
+          "duplicationQC" : {
+            "markDuplicateMetrics" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            }
+          },
+          "targetSelectionQC" : {
+            "hsMetrics" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            }
+          },
+          "wgsQC" : {
+            "wgsMetrics" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            }
+          },
+          "gvcfQC" : {
+            "details" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "summary" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            }
+          },
+          "referenceFasta" : {
+            "fasta" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "indexFiles" : [
+              {
+                "path" : {
+                  "ManagedFilePath" : {
+                    "pathElements" : [
+                    ]
+                  }
+                },
+                "byteSize" : 123,
+                "hash" : 13
+              }
+            ]
+          }
         }
       },
       {
@@ -417,7 +427,7 @@
           "byteSize" : 123,
           "hash" : 13
         },
-        "geneRpkms" : {
+        "exonRpkms" : {
           "path" : {
             "ManagedFilePath" : {
               "pathElements" : [
@@ -427,7 +437,7 @@
           "byteSize" : 123,
           "hash" : 13
         },
-        "exonRpkms" : {
+        "geneRpkms" : {
           "path" : {
             "ManagedFilePath" : {
               "pathElements" : [
@@ -457,7 +467,8 @@
               "byteSize" : 123,
               "hash" : 13
             },
-            "numberOfReads" : 1
+            "numberOfReads" : 1,
+            "readLength" : null
           },
           "read2" : {
             "file" : {
@@ -470,7 +481,8 @@
               "byteSize" : 123,
               "hash" : 13
             },
-            "numberOfReads" : 1
+            "numberOfReads" : 1,
+            "readLength" : null
           },
           "umi" : {
             "file" : {
@@ -483,7 +495,8 @@
               "byteSize" : 123,
               "hash" : 13
             },
-            "numberOfReads" : 1
+            "numberOfReads" : 1,
+            "readLength" : null
           },
           "partition" : 1
         }
@@ -531,7 +544,10 @@
               "lane" : 1,
               "read1Path" : "path1",
               "read2Path" : "path2",
-              "umi" : "path3"
+              "umi" : "path3",
+              "read1Length" : null,
+              "read2Length" : null,
+              "umiLength" : null
             }
           ],
           "project" : "p1",
@@ -555,7 +571,8 @@
               "y75n,i6n*,n10,y75n"
             ],
             "tenX" : null,
-            "partitionByLane" : null
+            "partitionByLane" : null,
+            "partitionByTileCount" : null
           },
           {
             "sampleSheet" : "file",
@@ -572,47 +589,11 @@
               "y75n,i6n*,n10,y75n"
             ],
             "tenX" : null,
-            "partitionByLane" : null
+            "partitionByLane" : null,
+            "partitionByTileCount" : null
           }
         ],
         "globalIndexSet" : "file",
-        "wesProcessing" : [
-          [
-            {
-              "lanes" : [
-              ],
-              "samples" : [
-              ],
-              "runIds" : [
-                "whateverRunId"
-              ],
-              "projects" : [
-              ]
-            },
-            {
-              "analysisId" : "default",
-              "referenceFasta" : "file",
-              "targetIntervals" : "file",
-              "bqsrKnownSites" : [
-                "file"
-              ],
-              "dbSnpVcf" : "file",
-              "variantEvaluationIntervals" : "file",
-              "vqsrMillsAnd1Kg" : null,
-              "vqsrHapmap" : null,
-              "vqsrOneKgOmni" : null,
-              "vqsrOneKgHighConfidenceSnps" : null,
-              "vqsrDbSnp138" : null,
-              "doVariantCalls" : true,
-              "doJointCalls" : true,
-              "minimumWGSCoverage" : null,
-              "minimumTargetCoverage" : null,
-              "variantCallingContigs" : null
-            }
-          ]
-        ],
-        "rnaProcessing" : [
-        ],
         "lastRunOfSamples" : [
         ]
       }

@@ -53,21 +53,28 @@ case class PerSampleBWAAlignmentInput(
     fastqs: StableSet[FastQPerLane],
     project: Project,
     sampleId: SampleId,
-    reference: IndexedReferenceFasta,
-    bamOfPreviousRuns: Option[Bam]
+    reference: IndexedReferenceFasta
 ) extends WithSharedFiles(
       (fastqs
         .flatMap(fq => List(fq.read1.file, fq.read2.file))
-        .toSeq :+ reference.fasta) ++ bamOfPreviousRuns.toSeq
-        .flatMap(_.files): _*)
+        .toSeq :+ reference.fasta): _*)
+
+case class PerSampleBWAAlignmentResult(
+    alignedLanes: StableSet[BamWithSampleMetadataPerLane]
+) extends WithSharedFiles(alignedLanes.toSeq.flatMap(_.files): _*)
 
 case class DuplicationQCResult(markDuplicateMetrics: SharedFile)
     extends WithSharedFiles(markDuplicateMetrics)
 
+/* This file is not extending WithSharedFiles
+ *
+ * File integrity checks are not performed
+ * and overwriting these results is possible
+ */
 case class MarkDuplicateResult(
     bam: BamWithSampleMetadata,
     duplicateMetric: DuplicationQCResult
-) extends WithSharedFiles(bam.files ++ duplicateMetric.files: _*)
+)
 
 case class ComputeSplitIntervalInput(fq: FastQ, maxReads: Long)
     extends WithSharedFiles(fq.files: _*)
@@ -172,14 +179,10 @@ object BWAAlignment {
     }
 
   val alignFastqPerSample =
-    AsyncTask[PerSampleBWAAlignmentInput, MarkDuplicateResult](
+    AsyncTask[PerSampleBWAAlignmentInput, PerSampleBWAAlignmentResult](
       "__bwa-persample",
       1) {
-      case PerSampleBWAAlignmentInput(fastqs,
-                                      project,
-                                      sampleId,
-                                      reference,
-                                      bamOfPreviousRuns) =>
+      case PerSampleBWAAlignmentInput(fastqs, project, sampleId, reference) =>
         implicit computationEnvironment =>
           releaseResources
 
@@ -267,16 +270,7 @@ object BWAAlignment {
             alignedLanes <- traverseAll(fastqs.toSeq)(fqPerLane =>
               alignLane(fqPerLane, splitIntervals.toMap)).map(_.flatten)
 
-            merged <- mergeAndMarkDuplicate(
-              BamsWithSampleMetadata(
-                project,
-                sampleId,
-                StableSet(
-                  alignedLanes.map(_.bam) ++ bamOfPreviousRuns.toSet: _*)))(
-              ResourceConfig.picardMergeAndMarkDuplicates)
-            _ <- Future.traverse(alignedLanes.map(_.bam))(_.file.delete)
-
-          } yield merged
+          } yield PerSampleBWAAlignmentResult(alignedLanes.toSet.toStable)
     }
 
   val sortByCoordinateAndIndex =
@@ -779,4 +773,11 @@ object IntervalTriplet {
     deriveEncoder[IntervalTriplet]
   implicit val decoder: Decoder[IntervalTriplet] =
     deriveDecoder[IntervalTriplet]
+}
+
+object PerSampleBWAAlignmentResult {
+  implicit val encoder: Encoder[PerSampleBWAAlignmentResult] =
+    deriveEncoder[PerSampleBWAAlignmentResult]
+  implicit val decoder: Decoder[PerSampleBWAAlignmentResult] =
+    deriveDecoder[PerSampleBWAAlignmentResult]
 }

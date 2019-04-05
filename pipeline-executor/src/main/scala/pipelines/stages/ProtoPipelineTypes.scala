@@ -39,25 +39,32 @@ case class SampleResult(
   def lastRunId = runFolders.last.runId
 
   def extractWESQCFiles: Seq[SampleMetrics] =
-    wes.map {
-      case (sample, sampleConfig) =>
-        val fastpReportsOfSample = fastpReports.find { fp =>
-          fp.sampleId == sample.sampleId &&
-          fp.project == sample.project
-        }.get
-        SampleMetrics(
-          sampleConfig.analysisId,
-          sample.alignmentQC.alignmentSummary,
-          sample.targetSelectionQC.hsMetrics,
-          sample.duplicationQC.markDuplicateMetrics,
-          fastpReportsOfSample,
-          sample.wgsQC.wgsMetrics,
-          sample.gvcfQC.map(_.summary),
-          sample.project,
-          sample.sampleId,
-          sample.alignmentQC.insertSizeMetrics
-        )
-    }
+    wes
+      .flatMap {
+        case (sample, sampleConfig) =>
+          sample.mergedRuns.map { mergedRuns =>
+            (mergedRuns, sampleConfig)
+          }
+      }
+      .map {
+        case (sample, sampleConfig) =>
+          val fastpReportsOfSample = fastpReports.find { fp =>
+            fp.sampleId == sample.sampleId &&
+            fp.project == sample.project
+          }.get
+          SampleMetrics(
+            sampleConfig.analysisId,
+            sample.alignmentQC.alignmentSummary,
+            sample.targetSelectionQC.hsMetrics,
+            sample.duplicationQC.markDuplicateMetrics,
+            fastpReportsOfSample,
+            sample.wgsQC.wgsMetrics,
+            sample.gvcfQC.map(_.summary),
+            sample.project,
+            sample.sampleId,
+            sample.alignmentQC.insertSizeMetrics
+          )
+      }
 }
 
 case class SingleSamplePipelineInputRNASeq(
@@ -71,40 +78,45 @@ case class SingleSamplePipelineInputRNASeq(
 ) extends WithSharedFiles(
       demultiplexed.files ++ reference.files ++ gtf.files: _*)
 
-case class SingleSamplePipelineInput(analysisId: AnalysisId,
-                                     demultiplexed: PerSampleFastQ,
-                                     reference: ReferenceFasta,
-                                     knownSites: StableSet[VCF],
-                                     selectionTargetIntervals: BedFile,
-                                     dbSnpVcf: VCF,
-                                     variantEvaluationIntervals: BedFile,
-                                     bamOfPreviousRuns: Option[Bam],
-                                     doVariantCalling: Boolean,
-                                     minimumWGSCoverage: Option[Double],
-                                     minimumTargetCoverage: Option[Double],
-                                     contigsFile: Option[ContigsFile])
+case class SingleSamplePipelineInput(
+    analysisId: AnalysisId,
+    demultiplexed: PerSampleFastQ,
+    reference: ReferenceFasta,
+    knownSites: StableSet[VCF],
+    selectionTargetIntervals: BedFile,
+    dbSnpVcf: VCF,
+    variantEvaluationIntervals: BedFile,
+    alignedLanes: StableSet[BamWithSampleMetadataPerLane],
+    doVariantCalling: Boolean,
+    minimumWGSCoverage: Option[Double],
+    minimumTargetCoverage: Option[Double],
+    contigsFile: Option[ContigsFile])
     extends WithSharedFiles(demultiplexed.files ++ reference.files ++ knownSites
-      .flatMap(_.files) ++ selectionTargetIntervals.files ++ bamOfPreviousRuns.toSeq
+      .flatMap(_.files) ++ selectionTargetIntervals.files ++ alignedLanes.toSeq
       .flatMap(_.files): _*)
 
-case class SingleSamplePipelineResult(
-    bam: CoordinateSortedBam,
-    uncalibrated: Bam,
-    haplotypeCallerReferenceCalls: Option[VCF],
-    gvcf: Option[VCF],
-    project: Project,
-    sampleId: SampleId,
-    alignmentQC: AlignmentQCResult,
-    duplicationQC: DuplicationQCResult,
-    targetSelectionQC: SelectionQCResult,
-    wgsQC: CollectWholeGenomeMetricsResult,
-    gvcfQC: Option[VariantCallingMetricsResult],
-    referenceFasta: IndexedReferenceFasta)
+case class PerSampleMergedWESResult(bam: CoordinateSortedBam,
+                                    haplotypeCallerReferenceCalls: Option[VCF],
+                                    gvcf: Option[VCF],
+                                    project: Project,
+                                    sampleId: SampleId,
+                                    alignmentQC: AlignmentQCResult,
+                                    duplicationQC: DuplicationQCResult,
+                                    targetSelectionQC: SelectionQCResult,
+                                    wgsQC: CollectWholeGenomeMetricsResult,
+                                    gvcfQC: Option[VariantCallingMetricsResult],
+                                    referenceFasta: IndexedReferenceFasta)
     extends WithSharedFiles(
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.toSeq
         .flatMap(_.files) ++ gvcf.toSeq
         .flatMap(_.files) ++ referenceFasta.files ++ gvcfQC.toSeq
         .flatMap(_.files): _*)
+
+case class SingleSamplePipelineResult(
+    alignedLanes: StableSet[BamWithSampleMetadataPerLane],
+    mergedRuns: Option[PerSampleMergedWESResult]
+) // mergedRuns is unchecked TODO expand this comment
+    extends WithSharedFiles(alignedLanes.toSeq.flatMap(_.files): _*)
 
 case class SingleSamplePipelineResultRNA(
     analysisId: AnalysisId,
@@ -163,4 +175,11 @@ object SampleResult {
     deriveEncoder[SampleResult]
   implicit val decoder: Decoder[SampleResult] =
     deriveDecoder[SampleResult]
+}
+
+object PerSampleMergedWESResult {
+  implicit val encoder: Encoder[PerSampleMergedWESResult] =
+    deriveEncoder[PerSampleMergedWESResult]
+  implicit val decoder: Decoder[PerSampleMergedWESResult] =
+    deriveDecoder[PerSampleMergedWESResult]
 }

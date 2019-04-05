@@ -24,7 +24,6 @@ case class BQSRInput(bam: Bam,
                      knownSites: StableSet[VCF],
                      project: Project,
                      sampleId: SampleId,
-                     runIdTag: String,
                      analysisId: AnalysisId)
     extends WithSharedFiles(
       bam.files ++ reference.files ++ knownSites.toSeq.flatMap(_.files): _*)
@@ -55,28 +54,17 @@ case class ApplyBQSRInputScatteredPiece(bam: CoordinateSortedBam,
 object BaseQualityScoreRecalibration {
 
   val bqsr = AsyncTask[BQSRInput, CoordinateSortedBam]("__bqsr", 1) {
-    case BQSRInput(bam,
-                   reference,
-                   knownSites,
-                   project,
-                   sampleId,
-                   runIdTag,
-                   analysisId) =>
+    case BQSRInput(bam, reference, knownSites, project, sampleId, analysisId) =>
       implicit computationEnvironment =>
         releaseResources
         def intoIntermediateFolder[T] =
           appendToFilePrefix[T](
-            Seq("projects",
-                project,
-                sampleId,
-                runIdTag,
-                analysisId,
-                "intermediate").filter(_.nonEmpty))
+            Seq("projects", project, sampleId, analysisId, "intermediate")
+              .filter(_.nonEmpty))
 
         def intoFinalFolder[T] =
           appendToFilePrefix[T](
-            Seq("projects", project, sampleId, runIdTag, analysisId).filter(
-              _.nonEmpty))
+            Seq("projects", project, sampleId, analysisId).filter(_.nonEmpty))
 
         for {
           coordinateSorted <- intoIntermediateFolder {

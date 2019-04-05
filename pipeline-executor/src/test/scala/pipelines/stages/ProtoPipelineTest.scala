@@ -38,18 +38,27 @@ class ProtopipelineTestSuite
       val sf = SharedFile(ManagedFilePath(Vector()), 123, 13)
 
       val wesResult: SingleSamplePipelineResult = SingleSamplePipelineResult(
-        bam = CoordinateSortedBam(sf, sf),
-        uncalibrated = Bam(sf),
-        haplotypeCallerReferenceCalls = Some(VCF(sf, None)),
-        gvcf = Some(VCF(sf, Some(sf))),
-        project = Project("project1"),
-        sampleId = SampleId("sampleId1"),
-        alignmentQC = AlignmentQCResult(sf, sf, sf, sf, sf, sf, sf),
-        duplicationQC = DuplicationQCResult(sf),
-        targetSelectionQC = SelectionQCResult(sf),
-        wgsQC = CollectWholeGenomeMetricsResult(sf),
-        gvcfQC = Some(VariantCallingMetricsResult(sf, sf)),
-        referenceFasta = IndexedReferenceFasta(sf, List(sf).toSet.toStable)
+        alignedLanes = StableSet(
+          BamWithSampleMetadataPerLane(project = Project("project1"),
+                                       sampleId = SampleId("smapleId1"),
+                                       runId = runId,
+                                       lane = Lane(1),
+                                       bam = Bam(sf))
+        ),
+        mergedRuns = Some(
+          PerSampleMergedWESResult(
+            bam = CoordinateSortedBam(sf, sf),
+            haplotypeCallerReferenceCalls = Some(VCF(sf, None)),
+            gvcf = Some(VCF(sf, Some(sf))),
+            project = Project("project1"),
+            sampleId = SampleId("sampleId1"),
+            alignmentQC = AlignmentQCResult(sf, sf, sf, sf, sf, sf, sf),
+            duplicationQC = DuplicationQCResult(sf),
+            targetSelectionQC = SelectionQCResult(sf),
+            wgsQC = CollectWholeGenomeMetricsResult(sf),
+            gvcfQC = Some(VariantCallingMetricsResult(sf, sf)),
+            referenceFasta = IndexedReferenceFasta(sf, List(sf).toSet.toStable)
+          ))
       )
 
       val wesConfig: SingleSampleConfiguration = SingleSampleConfiguration(
