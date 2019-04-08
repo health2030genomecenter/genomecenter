@@ -367,6 +367,8 @@ object ProtoPipelineStages extends StrictLogging {
                           qtlToolsArguments
                         ))(ResourceConfig.qtlToolsQuantification,
                            priorityPostBam)
+                      _ <- coordinateSorted.bam.delete
+
                     } yield
                       SingleSamplePipelineResultRNA(analysisId,
                                                     starResult,
