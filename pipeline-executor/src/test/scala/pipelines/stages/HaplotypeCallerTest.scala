@@ -96,7 +96,7 @@ class HaplotypeCallerTest
               Some(await(SharedFile(gvcfIndex, "some.vcf.gz.tbi")))),
           VCF(await(SharedFile(vcf, "dbsnp.vcf.gz")),
               Some(await(SharedFile(vcfIdx, "dbsnp.vcf.gz.tbi")))),
-          BedFile(await(SharedFile(bed, "intervals")))
+          Some(BedFile(await(SharedFile(bed, "intervals"))))
         )
 
         When("collect variant qc metrics")

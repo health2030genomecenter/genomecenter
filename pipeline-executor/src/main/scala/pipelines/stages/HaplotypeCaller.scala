@@ -44,9 +44,10 @@ case class CollectVariantCallingMetricsInput(
     reference: IndexedReferenceFasta,
     targetVcf: VCF,
     dbSnpVcf: VCF,
-    evaluationIntervals: BedFile
+    evaluationIntervals: Option[BedFile]
 ) extends WithSharedFiles(
-      reference.files ++ targetVcf.files ++ dbSnpVcf.files ++ evaluationIntervals.files: _*)
+      reference.files ++ targetVcf.files ++ dbSnpVcf.files ++ evaluationIntervals.toSeq
+        .flatMap(_.files): _*)
 
 case class GenotypeGVCFsOnIntervalInput(targetVcfs: StableSet[VCF],
                                         reference: IndexedReferenceFasta,
@@ -784,32 +785,46 @@ object HaplotypeCaller {
           reference,
           targetVcf,
           dbSnpVcf,
-          BedFile(evaluationIntervals)
+          maybeEvaluationIntervals
           ) =>
         implicit computationEnvironment =>
           for {
             refDict <- reference.dict
             localTargetVcf <- targetVcf.localFile
             dbSnpVcf <- dbSnpVcf.localFile
-            evaluationIntervals <- evaluationIntervals.file
+            evaluationIntervals <- maybeEvaluationIntervals match {
+              case None => Future.successful(None)
+              case Some(evaluationIntervals) =>
+                evaluationIntervals.file.file.map(Some(_))
+            }
             result <- {
 
               val picardJar = BWAAlignment.extractPicardJar()
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
               val tmpOut = Files.createTempFile(".metrics").getAbsolutePath
-              val picardStyleInterval = Files.createTempFile("")
 
               val javaTmpDir =
                 s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
-              Exec.bash(logDiscriminator = "collectvariantcallqc",
-                        onError = Exec.ThrowIfNonZero)(s""" \\
+              val picardStyleInterval = evaluationIntervals.map {
+                evaluationIntervals =>
+                  val picardStyleInterval = Files.createTempFile("")
+                  Exec.bash(logDiscriminator = "collectvariantcallqc",
+                            onError = Exec.ThrowIfNonZero)(s""" \\
         java ${JVM.serial} -Xmx2G -Dpicard.useLegacyParser=false -jar $picardJar BedToIntervalList \\
           --INPUT ${evaluationIntervals.getAbsolutePath} \\
           --SEQUENCE_DICTIONARY ${refDict.getAbsolutePath} \\
           --OUTPUT ${picardStyleInterval.getAbsolutePath} \\
         """)
+                  picardStyleInterval
+              }
+
+              val restrictToInteval = picardStyleInterval
+                .map { picardStyleInterval =>
+                  s"--TARGET_INTERVALS ${picardStyleInterval.getAbsolutePath}"
+                }
+                .getOrElse("")
 
               Exec.bash(logDiscriminator = "collectvariantcallqc",
                         onError = Exec.ThrowIfNonZero)(s""" \\
@@ -818,18 +833,20 @@ object HaplotypeCaller {
                     --OUTPUT $tmpOut \\
                     --DBSNP ${dbSnpVcf.getAbsolutePath} \\
                     --SEQUENCE_DICTIONARY ${refDict.getAbsolutePath} \\
-                    --TARGET_INTERVALS ${picardStyleInterval.getAbsolutePath} \\
+                    $restrictToInteval \\
                     --GVCF_INPUT true \\
                    > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
                         """)
 
-              picardStyleInterval.delete
+              picardStyleInterval.foreach(_.delete)
 
               val expectedDetails =
                 new File(tmpOut + ".variant_calling_detail_metrics")
               val expectedSummary =
                 new File(tmpOut + ".variant_calling_summary_metrics")
-              val nameStub = targetVcf.vcf.name + ".qc"
+              val nameStub = targetVcf.vcf.name + ".qc" + picardStyleInterval
+                .map(_ => ".interval")
+                .getOrElse("")
               for {
                 _ <- SharedFile(tmpStdOut, nameStub + ".stdout", true)
                 _ <- SharedFile(tmpStdErr, nameStub + ".stderr", true)

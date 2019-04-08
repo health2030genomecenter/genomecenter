@@ -57,17 +57,18 @@ case class SampleMetrics(analysisId: AnalysisId,
                          duplicationMetrics: SharedFile,
                          fastpReport: FastpReport,
                          wgsMetrics: SharedFile,
-                         gvcfQCMetrics: Option[SharedFile],
+                         gvcfQCIntervalMetrics: Option[SharedFile],
+                         gvcfQCOverallMetrics: Option[SharedFile],
                          project: Project,
                          sampleId: SampleId,
                          insertSizeMetrics: SharedFile)
-    extends WithSharedFiles(
-      List(alignmentSummary,
-           hsMetrics,
-           duplicationMetrics,
-           wgsMetrics,
-           fastpReport.json,
-           insertSizeMetrics) ++ gvcfQCMetrics.toList: _*)
+    extends WithSharedFiles(List(
+      alignmentSummary,
+      hsMetrics,
+      duplicationMetrics,
+      wgsMetrics,
+      fastpReport.json,
+      insertSizeMetrics) ++ gvcfQCIntervalMetrics.toList ++ gvcfQCOverallMetrics.toList: _*)
 
 case class RunQCTableInput(fileName: String,
                            samples: StableSet[SampleMetrics],
@@ -122,6 +123,7 @@ object AlignmentQC {
          FastpReportModel.Root,
          WgsMetrics.Root,
          Option[VariantCallingMetrics.Root],
+         Option[VariantCallingMetrics.Root],
          InsertSizeMetrics.Root,
          AnalysisId)],
       rnaSeqMetrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
@@ -135,7 +137,8 @@ object AlignmentQC {
         case (dups,
               fastpMetrics,
               wgsMetrics,
-              mayVcfMetrics,
+              mayVcfIntervalMetrics,
+              mayVcfOverallMetrics,
               insertSizeMetrics,
               analysisId) =>
           import dups.metrics._
@@ -160,14 +163,16 @@ object AlignmentQC {
               f"${pctCoverage20x * 100}%11.2f%%" -> right,
               f"${pctCoverage60x * 100}%11.2f%%" -> right,
               f"$pctExcludedTotal%11.2f%%" -> right,
-              f"${mayVcfMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
-              f"${mayVcfMetrics.map(_.metrics.snpsInDbSnp).getOrElse("")}%s" -> right,
-              f"${mayVcfMetrics.map(_.metrics.novelSnp).getOrElse("")}%s" -> right,
-              f"${mayVcfMetrics.map(_.metrics.dbSnpTiTv).getOrElse(Double.NaN)}%11.2f" -> right,
-              f"${mayVcfMetrics.map(_.metrics.novelTiTv).getOrElse(Double.NaN)}%11.2f" -> right,
-              f"${mayVcfMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right,
-              f"${mayVcfMetrics.map(_.metrics.indelsInDbSnp).getOrElse(Double.NaN)}%s" -> right,
-              f"${mayVcfMetrics.map(_.metrics.novelIndel).getOrElse(Double.NaN)}%s" -> right
+              f"${mayVcfIntervalMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.snpsInDbSnp).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.novelSnp).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.dbSnpTiTv).getOrElse(Double.NaN)}%11.2f" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.novelTiTv).getOrElse(Double.NaN)}%11.2f" -> right,
+              f"${mayVcfIntervalMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.indelsInDbSnp).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.novelIndel).getOrElse(Double.NaN)}%s" -> right
             ))
 
       }
@@ -256,11 +261,13 @@ object AlignmentQC {
         "Wgs20x" -> right,
         "Wgs60x" -> right,
         "Excluded" -> right,
+        "TotalSnpsInCapture" -> right,
         "TotalSnps" -> right,
         "DbSnpSnp" -> right,
         "NovelSnp" -> right,
         "DbSnpTi/Tv" -> right,
         "NovelTi/Tv" -> right,
+        "TotalIndelInCapture" -> right,
         "TotalIndel" -> right,
         "DbpSnpIndel" -> right,
         "NovelIndel" -> right
@@ -351,15 +358,16 @@ object AlignmentQC {
               .map(read)
               .map(txt => DuplicationMetrics.Root(txt, m.project, m.sampleId))
 
-          def parseVariantCallingMetrics(m: SampleMetrics) =
-            m.gvcfQCMetrics match {
+          def parseVariantCallingMetrics(m: Option[SharedFile],
+                                         project: Project,
+                                         sampleId: SampleId) =
+            m match {
               case None => Future.successful(None)
               case Some(file) =>
                 file.file
                   .map(read)
                   .map(txt =>
-                    Some(
-                      VariantCallingMetrics.Root(txt, m.project, m.sampleId)))
+                    Some(VariantCallingMetrics.Root(txt, project, sampleId)))
             }
 
           def parse(m: SampleMetrics) =
@@ -369,7 +377,14 @@ object AlignmentQC {
               hsMetricsPerLanePerRun <- parseHsMetrics(m)
               dupMetrics <- parseDupMetrics(m)
               wgsMetrics <- parseWgsMetrics(m)
-              variantQCMetrics <- parseVariantCallingMetrics(m)
+              variantQCIntervalMetrics <- parseVariantCallingMetrics(
+                m.gvcfQCIntervalMetrics,
+                m.project,
+                m.sampleId)
+              variantQCOverallMetrics <- parseVariantCallingMetrics(
+                m.gvcfQCOverallMetrics,
+                m.project,
+                m.sampleId)
               insertSizeMetrics <- parseInsertSizeMetrics(m)
             } yield {
               val laneSpecificMetrics = alignmentSummariesPerLanePerRun.map {
@@ -384,7 +399,8 @@ object AlignmentQC {
               val sampleSpecificMetrics = (dupMetrics,
                                            fastpReport,
                                            wgsMetrics,
-                                           variantQCMetrics,
+                                           variantQCIntervalMetrics,
+                                           variantQCOverallMetrics,
                                            insertSizeMetrics,
                                            m.analysisId)
 
@@ -429,11 +445,11 @@ object AlignmentQC {
             _ <- {
               val analyses
                 : Seq[AnalysisId] = (laneMetrics.map(_._3) ++ sampleMetrics.map(
-                _._6) ++ parsedRNAMetrics.map(_._1)).distinct
+                _._7) ++ parsedRNAMetrics.map(_._1)).distinct
               Future.traverse(analyses) { analysis =>
                 val table =
                   makeHtmlTable(laneMetrics.filter(_._3 == analysis),
-                                sampleMetrics.filter(_._6 == analysis),
+                                sampleMetrics.filter(_._7 == analysis),
                                 parsedRNAMetrics.filter(_._1 == analysis))
                 SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
                            fileName + "." + analysis + ".wes.qc.table.html")

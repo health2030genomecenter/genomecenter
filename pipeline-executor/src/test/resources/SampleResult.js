@@ -190,7 +190,29 @@
               "hash" : 13
             }
           },
-          "gvcfQC" : {
+          "gvcfQCInterval" : {
+            "details" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            },
+            "summary" : {
+              "path" : {
+                "ManagedFilePath" : {
+                  "pathElements" : [
+                  ]
+                }
+              },
+              "byteSize" : 123,
+              "hash" : 13
+            }
+          },
+          "gvcfQCOverall" : {
             "details" : {
               "path" : {
                 "ManagedFilePath" : {

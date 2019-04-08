@@ -288,13 +288,40 @@ object ProtoPipelineStages extends StrictLogging {
                               indexedReference,
                               genotypedVcf,
                               dbSnpVcf,
-                              variantEvaluationIntervals))(
+                              Some(variantEvaluationIntervals)))(
                             ResourceConfig.minimal,
                             priorityVcf)
                       }
+                      startGvcfQCInInterval = intoQCFolder {
+                        implicit computationEnvironment =>
+                          HaplotypeCaller.collectVariantCallingMetrics(
+                            CollectVariantCallingMetricsInput(
+                              indexedReference,
+                              genotypedVcf,
+                              dbSnpVcf,
+                              Some(variantEvaluationIntervals)))(
+                            ResourceConfig.minimal,
+                            priorityVcf)
+                      }
+                      startGvcfQCOverall = intoQCFolder {
+                        implicit computationEnvironment =>
+                          HaplotypeCaller.collectVariantCallingMetrics(
+                            CollectVariantCallingMetricsInput(
+                              indexedReference,
+                              genotypedVcf,
+                              dbSnpVcf,
+                              Some(variantEvaluationIntervals)))(
+                            ResourceConfig.minimal,
+                            priorityVcf)
+                      }
+                      gvcfQCInterval <- startGvcfQCInInterval
+                      gvcfQCOverall <- startGvcfQCOverall
                     } yield
                       Some(
-                        (haplotypeCallerReferenceCalls, genotypedVcf, gvcfQC))
+                        (haplotypeCallerReferenceCalls,
+                         genotypedVcf,
+                         gvcfQCInterval,
+                         gvcfQCOverall))
                   }
 
                 } yield
@@ -310,7 +337,8 @@ object ProtoPipelineStages extends StrictLogging {
                         mergedMarkDuplicateMarkedBamFile.duplicateMetric,
                       targetSelectionQC = targetSelectionQC,
                       wgsQC = wgsQC,
-                      gvcfQC = variantCalls.map(_._3),
+                      gvcfQCInterval = variantCalls.map(_._3),
+                      gvcfQCOverall = variantCalls.map(_._4),
                       referenceFasta = indexedReference,
                       coverage = coverage
                     ))

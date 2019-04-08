@@ -38,7 +38,14 @@ class AlignmentQCTest
       println(
         AlignmentQC.makeHtmlTable(
           joined,
-          List((dup, fastp, wgs, Some(vcfQc), insertSize, AnalysisId("boo"))),
+          List(
+            (dup,
+             fastp,
+             wgs,
+             Some(vcfQc),
+             Some(vcfQc),
+             insertSize,
+             AnalysisId("boo"))),
           List()
         ))
     }

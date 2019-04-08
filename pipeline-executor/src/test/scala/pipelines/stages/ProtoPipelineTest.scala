@@ -56,7 +56,8 @@ class ProtopipelineTestSuite
             duplicationQC = DuplicationQCResult(sf),
             targetSelectionQC = SelectionQCResult(sf),
             wgsQC = CollectWholeGenomeMetricsResult(sf),
-            gvcfQC = Some(VariantCallingMetricsResult(sf, sf)),
+            gvcfQCInterval = Some(VariantCallingMetricsResult(sf, sf)),
+            gvcfQCOverall = Some(VariantCallingMetricsResult(sf, sf)),
             referenceFasta = IndexedReferenceFasta(sf, List(sf).toSet.toStable),
             coverage = MeanCoverageResult(1d, 1d)
           ))

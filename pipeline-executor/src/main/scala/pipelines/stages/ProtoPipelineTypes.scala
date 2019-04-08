@@ -59,7 +59,8 @@ case class SampleResult(
             sample.duplicationQC.markDuplicateMetrics,
             fastpReportsOfSample,
             sample.wgsQC.wgsMetrics,
-            sample.gvcfQC.map(_.summary),
+            sample.gvcfQCInterval.map(_.summary),
+            sample.gvcfQCOverall.map(_.summary),
             sample.project,
             sample.sampleId,
             sample.alignmentQC.insertSizeMetrics
@@ -95,22 +96,25 @@ case class SingleSamplePipelineInput(
       .flatMap(_.files) ++ selectionTargetIntervals.files ++ alignedLanes.toSeq
       .flatMap(_.files): _*)
 
-case class PerSampleMergedWESResult(bam: CoordinateSortedBam,
-                                    haplotypeCallerReferenceCalls: Option[VCF],
-                                    gvcf: Option[VCF],
-                                    project: Project,
-                                    sampleId: SampleId,
-                                    alignmentQC: AlignmentQCResult,
-                                    duplicationQC: DuplicationQCResult,
-                                    targetSelectionQC: SelectionQCResult,
-                                    wgsQC: CollectWholeGenomeMetricsResult,
-                                    gvcfQC: Option[VariantCallingMetricsResult],
-                                    referenceFasta: IndexedReferenceFasta,
-                                    coverage: MeanCoverageResult)
+case class PerSampleMergedWESResult(
+    bam: CoordinateSortedBam,
+    haplotypeCallerReferenceCalls: Option[VCF],
+    gvcf: Option[VCF],
+    project: Project,
+    sampleId: SampleId,
+    alignmentQC: AlignmentQCResult,
+    duplicationQC: DuplicationQCResult,
+    targetSelectionQC: SelectionQCResult,
+    wgsQC: CollectWholeGenomeMetricsResult,
+    gvcfQCInterval: Option[VariantCallingMetricsResult],
+    gvcfQCOverall: Option[VariantCallingMetricsResult],
+    referenceFasta: IndexedReferenceFasta,
+    coverage: MeanCoverageResult)
     extends WithSharedFiles(
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.toSeq
         .flatMap(_.files) ++ gvcf.toSeq
-        .flatMap(_.files) ++ referenceFasta.files ++ gvcfQC.toSeq
+        .flatMap(_.files) ++ referenceFasta.files ++ gvcfQCOverall.toSeq
+        .flatMap(_.files) ++ gvcfQCInterval.toSeq
         .flatMap(_.files): _*)
 
 case class SingleSamplePipelineResult(
