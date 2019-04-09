@@ -51,7 +51,8 @@ object ProtoPipelineStages extends StrictLogging {
                                      doVariantCalling,
                                      minimumWGSCoverage,
                                      minimumTargetedCoverage,
-                                     contigsFile) =>
+                                     contigsFile,
+                                     vqsrTrainingFiles) =>
         implicit computationEnvironment =>
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
@@ -282,7 +283,7 @@ object ProtoPipelineStages extends StrictLogging {
                               indexedReference,
                               dbSnpVcf,
                               demultiplexed.project + "." + demultiplexed.sampleId + ".single",
-                              vqsrTrainingFiles = None,
+                              vqsrTrainingFiles = vqsrTrainingFiles,
                               contigsFile = contigsFile
                             ))(ResourceConfig.minimal, priorityVcf)
                       }

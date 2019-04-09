@@ -458,7 +458,8 @@ class ProtoPipeline(progressServer: SendProgressData)(
             !conf.doVariantCalls.exists(_ == false),
             minimumWGSCoverage = conf.minimumWGSCoverage,
             minimumTargetCoverage = conf.minimumTargetCoverage,
-            contigsFile = contigsFile
+            contigsFile = contigsFile,
+            vqsrTrainingFiles = vqsrTrainingFiles
           ))(
           ResourceConfig.minimal,
           labels =
