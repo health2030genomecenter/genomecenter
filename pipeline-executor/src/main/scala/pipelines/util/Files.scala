@@ -12,7 +12,10 @@ object Files extends StrictLogging {
   scala.sys.addShutdownHook {
     val size = tempFiles.size
     logger.info(s"Deleting $size temp files.")
-    tempFiles.foreach(p => println(p._2))
+    tempFiles.foreach { p =>
+      println(p._2)
+      p._2.delete
+    }
     logger.info(s"Deleted $size temp files.")
   }
 
