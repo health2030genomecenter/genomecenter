@@ -120,8 +120,42 @@ object ProtoPipelineStages extends StrictLogging {
 
             allAlignedLanes = (alignedLanes.toSeq ++ previousAlignedBams.toSeq).distinct
 
-            maybeMerged <- intoIntermediateFolder {
-              implicit computationEnvironment =>
+            mappedBases <- Future.traverse(allAlignedLanes.map(_.bam)) { bam =>
+              FastCoverage.countMappedBases(
+                CountMappedBasesInput(bam, selectionTargetIntervals))(
+                ResourceConfig.minimal)
+            }
+
+            coverage <- FastCoverage.computeCoverage(
+              BamCoverageInput(mappedBases.toList,
+                               indexedReference,
+                               selectionTargetIntervals))(
+              ResourceConfig.minimal)
+
+            _ <- intoCoverageFolder { implicit computationEnvironment =>
+              FastCoverage.writeCoverageToFile(
+                WriteCoverageInput(coverage,
+                                   demultiplexed.runIdTag,
+                                   demultiplexed.project,
+                                   demultiplexed.sampleId,
+                                   analysisId))(ResourceConfig.minimal,
+                                                priorityBam)
+            }
+
+            _ = ProgressServer.send(
+              FastCoverageAvailable(demultiplexed.project,
+                                    demultiplexed.sampleId,
+                                    runIdTag,
+                                    analysisId,
+                                    coverage.all))
+
+            maybeMerged <- if (coverage.reachedCoverageTarget(
+                                 minimumTargetedCoverage =
+                                   minimumTargetedCoverage,
+                                 minimumWGSCoverage = minimumWGSCoverage))
+              intoIntermediateFolder { implicit computationEnvironment =>
+                logger.info(
+                  s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId reached coverage target with $coverage.")
                 BWAAlignment
                   .mergeAndMarkDuplicate(
                     BamsWithSampleMetadata(
@@ -130,6 +164,10 @@ object ProtoPipelineStages extends StrictLogging {
                       allAlignedLanes.map(_.bam).toSet.toStable))(
                     ResourceConfig.picardMergeAndMarkDuplicates)
                   .map(Option(_))
+              } else {
+              logger.info(
+                s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId has coverage $coverage which is low (needs targeted $minimumTargetedCoverage /wgs $minimumWGSCoverage). Shortcut processing.")
+              Future.successful(None)
             }
 
             mergedResult <- maybeMerged match {
@@ -179,17 +217,6 @@ object ProtoPipelineStages extends StrictLogging {
 
                   wgsQC <- wgsQC
 
-                  _ <- intoCoverageFolder { implicit computationEnvironment =>
-                    AlignmentQC.parseWholeGenomeMetrics(
-                      ParseWholeGenomeCoverageInput(wgsQC,
-                                                    demultiplexed.runIdTag,
-                                                    demultiplexed.project,
-                                                    demultiplexed.sampleId,
-                                                    analysisId))(
-                      ResourceConfig.minimal,
-                      priorityBam)
-                  }
-
                   targetSelectionQC <- targetSelectionQC
                   alignmentQC <- alignmentQC
 
@@ -202,13 +229,6 @@ object ProtoPipelineStages extends StrictLogging {
                     demultiplexed.project,
                     demultiplexed.sampleId
                   )
-
-                  _ = ProgressServer.send(
-                    CoverageAvailable(demultiplexed.project,
-                                      demultiplexed.sampleId,
-                                      runIdTag,
-                                      analysisId,
-                                      wgsMeanCoverage))
 
                   variantCalls <- if (!executeVariantCalling(
                                         doVariantCalling = doVariantCalling,
@@ -291,7 +311,8 @@ object ProtoPipelineStages extends StrictLogging {
                       targetSelectionQC = targetSelectionQC,
                       wgsQC = wgsQC,
                       gvcfQC = variantCalls.map(_._3),
-                      referenceFasta = indexedReference
+                      referenceFasta = indexedReference,
+                      coverage = coverage
                     ))
             }
 

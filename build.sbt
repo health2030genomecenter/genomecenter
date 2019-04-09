@@ -117,6 +117,7 @@ lazy val pipelineExecutor = project
       "io.github.pityka" %% "fileutils" % "1.2.2",
       "io.github.pityka" %% "nspl-core" % "0.0.20",
       "io.github.pityka" %% "nspl-awt" % "0.0.20",
+      "io.github.pityka" %% "intervaltree" % "1.0.0",
       "org.scalatest" %% "scalatest" % "3.0.0" % "it,test",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",

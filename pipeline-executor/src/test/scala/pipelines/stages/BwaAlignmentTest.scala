@@ -235,8 +235,6 @@ class BwaAlignmentTestSuite
         val future =
           BWAAlignment.alignFastqPerSample(input)(ResourceRequest(1, 500))
         val bamWithSampleMetadata = await(future)
-        println("XXXXX")
-        println(bamWithSampleMetadata.alignedLanes.toSeq)
         val bamFiles =
           await(
             Future.traverse(bamWithSampleMetadata.alignedLanes.toSeq)(

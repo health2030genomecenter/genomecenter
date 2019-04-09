@@ -646,7 +646,7 @@ object Pipelinectl extends App {
                               processing =
                                 status.processing.filterNot(_ == ev.run),
                               failed = status.failed :+ ev.run)
-                          case ev: CoverageAvailable =>
+                          case ev: FastCoverageAvailable =>
                             status.copy(
                               coverage = status.coverage :+ ev.runIdTag)
                           case ev: BamAvailable =>

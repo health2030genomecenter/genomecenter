@@ -105,7 +105,8 @@ case class PerSampleMergedWESResult(bam: CoordinateSortedBam,
                                     targetSelectionQC: SelectionQCResult,
                                     wgsQC: CollectWholeGenomeMetricsResult,
                                     gvcfQC: Option[VariantCallingMetricsResult],
-                                    referenceFasta: IndexedReferenceFasta)
+                                    referenceFasta: IndexedReferenceFasta,
+                                    coverage: MeanCoverageResult)
     extends WithSharedFiles(
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.toSeq
         .flatMap(_.files) ++ gvcf.toSeq

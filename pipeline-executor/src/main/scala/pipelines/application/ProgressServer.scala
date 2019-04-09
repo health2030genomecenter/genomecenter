@@ -42,12 +42,11 @@ object ProgressData {
                                     sample: SampleId,
                                     run: RunId)
       extends ProgressDataWithSampleId
-
-  case class CoverageAvailable(project: Project,
-                               sample: SampleId,
-                               runIdTag: String,
-                               analysis: AnalysisId,
-                               wgsCoverage: Double)
+  case class FastCoverageAvailable(project: Project,
+                                   sample: SampleId,
+                                   runIdTag: String,
+                                   analysis: AnalysisId,
+                                   wgsCoverage: Double)
       extends ProgressDataWithSampleId
 
   case class BamAvailable(project: Project,
@@ -213,13 +212,14 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                     case v @ SampleProcessingFinished(project0, _, _)
                         if project0 == project =>
                       List(v)
-                    case v @ CoverageAvailable(project0, _, _, _, _)
-                        if project0 == project =>
-                      List(v)
                     case v @ BamAvailable(project0, _, _, _, _)
                         if project0 == project =>
                       List(v)
                     case v @ VCFAvailable(project0, _, _, _, _)
+                        if project0 == project =>
+                      List(v)
+                      List(v)
+                    case v @ FastCoverageAvailable(project0, _, _, _, _)
                         if project0 == project =>
                       List(v)
                   } flatten
@@ -313,11 +313,12 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                 } yield {
                   data
                     .collect {
-                      case CoverageAvailable(project0,
-                                             sample,
-                                             run,
-                                             analysis,
-                                             coverage) if project0 == project =>
+                      case FastCoverageAvailable(project0,
+                                                 sample,
+                                                 run,
+                                                 analysis,
+                                                 coverage)
+                          if project0 == project =>
                         sample + "\t" + run + "\t" + analysis + "\t" + coverage
                     }
                     .distinct

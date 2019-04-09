@@ -70,6 +70,10 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         postString(
           "/v2/analyses/project1",
           (wesConfiguration: AnalysisConfiguration).asJson.noSpaces).status.intValue shouldBe 200
+        When("assigning the analysis to the project")
+        postString(
+          "/v2/analyses/project1",
+          (wesConfigurationWithHighTargetCoverage: AnalysisConfiguration).asJson.noSpaces).status.intValue shouldBe 200
 
         And("registering that runconfiguration to the application")
         postString("/v2/runs", runConfiguration).status.intValue shouldBe 200
@@ -115,6 +119,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             .size > 0 shouldBe true,
           30 seconds)
         getProgress("/v2/projects") shouldBe "project1\n"
+
         MyTestKit.awaitAssert(
           io.circe.parser
             .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
@@ -125,7 +130,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         getProgress("/v2/bams/project1").size > 3 shouldBe true
         getProgress("/v2/vcfs/project1") shouldBe "\n"
 
-        getProgress("/v2/coverages/project1") shouldBe "sample1\trunid1\tdefault\t0.005563\n"
+        getProgress("/v2/coverages/project1") shouldBe "sample1\trunid1\tdefault\t0.005292395401819806\n"
         getProgress("/v2/fastqs/project1").size > 3 shouldBe true
 
         io.circe.parser
@@ -189,6 +194,11 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
       minimumTargetCoverage = None,
       minimumWGSCoverage = None,
       variantCallingContigs = None
+    )
+
+    val wesConfigurationWithHighTargetCoverage = wesConfiguration.copy(
+      analysisId = AnalysisId("analysis2"),
+      minimumWGSCoverage = Some(100d)
     )
   }
 

@@ -57,7 +57,8 @@ class ProtopipelineTestSuite
             targetSelectionQC = SelectionQCResult(sf),
             wgsQC = CollectWholeGenomeMetricsResult(sf),
             gvcfQC = Some(VariantCallingMetricsResult(sf, sf)),
-            referenceFasta = IndexedReferenceFasta(sf, List(sf).toSet.toStable)
+            referenceFasta = IndexedReferenceFasta(sf, List(sf).toSet.toStable),
+            coverage = MeanCoverageResult(1d, 1d)
           ))
       )
 
@@ -135,7 +136,7 @@ class ProtopipelineTestSuite
       import io.circe.parser._
       val serialized: String = old.asJson.toString
       val _ = serialized
-      //  println(serialized)
+      // println(serialized)
       val oldDeserialized = decode[SampleResult](
         scala.io.Source
           .fromInputStream(getClass.getResourceAsStream("/SampleResult.js"))
