@@ -2,8 +2,9 @@ package org.gc.pipelines.util
 
 import scala.collection.JavaConverters._
 import java.io.File
+import com.typesafe.scalalogging.StrictLogging
 
-object MappedBases {
+object MappedBases extends StrictLogging {
 
   def countBases(file: File,
                  minimumMapQ: Int,
@@ -29,6 +30,9 @@ object MappedBases {
       intervaltree.IntervalTree.intervalForest(intervals.iterator)
     }
 
+    logger.debug(
+      s"Interval trees with contigs: ${intervaltrees.map(_.keySet.toSeq.sorted)}")
+
     def inTarget(contig: String, bp: Int) = intervaltrees match {
       case None => true
       case Some(trees) =>
@@ -47,6 +51,8 @@ object MappedBases {
 
     var counterBases = 0L
     var counterBasesTarget = 0L
+    var countNonPass = 0L
+    var countOutOfTarget = 0L
     reader.iterator.asScala
       .foreach { samRecord =>
         val mapq = samRecord.getMappingQuality
@@ -65,15 +71,22 @@ object MappedBases {
               samRecord.getReferencePositionAtReadPosition(i)
             if (inTarget(contigName, referenceOffset)) {
               counterBasesTarget += 1
+            } else {
+              countOutOfTarget += 1L
             }
             counterBases += 1
 
             i += 1
           }
+        } else {
+          countNonPass += 1L
         }
       }
 
     reader.close
+
+    logger.debug(
+      s"Count bases in $file. non pass: $countNonPass, out of target: $countOutOfTarget")
 
     (counterBases, counterBasesTarget)
   }
