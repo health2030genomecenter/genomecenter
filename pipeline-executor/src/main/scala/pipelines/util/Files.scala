@@ -13,7 +13,7 @@ object Files extends StrictLogging {
     val size = tempFiles.size
     logger.info(s"Deleting $size temp files.")
     tempFiles.foreach { p =>
-      logger.info("Deleting "+p._2.toString)
+      logger.info("Deleting " + p._2.toString)
       p._2.delete
     }
     logger.info(s"Deleted $size temp files.")
