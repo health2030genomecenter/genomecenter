@@ -155,7 +155,7 @@ object ProtoPipelineStages extends StrictLogging {
                                  minimumWGSCoverage = minimumWGSCoverage))
               intoIntermediateFolder { implicit computationEnvironment =>
                 logger.info(
-                  s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId reached coverage target with $coverage.")
+                  s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId reached coverage target with $coverage (minimumWGSCoverage = $minimumWGSCoverage, minimumTargetedCoverage = $minimumTargetedCoverage).")
                 BWAAlignment
                   .mergeAndMarkDuplicate(
                     BamsWithSampleMetadata(
@@ -166,7 +166,7 @@ object ProtoPipelineStages extends StrictLogging {
                   .map(Option(_))
               } else {
               logger.info(
-                s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId has coverage $coverage which is low (needs targeted $minimumTargetedCoverage /wgs $minimumWGSCoverage). Shortcut processing.")
+                s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId has coverage $coverage which is low (needs targeted $minimumTargetedCoverage /wgs $minimumWGSCoverage). Shortcut processing. (minimumWGSCoverage = $minimumWGSCoverage, minimumTargetedCoverage = $minimumTargetedCoverage)")
               Future.successful(None)
             }
 
