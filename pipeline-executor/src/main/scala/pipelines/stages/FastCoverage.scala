@@ -42,7 +42,7 @@ case class WriteCoverageInput(
 object FastCoverage {
 
   val computeCoverage =
-    AsyncTask[BamCoverageInput, MeanCoverageResult]("__compute_coverage", 1) {
+    AsyncTask[BamCoverageInput, MeanCoverageResult]("__compute_coverage", 2) {
       case BamCoverageInput(bases, reference, selectionTargetIntervals) =>
         implicit computationEnvironment =>
           for {
@@ -56,7 +56,7 @@ object FastCoverage {
               .asScala
               .toList
               .map { sequence =>
-                sequence.getSequenceLength
+                sequence.getSequenceLength.toLong
               }
               .sum
             val totalTarget = Bed.size(bed)
