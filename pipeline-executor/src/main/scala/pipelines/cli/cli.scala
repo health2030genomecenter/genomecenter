@@ -565,7 +565,38 @@ object Pipelinectl extends App {
           println(get(s"/v2/bams/$project"))
         case QueryCoverage =>
           val project = config.project.get
-          println(get(s"/v2/coverages/$project"))
+          val coverages = io.circe.parser
+            .decode[Seq[ProgressData]](get(s"/v2/coverages/$project"))
+            .right
+            .get
+            .collect {
+              case v: FastCoverageAvailable => v
+            }
+          val perRun = coverages
+            .collect {
+              case FastCoverageAvailable(project,
+                                         sample,
+                                         run,
+                                         analysis,
+                                         coverage) =>
+                project + "\t" + sample + "\t" + run + "\t" + analysis + "\t" + coverage
+            }
+            .sorted
+            .mkString("\n")
+          val total = coverages
+            .groupBy(_.sample)
+            .map {
+              case (sample, group) =>
+                sample + "\t" + group.map(_.wgsCoverage).sum
+            }
+            .toSeq
+            .sorted
+            .mkString("\n")
+          println("PER RUN")
+          println(perRun)
+          println("TOTAL")
+          println(total)
+
         case QueryFastq =>
           val project = config.project.get
           println(get(s"/v2/fastqs/$project"))

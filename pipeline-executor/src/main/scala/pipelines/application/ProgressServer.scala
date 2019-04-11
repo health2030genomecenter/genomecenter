@@ -311,18 +311,14 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                 for {
                   data <- getData
                 } yield {
-                  data
-                    .collect {
-                      case FastCoverageAvailable(project0,
-                                                 sample,
-                                                 run,
-                                                 analysis,
-                                                 coverage)
+                  val events: Seq[ProgressData] = data
+                    .filter {
+                      case FastCoverageAvailable(project0, _, _, _, _)
                           if project0 == project =>
-                        sample + "\t" + run + "\t" + analysis + "\t" + coverage
+                        true
+                      case _ => false
                     }
-                    .distinct
-                    .mkString("", "\n", "\n")
+                  events.asJson.noSpaces
                 }
               }
             }
