@@ -628,7 +628,10 @@ object Pipelinectl extends App {
                         bam: Seq[String] = Nil,
                         vcf: Seq[String] = Nil,
                         failed: Seq[RunId] = Nil
-                    )
+                    ) {
+                      def waitingForCoverage =
+                        processing.map(_.toString).toSet &~ coverage.toSet
+                    }
                     val folded: Status = events.foldLeft(Status()) {
                       case (status, event) =>
                         event match {
@@ -664,6 +667,9 @@ object Pipelinectl extends App {
                       } ++
                       folded.coverage.map { run =>
                         List(sample, "COV DONE   ", run)
+                      } ++
+                      folded.waitingForCoverage.map { run =>
+                        List(sample, "COV WAIT   ", run)
                       } ++
                       folded.bam.map { run =>
                         List(sample, "BAM DONE   ", run)
