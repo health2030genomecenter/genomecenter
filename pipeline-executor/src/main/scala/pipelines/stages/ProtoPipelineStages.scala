@@ -122,15 +122,30 @@ object ProtoPipelineStages extends StrictLogging {
 
             allAlignedLanes = (alignedLanes.toSeq ++ previousAlignedBams.toSeq).distinct
 
-            mappedBases <- Future.traverse(allAlignedLanes.map(_.bam)) { bam =>
+            mappedBasesFromPreviousAlignedBams <- Future.traverse(
+              previousAlignedBams.toSeq.map(_.bam)) { bam =>
+              FastCoverage.countMappedBases(
+                CountMappedBasesInput(bam, selectionTargetIntervals))(
+                ResourceConfig.minimal,
+                priorityCoverage)
+            }
+            mappedBasesFromThisRun <- Future.traverse(
+              alignedLanes.toSeq.map(_.bam)) { bam =>
               FastCoverage.countMappedBases(
                 CountMappedBasesInput(bam, selectionTargetIntervals))(
                 ResourceConfig.minimal,
                 priorityCoverage)
             }
 
-            coverage <- FastCoverage.computeCoverage(
-              BamCoverageInput(mappedBases.toList,
+            coverageTotal <- FastCoverage.computeCoverage(
+              BamCoverageInput(
+                (mappedBasesFromThisRun ++ mappedBasesFromPreviousAlignedBams).toList,
+                indexedReference,
+                selectionTargetIntervals))(ResourceConfig.minimal,
+                                           priorityCoverage)
+
+            coverageThisRun <- FastCoverage.computeCoverage(
+              BamCoverageInput(mappedBasesFromThisRun.toList,
                                indexedReference,
                                selectionTargetIntervals))(
               ResourceConfig.minimal,
@@ -138,7 +153,7 @@ object ProtoPipelineStages extends StrictLogging {
 
             _ <- intoCoverageFolder { implicit computationEnvironment =>
               FastCoverage.writeCoverageToFile(
-                WriteCoverageInput(coverage,
+                WriteCoverageInput(coverageThisRun,
                                    demultiplexed.runIdTag,
                                    demultiplexed.project,
                                    demultiplexed.sampleId,
@@ -151,15 +166,15 @@ object ProtoPipelineStages extends StrictLogging {
                                     demultiplexed.sampleId,
                                     runIdTag,
                                     analysisId,
-                                    coverage.all))
+                                    coverageThisRun.all))
 
-            maybeMerged <- if (coverage.reachedCoverageTarget(
+            maybeMerged <- if (coverageTotal.reachedCoverageTarget(
                                  minimumTargetedCoverage =
                                    minimumTargetedCoverage,
                                  minimumWGSCoverage = minimumWGSCoverage))
               intoIntermediateFolder { implicit computationEnvironment =>
                 logger.info(
-                  s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId reached coverage target with $coverage (minimumWGSCoverage = $minimumWGSCoverage, minimumTargetedCoverage = $minimumTargetedCoverage).")
+                  s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId reached coverage target with $coverageTotal (minimumWGSCoverage = $minimumWGSCoverage, minimumTargetedCoverage = $minimumTargetedCoverage).")
                 BWAAlignment
                   .mergeAndMarkDuplicate(
                     BamsWithSampleMetadata(
@@ -170,7 +185,7 @@ object ProtoPipelineStages extends StrictLogging {
                   .map(Option(_))
               } else {
               logger.info(
-                s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId has coverage $coverage which is low (needs targeted $minimumTargetedCoverage /wgs $minimumWGSCoverage). Shortcut processing. (minimumWGSCoverage = $minimumWGSCoverage, minimumTargetedCoverage = $minimumTargetedCoverage)")
+                s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId has coverage $coverageTotal which is low (needs targeted $minimumTargetedCoverage /wgs $minimumWGSCoverage). Shortcut processing. (minimumWGSCoverage = $minimumWGSCoverage, minimumTargetedCoverage = $minimumTargetedCoverage)")
               Future.successful(None)
             }
 
@@ -344,7 +359,7 @@ object ProtoPipelineStages extends StrictLogging {
                       gvcfQCInterval = variantCalls.map(_._3),
                       gvcfQCOverall = variantCalls.map(_._4),
                       referenceFasta = indexedReference,
-                      coverage = coverage
+                      coverage = coverageThisRun
                     ))
             }
 
