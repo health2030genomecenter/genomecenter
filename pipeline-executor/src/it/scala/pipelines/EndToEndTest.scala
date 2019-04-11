@@ -134,7 +134,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
           .decode[Seq[ProgressData]](getProgress("/v2/coverages/project1"))
           .right
           .get
-          
+
         getProgress("/v2/fastqs/project1").size > 3 shouldBe true
 
         io.circe.parser
