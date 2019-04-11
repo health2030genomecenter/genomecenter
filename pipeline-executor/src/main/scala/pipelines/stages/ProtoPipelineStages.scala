@@ -59,6 +59,7 @@ object ProtoPipelineStages extends StrictLogging {
           val projectPriority =
             ResourceConfig.projectPriority(demultiplexed.project)
 
+          val priorityCoverage = Priority(5000 + projectPriority)
           val priorityBam = Priority(10000 + projectPriority)
           val priorityVcf = Priority(20000 + projectPriority)
 
@@ -115,7 +116,8 @@ object ProtoPipelineStages extends StrictLogging {
                       demultiplexed.lanes.map(_.withoutReadLength),
                       demultiplexed.project,
                       demultiplexed.sampleId,
-                      indexedReference))(ResourceConfig.minimal, priorityBam)
+                      indexedReference))(ResourceConfig.minimal,
+                                         priorityCoverage)
             }
 
             allAlignedLanes = (alignedLanes.toSeq ++ previousAlignedBams.toSeq).distinct
@@ -123,14 +125,16 @@ object ProtoPipelineStages extends StrictLogging {
             mappedBases <- Future.traverse(allAlignedLanes.map(_.bam)) { bam =>
               FastCoverage.countMappedBases(
                 CountMappedBasesInput(bam, selectionTargetIntervals))(
-                ResourceConfig.minimal)
+                ResourceConfig.minimal,
+                priorityCoverage)
             }
 
             coverage <- FastCoverage.computeCoverage(
               BamCoverageInput(mappedBases.toList,
                                indexedReference,
                                selectionTargetIntervals))(
-              ResourceConfig.minimal)
+              ResourceConfig.minimal,
+              priorityCoverage)
 
             _ <- intoCoverageFolder { implicit computationEnvironment =>
               FastCoverage.writeCoverageToFile(
