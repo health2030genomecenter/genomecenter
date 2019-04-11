@@ -257,11 +257,11 @@
                 "hash" : 13
               }
             ]
-          },
-          "coverage" : {
-            "all" : 1.0,
-            "target" : 1.0
           }
+        },
+        "coverage" : {
+          "all" : 1.0,
+          "target" : 1.0
         }
       },
       {

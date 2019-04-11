@@ -58,9 +58,10 @@ class ProtopipelineTestSuite
             wgsQC = CollectWholeGenomeMetricsResult(sf),
             gvcfQCInterval = Some(VariantCallingMetricsResult(sf, sf)),
             gvcfQCOverall = Some(VariantCallingMetricsResult(sf, sf)),
-            referenceFasta = IndexedReferenceFasta(sf, List(sf).toSet.toStable),
-            coverage = MeanCoverageResult(1d, 1d)
-          ))
+            referenceFasta = IndexedReferenceFasta(sf, List(sf).toSet.toStable)
+          )
+        ),
+        coverage = MeanCoverageResult(1d, 1d)
       )
 
       val wesConfig: SingleSampleConfiguration = SingleSampleConfiguration(
