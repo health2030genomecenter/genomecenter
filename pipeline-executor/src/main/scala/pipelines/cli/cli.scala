@@ -582,6 +582,7 @@ object Pipelinectl extends App {
                 project + "\t" + sample + "\t" + run + "\t" + analysis + "\t" + coverage
             }
             .sorted
+            .distinct
             .mkString("\n")
           val total = coverages
             .groupBy(_.sample)
@@ -591,6 +592,7 @@ object Pipelinectl extends App {
             }
             .toSeq
             .sorted
+            .distinct
             .mkString("\n")
           println("PER RUN")
           println(perRun)
