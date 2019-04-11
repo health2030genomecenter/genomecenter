@@ -488,6 +488,12 @@ class ProtoPipeline(progressServer: SendProgressData)(
       project: Project,
       sampleId: SampleId,
       analysisId: AnalysisId)(implicit tsc: TaskSystemComponents) = {
+    progressServer.send(
+      FastCoverageAvailable(project,
+                            sampleId,
+                            runId,
+                            analysisId,
+                            wesResult.coverage.all))
     wesResult.mergedRuns match {
       case None => Future.successful(())
       case Some(mergedResults) =>
@@ -512,12 +518,6 @@ class ProtoPipeline(progressServer: SendProgressData)(
             case _ => Future.successful(())
           }
 
-          _ = progressServer.send(
-            FastCoverageAvailable(project,
-                                  sampleId,
-                                  runId,
-                                  analysisId,
-                                  mergedResults.coverage.all))
         } yield ()
     }
 

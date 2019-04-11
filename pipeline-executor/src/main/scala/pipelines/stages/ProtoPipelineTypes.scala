@@ -108,8 +108,7 @@ case class PerSampleMergedWESResult(
     wgsQC: CollectWholeGenomeMetricsResult,
     gvcfQCInterval: Option[VariantCallingMetricsResult],
     gvcfQCOverall: Option[VariantCallingMetricsResult],
-    referenceFasta: IndexedReferenceFasta,
-    coverage: MeanCoverageResult)
+    referenceFasta: IndexedReferenceFasta)
     extends WithSharedFiles(
       bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.toSeq
         .flatMap(_.files) ++ gvcf.toSeq
@@ -119,8 +118,9 @@ case class PerSampleMergedWESResult(
 
 case class SingleSamplePipelineResult(
     alignedLanes: StableSet[BamWithSampleMetadataPerLane],
-    mergedRuns: Option[PerSampleMergedWESResult]
-) // mergedRuns is unchecked TODO expand this comment
+    mergedRuns: Option[PerSampleMergedWESResult],
+    coverage: MeanCoverageResult
+) // mergedRuns is unchecked to allow overwriting
     extends WithSharedFiles(alignedLanes.toSeq.flatMap(_.files): _*)
 
 case class SingleSamplePipelineResultRNA(

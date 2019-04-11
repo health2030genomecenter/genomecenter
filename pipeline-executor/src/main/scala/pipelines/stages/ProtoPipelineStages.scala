@@ -358,15 +358,15 @@ object ProtoPipelineStages extends StrictLogging {
                       wgsQC = wgsQC,
                       gvcfQCInterval = variantCalls.map(_._3),
                       gvcfQCOverall = variantCalls.map(_._4),
-                      referenceFasta = indexedReference,
-                      coverage = coverageThisRun
+                      referenceFasta = indexedReference
                     ))
             }
 
           } yield
             SingleSamplePipelineResult(
               alignedLanes = alignedLanes,
-              mergedRuns = mergedResult
+              mergedRuns = mergedResult,
+              coverage = coverageThisRun
             )
 
     }
