@@ -29,7 +29,6 @@ object MappedBases extends StrictLogging {
 
       intervaltree.IntervalTree.intervalForest(intervals.iterator)
     }
-    println(intervaltrees)
 
     logger.debug(
       s"Interval trees with contigs: ${intervaltrees.map(_.keySet.toSeq.sorted)}")
