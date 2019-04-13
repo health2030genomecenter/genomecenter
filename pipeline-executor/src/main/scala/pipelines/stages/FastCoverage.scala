@@ -71,7 +71,7 @@ object FastCoverage {
   val countMappedBases =
     AsyncTask[CountMappedBasesInput, CountMappedBasesResult](
       "__count_mapped_bases",
-      1) {
+      2) {
       case CountMappedBasesInput(bam, target) =>
         implicit computationEnvironment =>
           for {
