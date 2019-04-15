@@ -780,7 +780,7 @@ object HaplotypeCaller {
   val collectVariantCallingMetrics =
     AsyncTask[CollectVariantCallingMetricsInput, VariantCallingMetricsResult](
       "__collectvariantcallingmetrics",
-      1) {
+      2) {
       case CollectVariantCallingMetricsInput(
           reference,
           targetVcf,

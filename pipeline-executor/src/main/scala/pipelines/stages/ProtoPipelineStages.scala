@@ -39,7 +39,7 @@ object ProtoPipelineStages extends StrictLogging {
   val singleSampleWES =
     AsyncTask[SingleSamplePipelineInput, SingleSamplePipelineResult](
       "__persample-single",
-      5) {
+      6) {
       case SingleSamplePipelineInput(analysisId,
                                      demultiplexed,
                                      referenceFasta,
@@ -300,17 +300,6 @@ object ProtoPipelineStages extends StrictLogging {
                                      analysisId,
                                      genotypedVcfPath))
 
-                      gvcfQC <- intoQCFolder {
-                        implicit computationEnvironment =>
-                          HaplotypeCaller.collectVariantCallingMetrics(
-                            CollectVariantCallingMetricsInput(
-                              indexedReference,
-                              genotypedVcf,
-                              dbSnpVcf,
-                              Some(variantEvaluationIntervals)))(
-                            ResourceConfig.minimal,
-                            priorityVcf)
-                      }
                       startGvcfQCInInterval = intoQCFolder {
                         implicit computationEnvironment =>
                           HaplotypeCaller.collectVariantCallingMetrics(
@@ -325,11 +314,10 @@ object ProtoPipelineStages extends StrictLogging {
                       startGvcfQCOverall = intoQCFolder {
                         implicit computationEnvironment =>
                           HaplotypeCaller.collectVariantCallingMetrics(
-                            CollectVariantCallingMetricsInput(
-                              indexedReference,
-                              genotypedVcf,
-                              dbSnpVcf,
-                              Some(variantEvaluationIntervals)))(
+                            CollectVariantCallingMetricsInput(indexedReference,
+                                                              genotypedVcf,
+                                                              dbSnpVcf,
+                                                              None))(
                             ResourceConfig.minimal,
                             priorityVcf)
                       }
