@@ -169,190 +169,172 @@ object ProtoPipelineStages extends StrictLogging {
                                     analysisId,
                                     coverageThisRun.all))
 
-            maybeMerged <- if (coverageTotal.reachedCoverageTarget(
-                                 minimumTargetedCoverage =
-                                   minimumTargetedCoverage,
-                                 minimumWGSCoverage = minimumWGSCoverage))
-              intoIntermediateFolder { implicit computationEnvironment =>
-                logger.info(
-                  s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId reached coverage target with $coverageTotal (minimumWGSCoverage = $minimumWGSCoverage, minimumTargetedCoverage = $minimumTargetedCoverage).")
-                BWAAlignment
-                  .mergeAndMarkDuplicate(
-                    BamsWithSampleMetadata(
-                      demultiplexed.project,
-                      demultiplexed.sampleId,
-                      allAlignedLanes.map(_.bam).toSet.toStable))(
-                    ResourceConfig.picardMergeAndMarkDuplicates)
-                  .map(Option(_))
-              } else {
+            mergedResult <- if (!coverageTotal.reachedCoverageTarget(
+                                  minimumTargetedCoverage =
+                                    minimumTargetedCoverage,
+                                  minimumWGSCoverage = minimumWGSCoverage)) {
               logger.info(
                 s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId has coverage $coverageTotal which is low (needs targeted $minimumTargetedCoverage /wgs $minimumWGSCoverage). Shortcut processing. (minimumWGSCoverage = $minimumWGSCoverage, minimumTargetedCoverage = $minimumTargetedCoverage)")
               Future.successful(None)
-            }
+            } else {
+              logger.info(
+                s"$runIdTag ${demultiplexed.project} ${demultiplexed.sampleId} $analysisId reached coverage target with $coverageTotal (minimumWGSCoverage = $minimumWGSCoverage, minimumTargetedCoverage = $minimumTargetedCoverage).")
 
-            mergedResult <- maybeMerged match {
-              case None => Future.successful(None)
-              case Some(mergedMarkDuplicateMarkedBamFile) =>
-                for {
+              for {
 
-                  BQSRResult(recalibrated) <- BaseQualityScoreRecalibration
-                    .bqsr(
-                      BQSRInput(mergedMarkDuplicateMarkedBamFile.bam.bam,
-                                indexedReference,
-                                knownSites,
-                                demultiplexed.project,
-                                demultiplexed.sampleId,
-                                analysisId))(ResourceConfig.minimal,
-                                             priorityBam)
+                BQSRResult(recalibrated, markDuplicateMetrics) <- BaseQualityScoreRecalibration
+                  .bqsr(
+                    BQSRInput(allAlignedLanes.map(_.bam).toSet.toStable,
+                              indexedReference,
+                              knownSites,
+                              demultiplexed.project,
+                              demultiplexed.sampleId,
+                              analysisId))(ResourceConfig.minimal, priorityBam)
 
-                  _ <- mergedMarkDuplicateMarkedBamFile.bam.bam.file.delete
+                recalibratedPath <- recalibrated.bam.uri.map(_.toString)
+                _ = ProgressServer.send(
+                  BamAvailable(demultiplexed.project,
+                               demultiplexed.sampleId,
+                               runIdTag,
+                               analysisId,
+                               recalibratedPath))
 
-                  recalibratedPath <- recalibrated.bam.uri.map(_.toString)
-                  _ = ProgressServer.send(
-                    BamAvailable(demultiplexed.project,
-                                 demultiplexed.sampleId,
-                                 runIdTag,
-                                 analysisId,
-                                 recalibratedPath))
-
-                  alignmentQC = intoQCFolder {
-                    implicit computationEnvironment =>
-                      AlignmentQC.general(
-                        AlignmentQCInput(recalibrated, indexedReference))(
-                        ResourceConfig.minimal,
-                        priorityBam)
-                  }
-                  targetSelectionQC = intoQCFolder {
-                    implicit computationEnvironment =>
-                      AlignmentQC.hybridizationSelection(
-                        SelectionQCInput(recalibrated,
-                                         indexedReference,
-                                         selectionTargetIntervals))(
-                        ResourceConfig.collectHSMetrics,
-                        priorityBam)
-                  }
-                  wgsQC = intoQCFolder { implicit computationEnvironment =>
-                    AlignmentQC.wholeGenomeMetrics(
-                      CollectWholeGenomeMetricsInput(recalibrated,
-                                                     indexedReference))(
-                      ResourceConfig.minimal,
+                alignmentQC = intoQCFolder { implicit computationEnvironment =>
+                  AlignmentQC.general(
+                    AlignmentQCInput(recalibrated, indexedReference))(
+                    ResourceConfig.minimal,
+                    priorityBam)
+                }
+                targetSelectionQC = intoQCFolder {
+                  implicit computationEnvironment =>
+                    AlignmentQC.hybridizationSelection(
+                      SelectionQCInput(recalibrated,
+                                       indexedReference,
+                                       selectionTargetIntervals))(
+                      ResourceConfig.collectHSMetrics,
                       priorityBam)
-                  }
+                }
+                wgsQC = intoQCFolder { implicit computationEnvironment =>
+                  AlignmentQC.wholeGenomeMetrics(
+                    CollectWholeGenomeMetricsInput(recalibrated,
+                                                   indexedReference))(
+                    ResourceConfig.minimal,
+                    priorityBam)
+                }
 
-                  wgsQC <- wgsQC
+                wgsQC <- wgsQC
 
-                  targetSelectionQC <- targetSelectionQC
-                  alignmentQC <- alignmentQC
+                targetSelectionQC <- targetSelectionQC
+                alignmentQC <- alignmentQC
 
-                  wgsMeanCoverage <- AlignmentQC.getWGSMeanCoverage(
-                    wgsQC,
-                    demultiplexed.project,
-                    demultiplexed.sampleId)
-                  targetedMeanCoverage <- AlignmentQC.getTargetedMeanCoverage(
-                    targetSelectionQC,
-                    demultiplexed.project,
-                    demultiplexed.sampleId
-                  )
+                wgsMeanCoverage <- AlignmentQC.getWGSMeanCoverage(
+                  wgsQC,
+                  demultiplexed.project,
+                  demultiplexed.sampleId)
+                targetedMeanCoverage <- AlignmentQC.getTargetedMeanCoverage(
+                  targetSelectionQC,
+                  demultiplexed.project,
+                  demultiplexed.sampleId
+                )
 
-                  variantCalls <- if (!executeVariantCalling(
-                                        doVariantCalling = doVariantCalling,
-                                        wgsCoverage = wgsMeanCoverage,
-                                        targetedCoverage = targetedMeanCoverage,
-                                        minimumTargetedCoverage =
-                                          minimumTargetedCoverage,
-                                        minimumWGSCoverage = minimumWGSCoverage
-                                      ))
-                    Future.successful(None)
-                  else {
-                    for {
-                      haplotypeCallerReferenceCalls <- intoFinalFolder {
-                        implicit computationEnvironment =>
-                          HaplotypeCaller.haplotypeCaller(
-                            HaplotypeCallerInput(recalibrated,
-                                                 indexedReference,
-                                                 contigsFile))(
-                            ResourceConfig.minimal,
-                            priorityVcf)
-                      }
+                variantCalls <- if (!executeVariantCalling(
+                                      doVariantCalling = doVariantCalling,
+                                      wgsCoverage = wgsMeanCoverage,
+                                      targetedCoverage = targetedMeanCoverage,
+                                      minimumTargetedCoverage =
+                                        minimumTargetedCoverage,
+                                      minimumWGSCoverage = minimumWGSCoverage
+                                    ))
+                  Future.successful(None)
+                else {
+                  for {
+                    haplotypeCallerReferenceCalls <- intoFinalFolder {
+                      implicit computationEnvironment =>
+                        HaplotypeCaller.haplotypeCaller(
+                          HaplotypeCallerInput(recalibrated,
+                                               indexedReference,
+                                               contigsFile))(
+                          ResourceConfig.minimal,
+                          priorityVcf)
+                    }
 
-                      GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
-                        implicit computationEnvironment =>
-                          HaplotypeCaller.genotypeGvcfs(
-                            GenotypeGVCFsInput(
-                              StableSet(haplotypeCallerReferenceCalls),
-                              indexedReference,
-                              dbSnpVcf,
-                              demultiplexed.project + "." + demultiplexed.sampleId + ".single",
-                              vqsrTrainingFiles = vqsrTrainingFiles,
-                              contigsFile = contigsFile
-                            ))(ResourceConfig.minimal, priorityVcf)
-                      }
+                    GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
+                      implicit computationEnvironment =>
+                        HaplotypeCaller.genotypeGvcfs(
+                          GenotypeGVCFsInput(
+                            StableSet(haplotypeCallerReferenceCalls),
+                            indexedReference,
+                            dbSnpVcf,
+                            demultiplexed.project + "." + demultiplexed.sampleId + ".single",
+                            vqsrTrainingFiles = vqsrTrainingFiles,
+                            contigsFile = contigsFile
+                          ))(ResourceConfig.minimal, priorityVcf)
+                    }
 
-                      genotypedVcf <- intoFinalFolder {
-                        implicit computationEnvironment =>
-                          HaplotypeCaller.mergeVcfs(MergeVCFInput(
-                            genotypesScattered,
-                            demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
-                            ResourceConfig.minimal,
-                            priorityVcf)
-                      }
+                    genotypedVcf <- intoFinalFolder {
+                      implicit computationEnvironment =>
+                        HaplotypeCaller.mergeVcfs(MergeVCFInput(
+                          genotypesScattered,
+                          demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
+                          ResourceConfig.minimal,
+                          priorityVcf)
+                    }
 
-                      genotypedVcfPath <- genotypedVcf.vcf.uri.map(_.toString)
-                      _ = ProgressServer.send(
-                        VCFAvailable(demultiplexed.project,
-                                     demultiplexed.sampleId,
-                                     runIdTag,
-                                     analysisId,
-                                     genotypedVcfPath))
+                    genotypedVcfPath <- genotypedVcf.vcf.uri.map(_.toString)
+                    _ = ProgressServer.send(
+                      VCFAvailable(demultiplexed.project,
+                                   demultiplexed.sampleId,
+                                   runIdTag,
+                                   analysisId,
+                                   genotypedVcfPath))
 
-                      startGvcfQCInInterval = intoQCFolder {
-                        implicit computationEnvironment =>
-                          HaplotypeCaller.collectVariantCallingMetrics(
-                            CollectVariantCallingMetricsInput(
-                              indexedReference,
-                              genotypedVcf,
-                              dbSnpVcf,
-                              Some(variantEvaluationIntervals)))(
-                            ResourceConfig.minimal,
-                            priorityVcf)
-                      }
-                      startGvcfQCOverall = intoQCFolder {
-                        implicit computationEnvironment =>
-                          HaplotypeCaller.collectVariantCallingMetrics(
-                            CollectVariantCallingMetricsInput(indexedReference,
-                                                              genotypedVcf,
-                                                              dbSnpVcf,
-                                                              None))(
-                            ResourceConfig.minimal,
-                            priorityVcf)
-                      }
-                      gvcfQCInterval <- startGvcfQCInInterval
-                      gvcfQCOverall <- startGvcfQCOverall
-                    } yield
-                      Some(
-                        (haplotypeCallerReferenceCalls,
-                         genotypedVcf,
-                         gvcfQCInterval,
-                         gvcfQCOverall))
-                  }
+                    startGvcfQCInInterval = intoQCFolder {
+                      implicit computationEnvironment =>
+                        HaplotypeCaller.collectVariantCallingMetrics(
+                          CollectVariantCallingMetricsInput(
+                            indexedReference,
+                            genotypedVcf,
+                            dbSnpVcf,
+                            Some(variantEvaluationIntervals)))(
+                          ResourceConfig.minimal,
+                          priorityVcf)
+                    }
+                    startGvcfQCOverall = intoQCFolder {
+                      implicit computationEnvironment =>
+                        HaplotypeCaller.collectVariantCallingMetrics(
+                          CollectVariantCallingMetricsInput(indexedReference,
+                                                            genotypedVcf,
+                                                            dbSnpVcf,
+                                                            None))(
+                          ResourceConfig.minimal,
+                          priorityVcf)
+                    }
+                    gvcfQCInterval <- startGvcfQCInInterval
+                    gvcfQCOverall <- startGvcfQCOverall
+                  } yield
+                    Some(
+                      (haplotypeCallerReferenceCalls,
+                       genotypedVcf,
+                       gvcfQCInterval,
+                       gvcfQCOverall))
+                }
 
-                } yield
-                  Some(
-                    PerSampleMergedWESResult(
-                      bam = recalibrated,
-                      haplotypeCallerReferenceCalls = variantCalls.map(_._1),
-                      gvcf = variantCalls.map(_._2),
-                      project = demultiplexed.project,
-                      sampleId = demultiplexed.sampleId,
-                      alignmentQC = alignmentQC,
-                      duplicationQC =
-                        mergedMarkDuplicateMarkedBamFile.duplicateMetric,
-                      targetSelectionQC = targetSelectionQC,
-                      wgsQC = wgsQC,
-                      gvcfQCInterval = variantCalls.map(_._3),
-                      gvcfQCOverall = variantCalls.map(_._4),
-                      referenceFasta = indexedReference
-                    ))
+              } yield
+                Some(
+                  PerSampleMergedWESResult(
+                    bam = recalibrated,
+                    haplotypeCallerReferenceCalls = variantCalls.map(_._1),
+                    gvcf = variantCalls.map(_._2),
+                    project = demultiplexed.project,
+                    sampleId = demultiplexed.sampleId,
+                    alignmentQC = alignmentQC,
+                    duplicationQC = markDuplicateMetrics,
+                    targetSelectionQC = targetSelectionQC,
+                    wgsQC = wgsQC,
+                    gvcfQCInterval = variantCalls.map(_._3),
+                    gvcfQCOverall = variantCalls.map(_._4),
+                    referenceFasta = indexedReference
+                  ))
             }
 
           } yield

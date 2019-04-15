@@ -19,14 +19,15 @@ import scala.collection.JavaConverters._
 import java.io.File
 import org.gc.pipelines.model.{Project, SampleId, AnalysisId}
 
-case class BQSRInput(bam: Bam,
+case class BQSRInput(bam: StableSet[Bam],
                      reference: IndexedReferenceFasta,
                      knownSites: StableSet[VCF],
                      project: Project,
                      sampleId: SampleId,
                      analysisId: AnalysisId)
     extends WithSharedFiles(
-      bam.files ++ reference.files ++ knownSites.toSeq.flatMap(_.files): _*)
+      bam.toSeq.flatMap(_.files) ++ reference.files ++ knownSites.toSeq.flatMap(
+        _.files): _*)
 case class TrainBQSRInput(bam: CoordinateSortedBam,
                           reference: IndexedReferenceFasta,
                           knownSites: StableSet[VCF])
@@ -51,12 +52,18 @@ case class ApplyBQSRInputScatteredPiece(bam: CoordinateSortedBam,
                                         interval: String)
     extends WithSharedFiles(bam.files ++ reference.files ++ bqsrTable.files: _*)
 
-case class BQSRResult(coordinateSortedBam: CoordinateSortedBam)
+case class BQSRResult(coordinateSortedBam: CoordinateSortedBam,
+                      duplicateMetric: DuplicationQCResult)
 
 object BaseQualityScoreRecalibration {
 
   val bqsr = AsyncTask[BQSRInput, BQSRResult]("__bqsr", 1) {
-    case BQSRInput(bam, reference, knownSites, project, sampleId, analysisId) =>
+    case BQSRInput(bams,
+                   reference,
+                   knownSites,
+                   project,
+                   sampleId,
+                   analysisId) =>
       implicit computationEnvironment =>
         releaseResources
         def intoIntermediateFolder[T] =
@@ -69,9 +76,19 @@ object BaseQualityScoreRecalibration {
             Seq("projects", project, sampleId, analysisId).filter(_.nonEmpty))
 
         for {
+          mergedBam <- intoIntermediateFolder {
+            implicit computationEnvironment =>
+              BWAAlignment
+                .mergeAndMarkDuplicate(
+                  BamsWithSampleMetadata(project, sampleId, bams))(
+                  ResourceConfig.picardMergeAndMarkDuplicates)
+
+          }
+
           coordinateSorted <- intoIntermediateFolder {
             implicit computationEnvironment =>
-              BWAAlignment.sortByCoordinateAndIndex(bam)(ResourceConfig.sortBam)
+              BWAAlignment.sortByCoordinateAndIndex(mergedBam.bam.bam)(
+                ResourceConfig.sortBam)
           }
 
           bqsrTable <- intoIntermediateFolder {
@@ -88,7 +105,8 @@ object BaseQualityScoreRecalibration {
           }
           _ <- coordinateSorted.bam.delete
           _ <- coordinateSorted.bai.delete
-        } yield BQSRResult(recalibrated)
+          _ <- mergedBam.bam.bam.file.delete
+        } yield BQSRResult(recalibrated, mergedBam.duplicateMetric)
   }
 
   def createIntervals(dict: File): Seq[String] = {
@@ -390,8 +408,8 @@ object BQSRInput {
 object BQSRResult {
 
   implicit val encoder: Encoder[BQSRResult] =
-    CoordinateSortedBam.encoder.contramap(_.coordinateSortedBam)
+    deriveEncoder[BQSRResult]
   implicit val decoder: Decoder[BQSRResult] =
-    CoordinateSortedBam.decoder.map(BQSRResult(_))
+    deriveDecoder[BQSRResult]
 
 }
