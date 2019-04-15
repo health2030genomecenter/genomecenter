@@ -572,6 +572,8 @@ object Pipelinectl extends App {
             .collect {
               case v: FastCoverageAvailable => v
             }
+            .distinct
+
           val perRun = coverages
             .collect {
               case FastCoverageAvailable(project,

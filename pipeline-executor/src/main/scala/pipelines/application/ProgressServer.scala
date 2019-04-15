@@ -318,7 +318,7 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                         true
                       case _ => false
                     }
-                  events.asJson.noSpaces
+                  events.distinct.asJson.noSpaces
                 }
               }
             }
