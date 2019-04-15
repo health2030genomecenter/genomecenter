@@ -204,7 +204,7 @@ object ProtoPipelineStages extends StrictLogging {
                                 analysisId))(ResourceConfig.minimal,
                                              priorityBam)
 
-                              analysisId))(ResourceConfig.minimal, priorityBam)
+                  _ <- mergedMarkDuplicateMarkedBamFile.bam.bam.file.delete
 
                   recalibratedPath <- recalibrated.bam.uri.map(_.toString)
                   _ = ProgressServer.send(
