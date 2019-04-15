@@ -125,7 +125,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
             .right
             .get
-            .size shouldBe 10,
+            .size shouldBe 12,
           30 seconds)
         getProgress("/v2/bams/project1").size > 3 shouldBe true
         getProgress("/v2/vcfs/project1") shouldBe "\n"
@@ -171,7 +171,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             .decode[Seq[ProgressData]](getProgress("/v2/projects/project1"))
             .right
             .get
-            .size shouldBe 15,
+            .size shouldBe 18,
           5 seconds)
 
       }
