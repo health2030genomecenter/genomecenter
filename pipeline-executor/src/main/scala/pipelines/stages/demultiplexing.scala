@@ -406,7 +406,7 @@ object Demultiplexing {
             }
 
             statsFileContent <- fastQAndStatFiles
-              .dropRight(2)
+              .dropRight(2) // drop stderr and stdout files
               .last
               .source
               .runFold(ByteString.empty)(_ ++ _)
