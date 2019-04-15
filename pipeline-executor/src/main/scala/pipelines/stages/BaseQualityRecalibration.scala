@@ -51,9 +51,11 @@ case class ApplyBQSRInputScatteredPiece(bam: CoordinateSortedBam,
                                         interval: String)
     extends WithSharedFiles(bam.files ++ reference.files ++ bqsrTable.files: _*)
 
+case class BQSRResult(coordinateSortedBam: CoordinateSortedBam)
+
 object BaseQualityScoreRecalibration {
 
-  val bqsr = AsyncTask[BQSRInput, CoordinateSortedBam]("__bqsr", 1) {
+  val bqsr = AsyncTask[BQSRInput, BQSRResult]("__bqsr", 1) {
     case BQSRInput(bam, reference, knownSites, project, sampleId, analysisId) =>
       implicit computationEnvironment =>
         releaseResources
@@ -86,7 +88,7 @@ object BaseQualityScoreRecalibration {
           }
           _ <- coordinateSorted.bam.delete
           _ <- coordinateSorted.bai.delete
-        } yield recalibrated
+        } yield BQSRResult(recalibrated)
   }
 
   def createIntervals(dict: File): Seq[String] = {
@@ -383,4 +385,13 @@ object BQSRInput {
     deriveEncoder[BQSRInput]
   implicit val decoder: Decoder[BQSRInput] =
     deriveDecoder[BQSRInput]
+}
+
+object BQSRResult {
+
+  implicit val encoder: Encoder[BQSRResult] =
+    CoordinateSortedBam.encoder.contramap(_.coordinateSortedBam)
+  implicit val decoder: Decoder[BQSRResult] =
+    CoordinateSortedBam.decoder.map(BQSRResult(_))
+
 }

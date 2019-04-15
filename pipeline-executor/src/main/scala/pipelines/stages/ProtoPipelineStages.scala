@@ -194,12 +194,16 @@ object ProtoPipelineStages extends StrictLogging {
               case Some(mergedMarkDuplicateMarkedBamFile) =>
                 for {
 
-                  recalibrated <- BaseQualityScoreRecalibration.bqsr(
-                    BQSRInput(mergedMarkDuplicateMarkedBamFile.bam.bam,
-                              indexedReference,
-                              knownSites,
-                              demultiplexed.project,
-                              demultiplexed.sampleId,
+                  BQSRResult(recalibrated) <- BaseQualityScoreRecalibration
+                    .bqsr(
+                      BQSRInput(mergedMarkDuplicateMarkedBamFile.bam.bam,
+                                indexedReference,
+                                knownSites,
+                                demultiplexed.project,
+                                demultiplexed.sampleId,
+                                analysisId))(ResourceConfig.minimal,
+                                             priorityBam)
+
                               analysisId))(ResourceConfig.minimal, priorityBam)
 
                   recalibratedPath <- recalibrated.bam.uri.map(_.toString)
