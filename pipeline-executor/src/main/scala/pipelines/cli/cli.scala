@@ -105,6 +105,9 @@ object CliHelpers {
       # optional, if missing main human chromosomes ([chr]1-22,X,Y,M,MT) are used
       # path to file 
       # variantCallingContigs =
+
+      # optional, if present and true vqsr is tried on single samples
+      # singleSampleVqsr =
     }
 
     # Specify either the wes or the rna object, but not both!
