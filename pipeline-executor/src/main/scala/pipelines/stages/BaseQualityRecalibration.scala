@@ -57,7 +57,7 @@ case class BQSRResult(coordinateSortedBam: CoordinateSortedBam,
 
 object BaseQualityScoreRecalibration {
 
-  val bqsr = AsyncTask[BQSRInput, BQSRResult]("__bqsr", 1) {
+  val bqsr = AsyncTask[BQSRInput, BQSRResult]("__bqsr", 2) {
     case BQSRInput(bams,
                    reference,
                    knownSites,
