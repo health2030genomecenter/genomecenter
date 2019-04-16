@@ -14,10 +14,6 @@ import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 
-object MainConfig {
-  val httpPort = 9099
-}
-
 /* Entry point of the application
  *
  * Isolated from the main method to ease end to end testing.
@@ -81,7 +77,7 @@ class Application(implicit ec: ExecutionContext,
 
   val httpServer =
     new HttpServer(
-      port = MainConfig.httpPort,
+      port = config.getInt("gc.http.port"),
       Seq(commandSource.route, progressServer.route, queryComponent.route))
 
   val httpBinding = httpServer.startServer

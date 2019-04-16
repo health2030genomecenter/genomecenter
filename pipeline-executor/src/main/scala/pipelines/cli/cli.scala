@@ -164,7 +164,7 @@ object Pipelinectl extends App {
   val hostname = config.getString("gc.cli.hostname")
   val port =
     if (config.hasPath("gc.cli.port")) config.getInt("gc.cli.port")
-    else org.gc.pipelines.MainConfig.httpPort
+    else config.getInt("gc.http.port")
 
   def post(endpoint: String, data: String) = {
     Http(s"http://$hostname:$port$endpoint")
