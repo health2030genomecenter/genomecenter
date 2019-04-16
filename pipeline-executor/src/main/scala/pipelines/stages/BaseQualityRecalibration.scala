@@ -75,49 +75,39 @@ object BaseQualityScoreRecalibration {
         def intoFinalFolder[T] =
           appendToFilePrefix[T](rootFolder)
 
-        fromFileList(
-          Seq(
-            rootFolder :+ "intermediate" :+ s"$project.$sampleId.mdup.markDuplicateMetrics",
-            rootFolder :+ s"$project.$sampleId.mdup.sorted.bam.bqsr.bam",
-            rootFolder :+ s"$project.$sampleId.mdup.sorted.bam.bqsr.bai"
-          )) { list =>
-          BQSRResult(CoordinateSortedBam(list(1), list(2)),
-                     DuplicationQCResult(list(0)))
-        } {
+        for {
+          mergedBam <- intoIntermediateFolder {
+            implicit computationEnvironment =>
+              BWAAlignment
+                .mergeAndMarkDuplicate(
+                  BamsWithSampleMetadata(project, sampleId, bams))(
+                  ResourceConfig.picardMergeAndMarkDuplicates)
 
-          for {
-            mergedBam <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                BWAAlignment
-                  .mergeAndMarkDuplicate(
-                    BamsWithSampleMetadata(project, sampleId, bams))(
-                    ResourceConfig.picardMergeAndMarkDuplicates)
+          }
 
-            }
+          coordinateSorted <- intoIntermediateFolder {
+            implicit computationEnvironment =>
+              BWAAlignment.sortByCoordinateAndIndex(mergedBam.bam.bam)(
+                ResourceConfig.sortBam)
+          }
 
-            coordinateSorted <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                BWAAlignment.sortByCoordinateAndIndex(mergedBam.bam.bam)(
-                  ResourceConfig.sortBam)
-            }
+          bqsrTable <- intoIntermediateFolder {
+            implicit computationEnvironment =>
+              BaseQualityScoreRecalibration.trainBQSR(
+                TrainBQSRInput(coordinateSorted, reference, knownSites))(
+                ResourceConfig.trainBqsr)
+          }
+          recalibrated <- intoFinalFolder { implicit computationEnvironment =>
+            BaseQualityScoreRecalibration.applyBQSR(
+              ApplyBQSRInput(coordinateSorted, reference, bqsrTable))(
+              ResourceConfig.applyBqsr
+            )
+          }
+          _ <- coordinateSorted.bam.delete
+          _ <- coordinateSorted.bai.delete
+          _ <- mergedBam.bam.bam.file.delete
+        } yield BQSRResult(recalibrated, mergedBam.duplicateMetric)
 
-            bqsrTable <- intoIntermediateFolder {
-              implicit computationEnvironment =>
-                BaseQualityScoreRecalibration.trainBQSR(
-                  TrainBQSRInput(coordinateSorted, reference, knownSites))(
-                  ResourceConfig.trainBqsr)
-            }
-            recalibrated <- intoFinalFolder { implicit computationEnvironment =>
-              BaseQualityScoreRecalibration.applyBQSR(
-                ApplyBQSRInput(coordinateSorted, reference, bqsrTable))(
-                ResourceConfig.applyBqsr
-              )
-            }
-            _ <- coordinateSorted.bam.delete
-            _ <- coordinateSorted.bai.delete
-            _ <- mergedBam.bam.bam.file.delete
-          } yield BQSRResult(recalibrated, mergedBam.duplicateMetric)
-        }
   }
 
   def createIntervals(dict: File): Seq[String] = {
