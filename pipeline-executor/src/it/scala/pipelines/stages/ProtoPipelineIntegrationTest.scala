@@ -260,7 +260,8 @@ class ProtopipelineIntegrationTestSuite
       doJointCalls = Some(true),
       minimumTargetCoverage = None,
       minimumWGSCoverage = None,
-      variantCallingContigs = None
+      variantCallingContigs = None,
+      singleSampleVqsr = None
     )
 
     val rnaConfiguration = RNASeqConfiguration(

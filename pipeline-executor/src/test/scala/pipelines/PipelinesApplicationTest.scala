@@ -799,7 +799,8 @@ class PipelinesApplicationTest
         doJointCalls = Some(true),
         minimumWGSCoverage = Some(20.0),
         minimumTargetCoverage = Some(20.0),
-        variantCallingContigs = None
+        variantCallingContigs = None,
+        singleSampleVqsr = None
       )
 
     val analysisAssignment = AnalysisAssignments(

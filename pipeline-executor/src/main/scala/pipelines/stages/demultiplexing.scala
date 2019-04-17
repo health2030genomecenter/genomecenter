@@ -28,57 +28,9 @@ case class DemultiplexingInput(
     noPartition: Option[Boolean],
     partitionByTileCount: Option[Int]
 ) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*) {
-  def readLengths: Map[ReadType, Int] = {
-
-    def parsingLoop(input: List[Char],
-                    subLength: Int,
-                    subChar: Option[Char],
-                    acc: List[(Char, Int)]): Either[String, List[(Char, Int)]] =
-      input match {
-        case Nil if subChar.isDefined =>
-          Right((subChar.get, subLength) :: acc)
-        case Nil => Right(acc)
-        case c :: cs if c.isDigit && subChar.isDefined =>
-          val (lenString, remaining) = (c :: cs).span(_.isDigit)
-          parsingLoop(
-            remaining,
-            0,
-            None,
-            (subChar.get, lenString.mkString.toInt + subLength) :: acc)
-        case c :: _ if c.isDigit =>
-          Left("Illegal input. Expected non digit. " + input.mkString)
-        case c :: cs => parsingLoop(cs, subLength + 1, Some(c), acc)
-
-      }
-
-    val idx = extraBcl2FastqCliArguments.indexOf("--use-bases-mask")
-    if (extraBcl2FastqCliArguments.size >= idx + 2) {
-      val argument = extraBcl2FastqCliArguments(idx + 1)
-      val spl = argument.split(",")
-      val sections = spl.map { section =>
-        val parsedSection = parsingLoop(section.toSeq.toList, 0, None, Nil)
-        parsedSection match {
-          case Left(error) => throw new RuntimeException(error)
-          case Right(parsedSection) =>
-            parsedSection
-              .filter(_._1 == 'y')
-              .map(_._2)
-              .sum
-
-        }
-
-      }
-      sections
-        .filter(_ > 0)
-        .zipWithIndex
-        .map {
-          case (length, idx) =>
-            ReadType(idx + 1) -> length
-        }
-        .toMap
-
-    } else Map.empty
-  }
+  def readLengths: Map[ReadType, Int] =
+    DemultiplexingInput.parseReadLengthFromBcl2FastqArguments(
+      extraBcl2FastqCliArguments)
 }
 
 case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
@@ -455,4 +407,60 @@ object DemultiplexingInput {
     deriveEncoder[DemultiplexingInput]
   implicit val decoder: Decoder[DemultiplexingInput] =
     deriveDecoder[DemultiplexingInput]
+
+  def parseReadLengthFromBcl2FastqArguments(
+      arguments: Seq[String]): Map[ReadType, Int] = {
+
+    def parsingLoop(input: List[Char],
+                    subLength: Int,
+                    subChar: Option[Char],
+                    acc: List[(Char, Int)]): Either[String, List[(Char, Int)]] =
+      input match {
+        case Nil if subChar.isDefined =>
+          Right((subChar.get, subLength) :: acc)
+        case Nil => Right(acc)
+        case c :: cs if c.isDigit && subChar.isDefined =>
+          val (lenString, remaining) = (c :: cs).span(_.isDigit)
+          parsingLoop(remaining,
+                      lenString.mkString.toInt + subLength - 1,
+                      subChar,
+                      acc)
+        case c :: _ if c.isDigit =>
+          Left("Illegal input. Expected non digit. " + input.mkString)
+        case c :: cs if subChar.isDefined && subChar.get == c =>
+          parsingLoop(cs, subLength + 1, Some(c), acc)
+        case c :: cs if subChar.isDefined =>
+          parsingLoop(cs, 1, Some(c), (subChar.get, subLength) :: acc)
+        case c :: cs => parsingLoop(cs, 1, Some(c), acc)
+
+      }
+
+    val idx = arguments.indexOf("--use-bases-mask")
+    if (arguments.size >= idx + 2) {
+      val argument = arguments(idx + 1)
+      val spl = argument.split(",")
+      val sections = spl.map { section =>
+        val parsedSection = parsingLoop(section.toSeq.toList, 0, None, Nil)
+        parsedSection match {
+          case Left(error) => throw new RuntimeException(error)
+          case Right(parsedSection) =>
+            parsedSection
+              .filter(_._1 == 'y')
+              .map(_._2)
+              .sum
+
+        }
+
+      }
+      sections
+        .filter(_ > 0)
+        .zipWithIndex
+        .map {
+          case (length, idx) =>
+            ReadType(idx + 1) -> length
+        }
+        .toMap
+
+    } else Map.empty
+  }
 }

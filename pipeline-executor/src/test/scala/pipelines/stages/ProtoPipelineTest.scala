@@ -215,7 +215,8 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       doJointCalls = Some(true),
       minimumTargetCoverage = None,
       minimumWGSCoverage = None,
-      variantCallingContigs = None
+      variantCallingContigs = None,
+      singleSampleVqsr = None
     )
 
     val runConfiguration = RunConfiguration(
