@@ -298,11 +298,31 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                 for {
                   data <- getData
                 } yield {
-                  val event: Option[ProgressData] = data.collect {
-                    case d: DeliveryListAvailable if d.project == project => d
+                  val allDeliveryLists: Seq[DeliveryListAvailable] =
+                    data.collect {
+                      case d: DeliveryListAvailable if d.project == project => d
 
-                  }.lastOption
-                  event.asJson.noSpaces
+                    }
+                  val chosen: Option[ProgressData] =
+                    allDeliveryLists.toList match {
+                      case Nil           => None
+                      case single :: Nil => Some(single)
+                      case multiple =>
+                        logger.info(
+                          "Multiple delivery lists are available. Choosing the one with the most runs.")
+                        val mostRuns =
+                          multiple.sortBy(_.runsIncluded.size).reverse.head
+                        // check that this list encloses all other
+                        multiple.foreach { otherList =>
+                          val missing = otherList.runsIncluded.toSet &~ mostRuns.runsIncluded.toSet
+                          if (missing.nonEmpty) {
+                            logger.error(
+                              s"Multiple non overlapping delivery lists found. $allDeliveryLists")
+                          }
+                        }
+                        Some(mostRuns)
+                    }
+                  chosen.asJson.noSpaces
                 }
               }
             } ~
