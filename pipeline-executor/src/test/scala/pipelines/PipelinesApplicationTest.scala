@@ -691,40 +691,6 @@ class PipelinesApplicationTest
 
   }
 
-  test(
-    "pipelines application should respect the pipeline's `canProcess` method") {
-    implicit val AS = ActorSystem()
-    implicit val materializer = ActorMaterializer()
-    val config = ConfigFactory.parseString("""
-  tasks.cache.enabled = false
-    """)
-    val numberOfRuns = 3
-    val eventSource = new FakeSequencingCompleteEventSource(numberOfRuns, false)
-    val pipelineState = new InMemoryPipelineState
-    val taskSystem = defaultTaskSystem(Some(config))
-
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       TestPipelineWhichNeverRuns,
-                                       Set())
-
-    val processedRuns = Await.result(app.processingFinishedSource
-                                       .takeWithin(6 seconds)
-                                       .runWith(Sink.seq),
-                                     atMost = 15 seconds)
-
-    processedRuns
-      .collect {
-        case RunFinished(_, success) => success
-      }
-      .count(identity) shouldBe 0
-
-    taskSystem.shutdown
-
-  }
-
   test("pipelines application should survive a failing pipeline") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
@@ -973,20 +939,11 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult, Unit] {
         ))
     }
 
-  def canProcess(r: RunfolderReadyForProcessing) = true
 }
 
 class TestPipeline extends FakePipeline
 
-object TestPipelineWhichNeverRuns extends FakePipeline {
-
-  override def canProcess(r: RunfolderReadyForProcessing) = false
-
-}
-
 object TestPipelineWhichFails extends FakePipeline {
-
-  override def canProcess(r: RunfolderReadyForProcessing) = true
 
   def fail = {
     def zero = 0

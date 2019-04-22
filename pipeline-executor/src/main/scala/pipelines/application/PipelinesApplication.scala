@@ -205,7 +205,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         }
         runs
       }
-      .mapConcat(identity)
 
   private val persistCommandsFunction =
     PipelinesApplication.persistCommands(pipelineState)
@@ -219,6 +218,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   def futureRuns =
     commandSource.commands
       .via(validateCommandAndPersistEvents)
+      .map(List(_))
 
   implicit val taskSystemComponents = taskSystem.components
   implicit val materializer = taskSystemComponents.actorMaterializer
@@ -229,7 +229,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    * The rest of the fields in this class are definitions for stages in this graph.
    */
   (previousRuns ++ futureRuns)
-    .filter(runWithAnalyses => pipeline.canProcess(runWithAnalyses.run))
     .via(accountAndProcess)
     .via(processCompletedRunsAndProjects)
     .via(watchTermination)
@@ -271,37 +270,39 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    *                                                           |
    *                                                           OUT [Completeds]
    */
-  def accountAndProcess: Flow[RunWithAnalyses, Completeds, _] =
-    Flow.fromGraph(GraphDSL
-      .create(accountWorkDone, demultiplex, sampleProcessing)((_, _, _)) {
-        implicit builder => (accountWorkDone, demultiplex, sampleProcessing) =>
-          import GraphDSL.Implicits._
+  def accountAndProcess: Flow[Seq[RunWithAnalyses], Completeds, _] =
+    Flow.fromGraph(
+      GraphDSL
+        .create(accountWorkDone, demultiplex, sampleProcessing)((_, _, _)) {
+          implicit builder =>
+            (accountWorkDone, demultiplex, sampleProcessing) =>
+              import GraphDSL.Implicits._
 
-          type DM = (RunWithAnalyses, Seq[DemultiplexedSample])
+              type DM = (RunWithAnalyses, Seq[DemultiplexedSample])
 
-          val merge =
-            builder.add(Merge[Stage](3))
+              val merge =
+                builder.add(Merge[Stage](3))
 
-          val mapToRaw =
-            builder.add(Flow[RunWithAnalyses].map(runFolder => Raw(runFolder)))
-          mapToRaw.out ~> merge.in(2)
+              val mapToRaw =
+                builder.add(Flow[Seq[RunWithAnalyses]].map(runs => Raw(runs)))
+              mapToRaw.out ~> merge.in(2)
 
-          accountWorkDone.out0 ~> Flow[DM]
-            .mapConcat {
-              case (run, samples) =>
-                samples.map(s => (run, s)).toList
-            } ~> sampleProcessing ~> Flow[SampleResult]
-            .map(ProcessedSample(_)) ~> merge.in(1)
+              accountWorkDone.out0 ~> Flow[DM]
+                .mapConcat {
+                  case (run, samples) =>
+                    samples.map(s => (run, s)).toList
+                } ~> sampleProcessing ~> Flow[SampleResult]
+                .map(ProcessedSample(_)) ~> merge.in(1)
 
-          merge.out ~> accountWorkDone.in
+              merge.out ~> accountWorkDone.in
 
-          accountWorkDone.out2 ~> demultiplex ~> Flow[DM].map {
-            case (run, demultiplexedSamples) =>
-              Demultiplexed(run, demultiplexedSamples)
-          } ~> merge.in(0)
+              accountWorkDone.out2 ~> demultiplex ~> Flow[DM].map {
+                case (run, demultiplexedSamples) =>
+                  Demultiplexed(run, demultiplexedSamples)
+              } ~> merge.in(0)
 
-          FlowShape(mapToRaw.in, accountWorkDone.out1)
-      })
+              FlowShape(mapToRaw.in, accountWorkDone.out1)
+        })
 
   def isOnBlacklist(sample: DemultiplexedSample): Boolean = {
     val (project, sampleId, _) = getKeysOfDemultiplexedSample(sample)
@@ -355,9 +356,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             s"Processed sample ${pipeline.getKeysOfSampleResult(processedSample)}")
           state.finish(processedSample)
 
-        case (state, Raw(runWithAnalyses)) =>
-          logger.info(s"Got new run ${runWithAnalyses.run.runId}")
-          state.addNewRun(runWithAnalyses)
+        case (state, Raw(runsWithAnalyses)) =>
+          logger.info(
+            s"Got new runs ${runsWithAnalyses.map(_.run.runId).mkString(", ")}")
+          state.addNewRuns(runsWithAnalyses)
       }
 
     GraphDSL
@@ -575,7 +577,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   case class CompletedRun(samples: Seq[SampleResult])
 
   sealed trait Stage
-  case class Raw(run: RunWithAnalyses) extends Stage
+  case class Raw(runs: Seq[RunWithAnalyses]) extends Stage
   case class Demultiplexed(run: RunWithAnalyses,
                            demultiplexed: Seq[DemultiplexedSample])
       extends Stage
@@ -654,24 +656,26 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         case None => runRemovedFromUnfinishedDemultiplexing
         case Some(run) =>
           runRemovedFromUnfinishedDemultiplexing
-            .addNewRun(run)
+            .addNewRuns(Seq(run))
       }
 
     }
 
-    def addNewRun(run: RunWithAnalyses) =
-      if (unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
-        logger.info(s"Put run on hold: ${run.runId}.")
-        copy(runFoldersOnHold = runFoldersOnHold :+ run,
-             sendToSampleProcessing = None,
-             sendToDemultiplexing = Nil)
-      } else {
-        logger.debug(s"Set state to send to demultiplexing: ${run.runId}.")
-        removeSamplesOfCompletedRuns.copy(
-          unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds + run.runId,
-          sendToSampleProcessing = None,
-          sendToDemultiplexing = List(run))
+    def addNewRuns(runs: Seq[RunWithAnalyses]) = {
+      val zero = copy(sendToSampleProcessing = None, sendToDemultiplexing = Nil)
+      runs.foldLeft(zero) {
+        case (state, run) =>
+          if (unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
+            logger.info(s"Put run on hold: ${run.runId}.")
+            state.copy(runFoldersOnHold = runFoldersOnHold :+ run)
+          } else {
+            logger.debug(s"Set state to send to demultiplexing: ${run.runId}.")
+            state.removeSamplesOfCompletedRuns.copy(
+              unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds + run.runId,
+              sendToDemultiplexing = sendToDemultiplexing :+ run)
+          }
       }
+    }
 
     def addNewDemultiplexedSamples(
         samples: (RunWithAnalyses, Seq[DemultiplexedSample]))

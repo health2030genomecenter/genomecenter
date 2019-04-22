@@ -27,8 +27,6 @@ class ProtoPipeline(progressServer: SendProgressData)(
     extends Pipeline[PerSamplePerRunFastQ, SampleResult, DeliverableList]
     with StrictLogging {
 
-  def canProcess(r: RunfolderReadyForProcessing) = true
-
   def getKeysOfDemultiplexedSample(
       d: PerSamplePerRunFastQ): (Project, SampleId, RunId) =
     (d.project, d.sampleId, d.runId)

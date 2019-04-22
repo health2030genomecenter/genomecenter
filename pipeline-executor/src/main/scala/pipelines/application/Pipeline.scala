@@ -7,7 +7,6 @@ import org.gc.pipelines.model.{Project, SampleId, RunId}
 
 /* Template for batch processing */
 trait Pipeline[DemultiplexedSample, SampleResult, DeliverableList] {
-  def canProcess(r: RunfolderReadyForProcessing): Boolean
   def demultiplex(r: RunfolderReadyForProcessing)(
       implicit tsc: TaskSystemComponents): Future[Seq[DemultiplexedSample]]
 
