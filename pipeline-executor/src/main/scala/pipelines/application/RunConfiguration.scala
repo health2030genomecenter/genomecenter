@@ -203,9 +203,18 @@ case class RunfolderReadyForProcessing(
         } else List(s"Can't read ${dm.sampleSheet}")
     }
 
+    val demultiplexingIdNonUnique = {
+      val error = runConfiguration.demultiplexingRuns
+        .map(_.demultiplexingId)
+        .size != runConfiguration.demultiplexingRuns.size
+      if (error) List("Demultiplexing ids are not unique")
+      else Nil
+    }
+
     (unreadableRunfolder ++
       unreadableConfigurationFiles ++
-      unreadableFastqs).map(path => s"Can't read: $path") ++ sampleSheetErrors
+      unreadableFastqs)
+      .map(path => s"Can't read: $path") ++ sampleSheetErrors ++ demultiplexingIdNonUnique
   }
 
 }
