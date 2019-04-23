@@ -599,11 +599,13 @@ object Pipelinectl extends App {
             .sorted
             .distinct
             .mkString("\n")
+
           println("PER RUN")
           println(perRun)
           println("TOTAL")
           println(total)
-
+          println(
+            "\nWhat this is: number of mapped, mapQ >20, read length >30, properly paired, pass filter reads over total sequence length (as in the fasta).")
         case QueryFastq =>
           val project = config.project.get
           println(get(s"/v2/fastqs/$project"))
