@@ -151,6 +151,7 @@ object Pipelinectl extends App {
   case object QueryProjects extends CliCommand
   case object QueryRunConfigurations extends CliCommand
   case object QueryAnalyses extends CliCommand
+  case object QueryDeliverables extends CliCommand
   case object AnalyseResourceUsage extends CliCommand
   case object LastRun extends CliCommand
 
@@ -335,6 +336,15 @@ object Pipelinectl extends App {
             .action((v, c) => c.copy(project = Some(v)))
             .required
         ),
+      cmd("query-deliverables")
+        .text("Queries deliverables per project")
+        .action((_, c) => c.copy(command = QueryDeliverables))
+        .children(
+          arg[String]("project")
+            .text("project name ")
+            .action((v, c) => c.copy(project = Some(v)))
+            .required
+        ),
       cmd("query-fastqs")
         .text("Queries finished fastq files per project")
         .action((_, c) => c.copy(command = QueryFastq))
@@ -479,6 +489,27 @@ object Pipelinectl extends App {
         case QueryBam =>
           val project = config.project.get
           println(get(s"/v2/bams/$project"))
+        case QueryDeliverables =>
+          val project = config.project.get
+          val deliveryList = io.circe.parser
+            .decode[Option[ProgressData]](get(s"/v2/deliveries/$project"))
+            .right
+            .get
+            .collect {
+              case d: DeliveryListAvailable => d
+            }
+          deliveryList match {
+            case None => println("Nothing to deliver yet.")
+            case Some(deliveryList) =>
+              println("Runs included:\n")
+              deliveryList.runsIncluded.foreach(println)
+              println(
+                s"\nSamples included (${deliveryList.samples.size} total):\n")
+              deliveryList.samples.toSeq.sortBy(_.toString).foreach(println)
+              println(s"Files:\n")
+              deliveryList.files.foreach(println)
+          }
+
         case QueryCoverage =>
           val project = config.project.get
           val coverages = io.circe.parser
