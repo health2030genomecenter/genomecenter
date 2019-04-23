@@ -163,7 +163,7 @@ object Delivery {
                     implicit computationEnvironment =>
                       SharedFile(
                         source,
-                        project + s".r${runsIncluded.size}-#${runsIncluded.hashCode}.s" + samples.size + ".deliverables.list")
+                        project + s".r${runsIncluded.size}-h${runsIncluded.hashCode}.s" + samples.size + ".deliverables.list")
                   }
                 } yield (project, pathListFile, deliveryAvailable)
             }
