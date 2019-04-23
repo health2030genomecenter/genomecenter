@@ -134,7 +134,6 @@ lazy val pipelineExecutor = project
       "org.scala-lang.modules" %% "scala-xml" % "1.1.1",
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
       "org.scalaj" %% "scalaj-http" % "2.4.1",
-      "com.hierynomus" % "sshj" % "0.27.0",
       "com.intel.gkl" % "gkl" % "0.8.5" exclude ("com.github.samtools", "htsjdk")
     ),
     unmanagedClasspath in Test += {

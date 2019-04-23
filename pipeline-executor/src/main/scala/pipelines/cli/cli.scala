@@ -153,7 +153,6 @@ object Pipelinectl extends App {
   case object QueryAnalyses extends CliCommand
   case object AnalyseResourceUsage extends CliCommand
   case object LastRun extends CliCommand
-  case object Deliver extends CliCommand
 
   val config = {
     val configInUserHome =
@@ -433,27 +432,6 @@ object Pipelinectl extends App {
             .text(
               "path to a file listing sample ids. Use stdin for standard input.")
             .action((v, c) => c.copy(samplesFile = Some(v)))
-        ),
-      cmd("deliver")
-        .text("Send delivery list to remote SFTP server")
-        .action((_, c) => c.copy(command = Deliver))
-        .children(
-          opt[String]('p', "project")
-            .text("project name")
-            .required
-            .action((v, c) => c.copy(project = Some(v))),
-          opt[String]('u', "user")
-            .text("remote username")
-            .required
-            .action((v, c) => c.copy(remoteUser = Some(v))),
-          opt[String]('h', "host")
-            .text("remote host")
-            .required
-            .action((v, c) => c.copy(remoteHost = Some(v))),
-          opt[String]("prefix")
-            .text("remote host")
-            .required
-            .action((v, c) => c.copy(remotePrefix = Some(v)))
         )
     )
   }
@@ -461,71 +439,6 @@ object Pipelinectl extends App {
   OParser.parse(parser1, args, Config()) match {
     case Some(config) =>
       config.command match {
-        case Deliver =>
-          val project = config.project.get
-          val deliveryList = io.circe.parser
-            .decode[Option[ProgressData]](get(s"/v2/deliveries/$project"))
-            .right
-            .get
-            .collect {
-              case d: DeliveryListAvailable => d
-            }
-          deliveryList match {
-            case None => println("Nothing to deliver yet.")
-            case Some(deliveryList) =>
-              val host = config.remoteHost.get
-              val user = config.remoteUser.get
-              println("Runs included:\n")
-              deliveryList.runsIncluded.foreach(println)
-              println(
-                s"\nSamples included (${deliveryList.samples.size} total):\n")
-              deliveryList.samples.toSeq.sortBy(_.toString).foreach(println)
-
-              val files: Seq[(String, String)] = {
-                // Longest common prefix
-                // Adapted From Rosetta code
-                def lcp(list0: Seq[String]) = {
-                  val list = list0.sorted
-                  if (list.isEmpty) ""
-                  else
-                    (list.min.view, list.max.view).zipped
-                      .takeWhile(v => v._1 == v._2)
-                      .unzip
-                      ._1
-                      .mkString
-                }
-
-                val allFiles = deliveryList.files
-                val commonPrefix = lcp(allFiles)
-
-                allFiles.map { localPath =>
-                  val remotePath = config.remotePrefix.get + localPath
-                    .stripPrefix(commonPrefix)
-                  (localPath, remotePath)
-                }
-              }
-              println(
-                s"\nFiles included (${files.size}) total), local -> remote pairs:\n")
-              files.foreach {
-                case (from, to) =>
-                  println(s"$from -> $to")
-              }
-
-              println("\nIf not ok do not give password.")
-
-              val password = System.console.readPassword("Password: ")
-              try {
-                Sftp.uploadFiles(
-                  host = host,
-                  user = user,
-                  password = password,
-                  files = files
-                )
-              } finally {
-                net.schmizz.sshj.userauth.password.PasswordUtils
-                  .blankOut(password)
-              }
-          }
 
         case SendReprocessAllRuns =>
           val response = post("/v2/reprocess")
