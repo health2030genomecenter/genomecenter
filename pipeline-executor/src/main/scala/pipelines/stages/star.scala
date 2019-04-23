@@ -147,6 +147,8 @@ object StarAlignment {
         --outStd BAM_Unsorted \\
         --outSAMtype BAM Unsorted \\
         --outSAMattributes All \\
+        --outSAMmultNmax 1 \\
+        --outSAMunmapped Within \\
         --sjdbGTFfile ${localGtf.getAbsolutePath} \\
         --sjdbOverhang ${readLength - 1} \\
         --quantMode GeneCounts \\

@@ -65,7 +65,7 @@ class StarAlignmentTestSuite
 
         val bamFile = await(result.bam.bam.file.file)
         val finalLog = await(result.finalLog.file)
-        recordsInBamFile(bamFile) shouldBe 17876
+        recordsInBamFile(bamFile) shouldBe 10000
         println(fileutils.openSource(finalLog)(_.mkString))
         val metrics =
           StarMetrics.Root(fileutils.openSource(finalLog)(_.mkString),
