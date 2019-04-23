@@ -383,11 +383,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           Flow[StateOfUnfinishedSamples]
             .map(_.sendToDemultiplexing)
             .via(deduplicate)
-            .mapConcat(_.toList)
-            .map { runFolder =>
-              logger.info(s"Sending ${runFolder.runId} to demultiplexing.")
-              runFolder
+            .map { runFolders =>
+              logger.info(
+                s"Sending ${runFolders.map(_.runId)} to demultiplexing.")
+              runFolders
             }
+            .mapConcat(_.toList)
         )
 
         stateScan.out ~> broadcast.in
@@ -665,14 +666,14 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       val zero = copy(sendToSampleProcessing = None, sendToDemultiplexing = Nil)
       runs.foldLeft(zero) {
         case (state, run) =>
-          if (unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
+          if (state.unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
             logger.info(s"Put run on hold: ${run.runId}.")
-            state.copy(runFoldersOnHold = runFoldersOnHold :+ run)
+            state.copy(runFoldersOnHold = state.runFoldersOnHold :+ run)
           } else {
-            logger.debug(s"Set state to send to demultiplexing: ${run.runId}.")
+            logger.debug(s"Append to demultiplexables: ${run.runId}.")
             state.removeSamplesOfCompletedRuns.copy(
-              unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds + run.runId,
-              sendToDemultiplexing = sendToDemultiplexing :+ run)
+              unfinishedDemultiplexingOfRunIds = state.unfinishedDemultiplexingOfRunIds + run.runId,
+              sendToDemultiplexing = state.sendToDemultiplexing :+ run)
           }
       }
     }

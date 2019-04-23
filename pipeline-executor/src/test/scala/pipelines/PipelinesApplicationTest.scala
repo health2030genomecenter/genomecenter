@@ -634,6 +634,107 @@ class PipelinesApplicationTest
 
   }
 
+  test("pipelines application should recover old runs -- pattern 1 1 2") {
+    implicit val AS = ActorSystem()
+    implicit val materializer = ActorMaterializer()
+    val config = ConfigFactory.parseString("""
+  tasks.cache.enabled = false
+    """)
+    val numberOfRuns = 3
+    Given("A sequence of two runs with the first repeated")
+    val eventSource =
+      new FakeSequencingCompleteEventSource(numberOfRuns,
+                                            uniform = false,
+                                            pattern = List(1, 1, 2))
+    val pipelineState = new InMemoryPipelineState
+    val taskSystem = defaultTaskSystem(Some(config))
+    val testPipeline = new TestPipeline
+
+    Await.result(eventSource.commands
+                   .mapAsync(1) {
+                     case Append(run) =>
+                       pipelineState.registered((run))
+                   }
+                   .runForeach(_ => ()),
+                 atMost = 60 seconds)
+
+    When("Sending these run sequence into a running application")
+    val app = new PipelinesApplication(new CommandSource {
+      val commands = Source.empty
+    }, pipelineState, implicitly[ActorSystem], taskSystem, testPipeline, Set())
+
+    Then(
+      "The first should be processed twice, after which the second should be processed.")
+    Await.result(
+      app.processingFinishedSource
+        .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+        .takeWhile(
+          samplesFinished2(
+            Set(
+              FakeSampleResult(Project("project1"),
+                               SampleId("sample1"),
+                               RunId("fake2"),
+                               "fake1_0fake2_0")
+            )),
+          true
+        )
+        .runWith(Sink.last),
+      atMost = 60 seconds
+    )
+    taskSystem.shutdown
+
+  }
+  test("pipelines application should recover old runs -- pattern 1, 2, 3, 2") {
+    implicit val AS = ActorSystem()
+    implicit val materializer = ActorMaterializer()
+    val config = ConfigFactory.parseString("""
+  tasks.cache.enabled = false
+    """)
+    val numberOfRuns = 3
+    Given("A sequence of two runs with the first repeated")
+    val eventSource =
+      new FakeSequencingCompleteEventSource(numberOfRuns,
+                                            uniform = false,
+                                            pattern = List(1, 2, 3, 2))
+    val pipelineState = new InMemoryPipelineState
+    val taskSystem = defaultTaskSystem(Some(config))
+    val testPipeline = new TestPipeline
+
+    Await.result(eventSource.commands
+                   .mapAsync(1) {
+                     case Append(run) =>
+                       pipelineState.registered((run))
+                   }
+                   .runForeach(_ => ()),
+                 atMost = 60 seconds)
+
+    When("Sending these run sequence into a running application")
+    val app = new PipelinesApplication(new CommandSource {
+      val commands = Source.empty
+    }, pipelineState, implicitly[ActorSystem], taskSystem, testPipeline, Set())
+
+    Then(
+      "The first should be processed twice, after which the second should be processed.")
+    Await.result(
+      app.processingFinishedSource
+        .scan(Seq.empty[AnyRef])((seq, t) => seq :+ t)
+        .takeWhile(
+          samplesFinished2(
+            Set(
+              FakeSampleResult(Project("project1"),
+                               SampleId("sample1"),
+                               RunId("fake3"),
+                               "fake1_0fake2_0fake3_0")
+            )),
+          true
+        )
+        .runWith(Sink.last),
+      atMost = 60 seconds
+    )
+    taskSystem.shutdown
+
+  }
+
   test("pipelines application should replace old runs even in case of failure ") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
