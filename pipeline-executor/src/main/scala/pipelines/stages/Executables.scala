@@ -1,0 +1,98 @@
+package org.gc.pipelines.stages
+
+import org.gc.pipelines.util
+import org.gc.pipelines.util.VersionConfig
+
+object Executables {
+
+  override def toString =
+    Map(
+      "gatkJar" -> gatkJar,
+      "fakeRscript" -> fakeRscript,
+      "picarJar" -> picardJar,
+      "umiprocessorJar" -> umiProcessorJar,
+      "bwa" -> bwaExecutable,
+      "samtools" -> samtoolsExecutable,
+      "fastp" -> fastpExecutable,
+      "readQCJar" -> readQCJar,
+      "star" -> starExecutable
+    ).toList
+      .sortBy(_._1)
+      .map(v => v._1 + ":" + v._2)
+      .mkString("Executables(", ", ", ")")
+
+  val gatkJar: String = {
+    val gatkJarName = VersionConfig.gatkResourceName
+    fileutils.TempFile
+      .getExecutableFromJar(s"/bin/$gatkJarName", gatkJarName)
+      .getAbsolutePath
+  }
+
+  val fakeRscript =
+    fileutils.TempFile
+      .getExecutableFromJar("/bin/Rscript", "Rscript")
+
+  val picardJar: String =
+    fileutils.TempFile
+      .getExecutableFromJar("/bin/picard_2.8.14.jar", "picard_2.8.14.jar")
+      .getAbsolutePath
+
+  val umiProcessorJar: String =
+    fileutils.TempFile
+      .getExecutableFromJar("/umiprocessor", "umiprocessor")
+      .getAbsolutePath
+
+  val bwaExecutable: String = {
+    val resourceName =
+      if (util.isMac) "/bin/bwa_0.7.17-r1188_mac"
+      else if (util.isLinux) "/bin/bwa_0.7.17-r1188_linux64"
+      else
+        throw new RuntimeException(
+          "Unknown OS: " + System.getProperty("os.name"))
+    fileutils.TempFile
+      .getExecutableFromJar(resourceName, "bwa_0.7.17-r1188")
+      .getAbsolutePath
+  }
+
+  val samtoolsExecutable: String = {
+    val resourceName =
+      if (util.isMac) "/bin/samtools_1.9_mac"
+      else if (util.isLinux) "/bin/samtools_1.9_linux64"
+      else
+        throw new RuntimeException(
+          "Unknown OS: " + System.getProperty("os.name"))
+
+    fileutils.TempFile
+      .getExecutableFromJar(resourceName, "samtools_1.9")
+      .getAbsolutePath
+
+  }
+
+  val fastpExecutable: String = {
+    val resourceName =
+      if (util.isMac) "/bin/fastp_v0.19.4_mac"
+      else if (util.isLinux) "/bin/fastp_v0.19.4_linux64"
+      else
+        throw new RuntimeException(
+          "Unknown OS: " + System.getProperty("os.name"))
+    fileutils.TempFile
+      .getExecutableFromJar(resourceName, "fastp")
+      .getAbsolutePath
+  }
+  val readQCJar: String =
+    fileutils.TempFile
+      .getExecutableFromJar("/readqc", "readqc")
+      .getAbsolutePath
+
+  val starExecutable: String = {
+    val resourceName =
+      if (util.isMac) "/bin/STAR_ffd8416315_2.6.1c_mac"
+      else if (util.isLinux) "/bin/STAR_ffd8416315_2.6.1c_linux64"
+      else
+        throw new RuntimeException(
+          "Unknown OS: " + System.getProperty("os.name"))
+    fileutils.TempFile
+      .getExecutableFromJar(resourceName, "STAR_ffd8416315_2.6.1c")
+      .getAbsolutePath
+  }
+}

@@ -17,6 +17,7 @@ import org.gc.pipelines.util.{
 }
 import java.io.File
 import scala.collection.JavaConverters._
+import Executables.{picardJar, gatkJar}
 
 case class HaplotypeCallerInput(
     bam: CoordinateSortedBam,
@@ -180,7 +181,6 @@ object HaplotypeCaller {
             indelTranches <- indelTrain.tranches.file
             result <- {
 
-              val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
               val tmpVcf = Files.createTempFile(".tmp.vcf.gz")
@@ -255,7 +255,6 @@ object HaplotypeCaller {
             oneKg <- input.oneKg.localFile
             knownSites <- input.knownSites.localFile
             result <- {
-              val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
 
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
@@ -332,7 +331,6 @@ object HaplotypeCaller {
             millsAnd1Kg <- input.millsAnd1Kg.localFile
             knownSites <- input.knownSites.localFile
             result <- {
-              val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
 
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
@@ -534,8 +532,6 @@ object HaplotypeCaller {
             reference <- reference.localFile
             dbsnp <- dbsnp.localFile
             vcf <- {
-              val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
-              val picardJar = BWAAlignment.extractPicardJar()
 
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
@@ -689,7 +685,6 @@ object HaplotypeCaller {
           localVcfs <- Future.traverse(vcfs)(_.vcf.file)
           merged <- {
 
-            val picardJar = BWAAlignment.extractPicardJar()
             val tmpStdOut = Files.createTempFile(".stdout")
             val tmpStdErr = Files.createTempFile(".stderr")
             val vcfOutput = Files.createTempFile(".vcf.gz").getAbsolutePath
@@ -735,7 +730,6 @@ object HaplotypeCaller {
             localBam <- bam.localFile
             localReference <- reference.localFile
             vcf <- {
-              val gatkJar = BaseQualityScoreRecalibration.extractGatkJar()
 
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
@@ -799,7 +793,6 @@ object HaplotypeCaller {
             }
             result <- {
 
-              val picardJar = BWAAlignment.extractPicardJar()
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
               val tmpOut = Files.createTempFile(".metrics").getAbsolutePath

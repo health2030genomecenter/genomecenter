@@ -10,9 +10,16 @@ import org.gc.pipelines.util.{
   FastQHelpers
 }
 import FastQHelpers.VirtualPointerInterval
-import org.gc.pipelines.util
+
 import org.gc.pipelines.util.{StableSet, traverseAll}
 import org.gc.pipelines.util.StableSet.syntax
+
+import Executables.{
+  picardJar,
+  samtoolsExecutable,
+  bwaExecutable,
+  umiProcessorJar
+}
 
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -125,9 +132,6 @@ object BWAAlignment {
     AsyncTask[ReferenceFasta, IndexedReferenceFasta]("__bwa-index", 1) {
       case ReferenceFasta(fasta) =>
         implicit computationEnvironment =>
-          val bwaExecutable = extractBwaExecutable()
-          val picardJar = extractPicardJar()
-
           fasta.file.flatMap { localFastaFile =>
             val pathToFasta = localFastaFile.getAbsolutePath
 
@@ -277,8 +281,6 @@ object BWAAlignment {
     AsyncTask[Bam, CoordinateSortedBam]("__sortbam", 1) {
       case Bam(bam) =>
         implicit computationEnvironment =>
-          val picardJar = extractPicardJar()
-          val samtoolsExecutable = extractSamtoolsExecutable()
           val tempFolder =
             TempFile
               .createTempFolder(".sortTempFolder")
@@ -343,8 +345,6 @@ object BWAAlignment {
       2) {
       case BamsWithSampleMetadata(project, sampleId, bams) =>
         implicit computationEnvironment =>
-          val picardJar = extractPicardJar()
-
           val tempFolder =
             TempFile
               .createTempFolder(".markDuplicateTempFolder")
@@ -444,10 +444,6 @@ object BWAAlignment {
                                     maybeUmi,
                                     maybeInterval) =>
         implicit computationEnvironment =>
-          val picardJar = extractPicardJar()
-
-          val bwaExecutable = extractBwaExecutable()
-
           val bwaNumberOfThreads = math.max(1, resourceAllocated.cpu)
 
           val markAdapterMetricsFileOutput =
@@ -551,7 +547,6 @@ object BWAAlignment {
                     logDiscriminator = "bwa.fastq2ubam." + sampleId,
                     onError = Exec.ThrowIfNonZero)(fastqToUnmappedBam)
                 case Some(umi) =>
-                  val umiProcessor = extractUmiProcessorJar()
                   val (umiFq, deleteUmiFq) =
                     fastqLoader(umi, maybeInterval.flatMap(_.umi))
                   val fastqToUnmappedBam = s"""\\
@@ -571,7 +566,7 @@ object BWAAlignment {
                 --TMP_DIR ${unmappedBamTempFolder.getAbsolutePath} \\
                 --RUN_DATE $runDate 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                 \\
-        java ${JVM.serial} -Xmx2G $tmpDir -jar $umiProcessor $umiFq \\
+        java ${JVM.serial} -Xmx2G $tmpDir -jar $umiProcessorJar $umiFq \\
               2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
                  \\
         java ${JVM.g1} $maxHeap $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar SortSam \\
@@ -683,45 +678,6 @@ object BWAAlignment {
           resultF
 
     }
-
-  def extractFakeRscript(): File =
-    fileutils.TempFile
-      .getExecutableFromJar("/bin/Rscript", "Rscript")
-
-  def extractPicardJar(): String =
-    fileutils.TempFile
-      .getExecutableFromJar("/bin/picard_2.8.14.jar", "picard_2.8.14.jar")
-      .getAbsolutePath
-
-  def extractUmiProcessorJar(): String =
-    fileutils.TempFile
-      .getExecutableFromJar("/umiprocessor", "umiprocessor")
-      .getAbsolutePath
-
-  private def extractBwaExecutable(): String = {
-    val resourceName =
-      if (util.isMac) "/bin/bwa_0.7.17-r1188_mac"
-      else if (util.isLinux) "/bin/bwa_0.7.17-r1188_linux64"
-      else
-        throw new RuntimeException(
-          "Unknown OS: " + System.getProperty("os.name"))
-    fileutils.TempFile
-      .getExecutableFromJar(resourceName, "bwa_0.7.17-r1188")
-      .getAbsolutePath
-  }
-  private def extractSamtoolsExecutable(): String = {
-    val resourceName =
-      if (util.isMac) "/bin/samtools_1.9_mac"
-      else if (util.isLinux) "/bin/samtools_1.9_linux64"
-      else
-        throw new RuntimeException(
-          "Unknown OS: " + System.getProperty("os.name"))
-
-    fileutils.TempFile
-      .getExecutableFromJar(resourceName, "samtools_1.9")
-      .getAbsolutePath
-
-  }
 
 }
 

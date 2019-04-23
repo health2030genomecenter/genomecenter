@@ -20,6 +20,8 @@ import org.gc.pipelines.util.StableSet.syntax
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 
+import Executables.readQCJar
+
 case class ReadQCPerUnitInput(fastqs: StableSet[FastQ])
     extends WithSharedFiles(fastqs.toSeq.flatMap(_.files): _*)
 
@@ -34,11 +36,6 @@ case class ReadQCInput(samples: StableSet[PerSampleFastQ], title: String)
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object ReadQC {
-
-  def extractReadQCJar(): String =
-    fileutils.TempFile
-      .getExecutableFromJar("/readqc", "readqc")
-      .getAbsolutePath
 
   def makeGCTable(
       metrics: Seq[
@@ -115,8 +112,6 @@ object ReadQC {
       case ReadQCPerUnitInput(fastqs) =>
         implicit computationEnvironment =>
           log.info("read qc of fastq files: " + fastqs)
-
-          val readQCJar = extractReadQCJar()
 
           for {
             fastqFiles <- Future.traverse(fastqs.toSeq)(_.file.file)

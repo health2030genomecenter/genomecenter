@@ -5,9 +5,9 @@ import tasks.circesupport._
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import org.gc.pipelines.util.{Exec, Files}
-import org.gc.pipelines.util
 import org.gc.pipelines.model._
 import scala.concurrent.Future
+import Executables.fastpExecutable
 
 case class FastpReport(html: SharedFile,
                        json: SharedFile,
@@ -18,24 +18,10 @@ case class FastpReport(html: SharedFile,
 
 object Fastp {
 
-  private def extractFastpExecutable(): String = {
-    val resourceName =
-      if (util.isMac) "/bin/fastp_v0.19.4_mac"
-      else if (util.isLinux) "/bin/fastp_v0.19.4_linux64"
-      else
-        throw new RuntimeException(
-          "Unknown OS: " + System.getProperty("os.name"))
-    fileutils.TempFile
-      .getExecutableFromJar(resourceName, "fastp")
-      .getAbsolutePath
-  }
-
   val report =
     AsyncTask[PerSamplePerRunFastQ, FastpReport]("__fastp-report", 1) {
       case PerSamplePerRunFastQ(lanes, project, sampleId, runId) =>
         implicit computationEnvironment =>
-          val fastpExecutable = extractFastpExecutable()
-
           def fetchFiles(f: Seq[SharedFile]) = Future.traverse(f)(_.file)
 
           val lanesSeq = lanes.toSeq

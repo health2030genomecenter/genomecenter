@@ -14,6 +14,7 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext
+import Executables.{picardJar, fakeRscript}
 
 case class AlignmentQCInput(bam: CoordinateSortedBam,
                             reference: IndexedReferenceFasta)
@@ -469,7 +470,6 @@ object AlignmentQC {
             bed <- bedFile.file.file
             result <- {
 
-              val picardJar = BWAAlignment.extractPicardJar()
               val maxHeap = JVM.maxHeap
               val tmpOut = TempFile.createTempFile(".qc")
               val picardStyleInterval = TempFile.createTempFile("")
@@ -514,8 +514,6 @@ object AlignmentQC {
             reference <- reference.localFile
             bam <- coordinateSortedBam.localFile
             result <- {
-              val picardJar = BWAAlignment.extractPicardJar()
-              val fakeRscript = BWAAlignment.extractFakeRscript()
               val maxHeap = JVM.maxHeap
               val tmpOut = TempFile.createTempFile(".qc")
               val bashScript = s""" \\
@@ -575,7 +573,6 @@ object AlignmentQC {
             result <- {
 
               val readLength = BAM.getMaxReadLength(bam, 5000000).toInt
-              val picardJar = BWAAlignment.extractPicardJar()
               val maxHeap = JVM.maxHeap
               val tmpOut = TempFile.createTempFile(".qc")
               val bashScript = s""" \\

@@ -2,7 +2,6 @@ package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
 import org.gc.pipelines.util.{Exec, JVM, StableSet}
-import org.gc.pipelines.util
 import org.gc.pipelines.util.StableSet.syntax
 
 import io.circe.{Decoder, Encoder}
@@ -13,6 +12,7 @@ import tasks.circesupport._
 import fileutils.TempFile
 import scala.concurrent.{Future, ExecutionContext}
 import java.io.File
+import Executables.{starExecutable, picardJar}
 
 case class StarAlignmentInput(
     fastqs: StableSet[FastQPerLane],
@@ -46,8 +46,6 @@ object StarAlignment {
     AsyncTask[ReferenceFasta, StarIndexedReferenceFasta]("__star-index", 1) {
       case ReferenceFasta(fasta) =>
         implicit computationEnvironment =>
-          val starExecutable = extractStarExecutable()
-
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
 
@@ -104,10 +102,6 @@ object StarAlignment {
                               gtf,
                               readLength) =>
         implicit computationEnvironment =>
-          val picardJar = BWAAlignment.extractPicardJar()
-
-          val starExecutable = extractStarExecutable()
-
           val starNumberOfThreads = math.max(1, resourceAllocated.cpu - 1) + 3
 
           val tmpCleanBam = TempFile.createTempFile(".bam")
@@ -209,18 +203,6 @@ object StarAlignment {
           resultF
 
     }
-
-  private def extractStarExecutable(): String = {
-    val resourceName =
-      if (util.isMac) "/bin/STAR_ffd8416315_2.6.1c_mac"
-      else if (util.isLinux) "/bin/STAR_ffd8416315_2.6.1c_linux64"
-      else
-        throw new RuntimeException(
-          "Unknown OS: " + System.getProperty("os.name"))
-    fileutils.TempFile
-      .getExecutableFromJar(resourceName, "STAR_ffd8416315_2.6.1c")
-      .getAbsolutePath
-  }
 
 }
 

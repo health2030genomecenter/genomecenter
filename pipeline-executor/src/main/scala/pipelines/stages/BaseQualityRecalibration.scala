@@ -12,12 +12,13 @@ import org.gc.pipelines.util.{
   Fasta,
   StableSet,
   Files,
-  VersionConfig,
   traverseAll
 }
 import scala.collection.JavaConverters._
 import java.io.File
 import org.gc.pipelines.model.{Project, SampleId, AnalysisId}
+
+import Executables.{gatkJar, picardJar}
 
 case class BQSRInput(bam: StableSet[Bam],
                      reference: IndexedReferenceFasta,
@@ -142,7 +143,6 @@ object BaseQualityScoreRecalibration {
             gatheredTables <- {
 
               val output = Files.createTempFile(".bsqr.report")
-              val gatkJar: String = extractGatkJar()
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
               val input = " -I " + localTables.mkString(" -I ")
@@ -189,7 +189,6 @@ object BaseQualityScoreRecalibration {
             result <- {
 
               val output = Files.createTempFile(".bsqr.report")
-              val gatkJar: String = extractGatkJar()
               val knownSitesArguments = knownSites
                 .map(_.getAbsolutePath)
                 .mkString(" --known-sites ", " --known-sites ", "")
@@ -254,7 +253,6 @@ object BaseQualityScoreRecalibration {
             gathered <- {
 
               val output = Files.createTempFile(".bsqr.bam")
-              val picardJar: String = BWAAlignment.extractPicardJar()
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
               val input = " --INPUT " + localBams.mkString(" -INPUT ")
@@ -317,7 +315,6 @@ object BaseQualityScoreRecalibration {
               val expectedBai =
                 new File(outputBam.getAbsolutePath.stripSuffix("bam") + "bai")
               expectedBai.deleteOnExit
-              val gatkJar: String = extractGatkJar()
               val tmpStdOut = Files.createTempFile(".stdout")
               val tmpStdErr = Files.createTempFile(".stderr")
               val bashScript = s""" \\
@@ -362,13 +359,6 @@ object BaseQualityScoreRecalibration {
             }
           } yield result
     }
-
-  def extractGatkJar(): String = {
-    val gatkJarName = VersionConfig.gatkResourceName
-    fileutils.TempFile
-      .getExecutableFromJar(s"/bin/$gatkJarName", gatkJarName)
-      .getAbsolutePath
-  }
 
 }
 

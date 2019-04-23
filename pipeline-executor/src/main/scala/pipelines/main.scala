@@ -35,6 +35,14 @@ object Main extends App with StrictLogging {
   }
   logger.debug("Full config tree: \n" + config.root.render)
 
+  /* Extract all executables
+   *
+   * Referring to an object will initialize all its val members.
+   * In this case this will extract all jars and executables to a temp folder
+   */
+  val executables = stages.Executables
+  logger.info(s"Extracted executables to $executables")
+
   /* Create and intialize a TaskSystem instance provided by the tasks library
 
    * This creates its own ActorSystem as well
