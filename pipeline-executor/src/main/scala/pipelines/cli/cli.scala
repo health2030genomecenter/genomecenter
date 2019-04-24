@@ -615,6 +615,10 @@ object Pipelinectl extends App {
                     ) {
                       def waitingForCoverage =
                         processing.map(_.toString).toSet &~ coverage.toSet
+                      def waitingForVCF =
+                        processing.map(_.toString).toSet &~ vcf.toSet
+                      def waitingForBam =
+                        processing.map(_.toString).toSet &~ bam.toSet
                     }
                     val folded: Status = events.foldLeft(Status()) {
                       case (status, event) =>
@@ -658,8 +662,14 @@ object Pipelinectl extends App {
                       folded.bam.map { run =>
                         List(sample, "BAM DONE   ", run)
                       } ++
+                      folded.waitingForBam.map { run =>
+                        List(sample, "BAM WAIT   ", run)
+                      } ++
                       folded.vcf.map { run =>
                         List(sample, "VCF DONE   ", run)
+                      } ++
+                      folded.waitingForVCF.map { run =>
+                        List(sample, "VCF WAIT   ", run)
                       } ++
                       folded.failed.map { run =>
                         List(sample, "FAILED     ", run)
