@@ -149,6 +149,7 @@ object StarAlignment {
         --outSAMattributes All \\
         --outSAMmultNmax 1 \\
         --outSAMunmapped Within \\
+        --outSJfilterReads Unique \\
         --sjdbGTFfile ${localGtf.getAbsolutePath} \\
         --sjdbOverhang ${readLength - 1} \\
         --quantMode GeneCounts \\
