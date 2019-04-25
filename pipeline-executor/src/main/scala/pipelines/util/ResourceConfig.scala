@@ -50,7 +50,7 @@ object ResourceConfig {
       .sum
     originalRequest.copy(
       cpuMemoryRequest = originalRequest.cpuMemoryRequest.copy(scratch =
-        (uncompressedBamSizeBytePerRead * totalReads * 1.1 * 1E-6).toInt))
+        (compressedFastQSizeBytePerRead * totalReads * 1.1 * 1E-6).toInt))
   }
 
   def bwa(implicit tsc: TaskSystemComponents) = parse("bwa")
