@@ -210,15 +210,13 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     PipelinesApplication.persistCommands(pipelineState)
 
   private def validateCommandAndPersistEvents
-    : Flow[Command, RunWithAnalyses, _] =
+    : Flow[Command, List[RunWithAnalyses], _] =
     Flow[Command]
       .mapAsync(1)(persistCommandsFunction)
-      .mapConcat(identity)
 
   def futureRuns =
     commandSource.commands
       .via(validateCommandAndPersistEvents)
-      .map(List(_))
 
   implicit val taskSystemComponents = taskSystem.components
   implicit val materializer = taskSystemComponents.actorMaterializer
