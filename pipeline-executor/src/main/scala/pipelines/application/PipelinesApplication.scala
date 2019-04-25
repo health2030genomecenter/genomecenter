@@ -476,7 +476,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   def sampleProcessing
     : Flow[(RunWithAnalyses, DemultiplexedSample), SampleResult, _] = {
 
-    val maxConcurrentlyProcessedSamples = 10000
+    val maxTotalAccumulatedSamples = 10000
 
     Flow[(RunWithAnalyses, DemultiplexedSample)]
       .map {
@@ -486,7 +486,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             s"SampleProcessor received sample (before groupby) ${runFolder.runId} $keys")
           value
       }
-      .groupBy(maxSubstreams = maxConcurrentlyProcessedSamples, {
+      .groupBy(maxSubstreams = maxTotalAccumulatedSamples, {
         case (_, demultiplexedSample) => getSampleId(demultiplexedSample)
       })
       .map {
