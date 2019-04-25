@@ -479,6 +479,17 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     val maxTotalAccumulatedSamples = 10000
 
     Flow[(RunWithAnalyses, DemultiplexedSample)]
+      .scan((Set.empty[SampleId],
+             Option.empty[(RunWithAnalyses, DemultiplexedSample)])) {
+        case ((samplesSoFar, _), elem) =>
+          val demultiplexedSample = elem._2
+          val sampleId = (getKeysOfDemultiplexedSample(demultiplexedSample)._2)
+
+          logger.debug(s"Samples so far: ${samplesSoFar.size + 1}")
+          (samplesSoFar + sampleId, Some(elem))
+      }
+      .filter(_._2.isDefined)
+      .map(_._2.get)
       .map {
         case value @ (runFolder, demultiplexedSample) =>
           val keys = getKeysOfDemultiplexedSample(demultiplexedSample)
@@ -496,8 +507,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             s"SampleProcessor received sample (after groupby) ${runFolder.runId} $keys")
           value
       }
-      .scanAsync(
-        List.empty[(SampleResult, RunWithAnalyses, DemultiplexedSample)]) {
+      .scanAsync(List
+        .empty[(SampleResult, RunWithAnalyses, DemultiplexedSample)]) {
         case (pastResultsOfThisSample,
               (currentRunConfiguration, currentDemultiplexedSample)) =>
           val (runsBeforeThis, runsAfterInclusive) =
