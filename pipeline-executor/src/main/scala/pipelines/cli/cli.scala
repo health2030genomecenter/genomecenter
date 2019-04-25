@@ -120,6 +120,124 @@ object CliHelpers {
     }
   }
   """
+
+  def formatProgressEvents(events: Seq[ProgressData],
+                           suppressCompletedTasks: Boolean) = {
+    val bySamples = events
+      .collect {
+        case v: ProgressDataWithSampleId =>
+          v
+      }
+      .groupBy(v => (v.project, v.sample))
+    val asString = bySamples
+      .flatMap {
+        case ((project, sample), events) =>
+          case class Status(
+              demultiplexed: Seq[RunId] = Nil,
+              processing: Seq[RunId] = Nil,
+              coverage: Seq[String] = Nil,
+              bam: Seq[String] = Nil,
+              vcf: Seq[String] = Nil,
+              failed: Seq[RunId] = Nil
+          ) {
+            def waitingForCoverage =
+              processing.map(_.toString).toSet &~ coverage.toSet
+            def waitingForVCF =
+              processing.map(_.toString).toSet &~ vcf.toSet
+            def waitingForBam =
+              processing.map(_.toString).toSet &~ bam.toSet
+          }
+          val folded: Status = events.foldLeft(Status()) {
+            case (status, event) =>
+              event match {
+                case ev: DemultiplexedSample =>
+                  status.copy(demultiplexed = status.demultiplexed :+ ev.run)
+                case ev: SampleProcessingStarted =>
+                  status.copy(processing = status.processing :+ ev.run)
+                case ev: SampleProcessingFinished =>
+                  status.copy(
+                    processing = status.processing.filterNot(_ == ev.run))
+                case ev: SampleProcessingFailed =>
+                  status.copy(processing =
+                                status.processing.filterNot(_ == ev.run),
+                              failed = status.failed :+ ev.run)
+                case ev: FastCoverageAvailable =>
+                  status.copy(coverage = status.coverage :+ ev.runIdTag)
+                case ev: BamAvailable =>
+                  status.copy(bam = status.bam :+ ev.runIdTag)
+                case ev: VCFAvailable =>
+                  status.copy(vcf = status.vcf :+ ev.runIdTag)
+              }
+          }
+
+          (folded.demultiplexed.map { run =>
+            if (suppressCompletedTasks) Nil
+            else List(project, sample, "DEMULTIPLEX", run)
+          } ++
+            folded.processing.map { run =>
+              List(project, sample, "PROCESSING ", run)
+            } ++
+            folded.coverage.map { run =>
+              if (suppressCompletedTasks) Nil
+              else List(project, sample, "COV DONE   ", run)
+            } ++
+            folded.waitingForCoverage.map { run =>
+              List(project, sample, "COV WAIT   ", run)
+            } ++
+            folded.bam.map { run =>
+              if (suppressCompletedTasks) Nil
+              else List(project, sample, "BAM DONE   ", run)
+            } ++
+            folded.waitingForBam.map { run =>
+              List(project, sample, "BAM WAIT   ", run)
+            } ++
+            folded.vcf.map { run =>
+              if (suppressCompletedTasks) Nil
+              else List(project, sample, "VCF DONE   ", run)
+            } ++
+            folded.waitingForVCF.map { run =>
+              List(project, sample, "VCF WAIT   ", run)
+            } ++
+            folded.failed.map { run =>
+              List(project, sample, "FAILED     ", run)
+            }).map(_.mkString("\t"))
+      }
+      .mkString("", "\n", "\n")
+
+    case class JointCallState(started: Seq[JointCallsStarted] = Nil,
+                              done: Seq[JointCallsAvailable] = Nil)
+    val jointCallFolded = events.foldLeft((JointCallState())) {
+      case (folded, event) =>
+        event match {
+          case j: JointCallsStarted =>
+            folded.copy(started = folded.started :+ j)
+          case j: JointCallsAvailable =>
+            folded.copy(
+              started = folded.started.filterNot(v =>
+                v.analysisId == j.analysisId && v.project == j.project),
+              done = folded.done :+ j)
+          case _ => folded
+        }
+    }
+
+    val jointCallAsString = (jointCallFolded.started.map { started =>
+      List(started.project,
+           started.analysisId,
+           started.samples.size,
+           "JOINTCALL RUNNING",
+           started.runs.toSeq.sortBy(_.toString).mkString(","))
+    } ++ jointCallFolded.done.map { done =>
+      if (suppressCompletedTasks) Nil
+      else
+        List(done.project,
+             done.analysisId,
+             done.samples.size,
+             "JOINTCALL DONE   ",
+             done.runs.toSeq.sortBy(_.toString).mkString(","))
+    }).map(_.mkString("\t")).mkString("", "\n", "\n")
+
+    asString + "\n" + jointCallAsString
+  }
 }
 
 /* Command line interface
@@ -205,7 +323,9 @@ object Pipelinectl extends App {
       listProjects: Option[Boolean] = None,
       remoteHost: Option[String] = None,
       remotePrefix: Option[String] = None,
-      remoteUser: Option[String] = None
+      remoteUser: Option[String] = None,
+      queryProgressOfAllProjects: Boolean = false,
+      suppressCompletedTasks: Boolean = false
   )
 
   def printAddRunHelpAndExit() = {
@@ -355,9 +475,16 @@ object Pipelinectl extends App {
             .required
         ),
       cmd("query-projects")
-        .text("Queries projects or sample status per project")
+        .text(
+          "Queries projects or sample status per project. Shows status messages for each run: \n DEMULTIPLEX - run is demultiplexed\nPROCESSING - reads from this run belonging to this sample are being processed\nCOV DONE - coverage done\nCOV WAIT - waiting for coverage data from this run for this sample\nBAM DONE - \nBAM WAIT - \nVCF DONE - \nVCF WAIT - \n")
         .action((_, c) => c.copy(command = QueryProjects))
         .children(
+          opt[Unit]("all")
+            .text("show progress of all projects")
+            .action((_, c) => c.copy(queryProgressOfAllProjects = true)),
+          opt[Unit]("suppress-done")
+            .text("do not show completed tasks")
+            .action((_, c) => c.copy(suppressCompletedTasks = true)),
           opt[String]('p', "project")
             .text("project name. If missing lists all projects. If present lists sample status per project.")
             .action((v, c) => c.copy(project = Some(v)))
@@ -589,94 +716,29 @@ object Pipelinectl extends App {
           }
         case QueryProjects =>
           config.project match {
-            case None =>
+            case None if !config.queryProgressOfAllProjects =>
               println(get("/v2/projects"))
+            case None =>
+              val events =
+                io.circe.parser
+                  .decode[Seq[ProgressData]](get(s"/v2/projects?progress=true"))
+                  .right
+                  .get
+              println(
+                CliHelpers.formatProgressEvents(
+                  events,
+                  suppressCompletedTasks = config.suppressCompletedTasks))
             case Some(project) =>
               val projectEvents =
                 io.circe.parser
                   .decode[Seq[ProgressData]](get(s"/v2/projects/$project"))
                   .right
                   .get
-                  .collect {
-                    case v: ProgressDataWithSampleId =>
-                      v
-                  }
-              val bySamples = projectEvents.groupBy(_.sample)
-              val asString = bySamples
-                .flatMap {
-                  case (sample, events) =>
-                    case class Status(
-                        demultiplexed: Seq[RunId] = Nil,
-                        processing: Seq[RunId] = Nil,
-                        coverage: Seq[String] = Nil,
-                        bam: Seq[String] = Nil,
-                        vcf: Seq[String] = Nil,
-                        failed: Seq[RunId] = Nil
-                    ) {
-                      def waitingForCoverage =
-                        processing.map(_.toString).toSet &~ coverage.toSet
-                      def waitingForVCF =
-                        processing.map(_.toString).toSet &~ vcf.toSet
-                      def waitingForBam =
-                        processing.map(_.toString).toSet &~ bam.toSet
-                    }
-                    val folded: Status = events.foldLeft(Status()) {
-                      case (status, event) =>
-                        event match {
-                          case ev: DemultiplexedSample =>
-                            status.copy(
-                              demultiplexed = status.demultiplexed :+ ev.run)
-                          case ev: SampleProcessingStarted =>
-                            status.copy(
-                              processing = status.processing :+ ev.run)
-                          case ev: SampleProcessingFinished =>
-                            status.copy(processing =
-                              status.processing.filterNot(_ == ev.run))
-                          case ev: SampleProcessingFailed =>
-                            status.copy(
-                              processing =
-                                status.processing.filterNot(_ == ev.run),
-                              failed = status.failed :+ ev.run)
-                          case ev: FastCoverageAvailable =>
-                            status.copy(
-                              coverage = status.coverage :+ ev.runIdTag)
-                          case ev: BamAvailable =>
-                            status.copy(bam = status.bam :+ ev.runIdTag)
-                          case ev: VCFAvailable =>
-                            status.copy(vcf = status.vcf :+ ev.runIdTag)
-                        }
-                    }
+              println(
+                CliHelpers.formatProgressEvents(
+                  projectEvents,
+                  suppressCompletedTasks = config.suppressCompletedTasks))
 
-                    (folded.demultiplexed.map { run =>
-                      List(sample, "DEMULTIPLEX", run)
-                    } ++
-                      folded.processing.map { run =>
-                        List(sample, "PROCESSING ", run)
-                      } ++
-                      folded.coverage.map { run =>
-                        List(sample, "COV DONE   ", run)
-                      } ++
-                      folded.waitingForCoverage.map { run =>
-                        List(sample, "COV WAIT   ", run)
-                      } ++
-                      folded.bam.map { run =>
-                        List(sample, "BAM DONE   ", run)
-                      } ++
-                      folded.waitingForBam.map { run =>
-                        List(sample, "BAM WAIT   ", run)
-                      } ++
-                      folded.vcf.map { run =>
-                        List(sample, "VCF DONE   ", run)
-                      } ++
-                      folded.waitingForVCF.map { run =>
-                        List(sample, "VCF WAIT   ", run)
-                      } ++
-                      folded.failed.map { run =>
-                        List(sample, "FAILED     ", run)
-                      }).map(_.mkString("\t"))
-                }
-                .mkString("", "\n", "\n")
-              println(asString)
           }
         case LastRun =>
           val project = config.project.get

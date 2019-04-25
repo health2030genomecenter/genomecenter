@@ -63,8 +63,15 @@ object ProgressData {
                           vcfPath: String)
       extends ProgressDataWithSampleId
 
+  case class JointCallsStarted(project: Project,
+                               analysisId: AnalysisId,
+                               samples: Set[SampleId],
+                               runs: Set[RunId])
+      extends ProgressData
   case class JointCallsAvailable(project: Project,
+                                 analysisId: AnalysisId,
                                  samples: Set[SampleId],
+                                 runs: Set[RunId],
                                  vcfPath: String)
       extends ProgressData
   case class DeliveryListAvailable(project: Project,
@@ -175,18 +182,32 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
               }
             } ~
             path("projects") {
-              complete {
-                for {
-                  data <- getData
-                } yield {
-                  data
-                    .collect {
-                      case Demultiplexed(_, samples, _) =>
-                        samples.map(_._1).distinct
+              parameters("progress".?) { maybeProgressParameter =>
+                complete {
+                  for {
+                    data <- getData
+                  } yield {
+                    maybeProgressParameter match {
+                      case Some(_) =>
+                        val events: Seq[ProgressData] = data.collect {
+                          case v: Demultiplexed            => v
+                          case v: ProgressDataWithSampleId => v
+                          case v: JointCallsAvailable      => v
+                          case v: JointCallsStarted        => v
+                        }
+                        events.asJson.noSpaces
+
+                      case None =>
+                        data
+                          .collect {
+                            case Demultiplexed(_, samples, _) =>
+                              samples.map(_._1).distinct
+                          }
+                          .flatten
+                          .distinct
+                          .mkString("", "\n", "\n")
                     }
-                    .flatten
-                    .distinct
-                    .mkString("", "\n", "\n")
+                  }
                 }
               }
             } ~

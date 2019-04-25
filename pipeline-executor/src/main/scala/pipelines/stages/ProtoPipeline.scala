@@ -7,7 +7,8 @@ import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   WESConfiguration,
   RNASeqConfiguration,
-  AnalysisAssignments
+  AnalysisAssignments,
+  ProgressData
 }
 import org.gc.pipelines.model._
 import org.gc.pipelines.application.{SendProgressData}
@@ -202,7 +203,13 @@ class ProtoPipeline(progressServer: SendProgressData)(
                       .flatMap(_._1.haplotypeCallerReferenceCalls.toSeq)
                       .toSet
 
-                  if (jointCall && jointCallInputVCFs.nonEmpty)
+                  if (jointCall && jointCallInputVCFs.nonEmpty) {
+                    progressServer.send(
+                      ProgressData.JointCallsStarted(
+                        project,
+                        analysisId,
+                        samples.map(_.sampleId).toSet,
+                        samples.flatMap(_.runFolders.map(_.runId)).toSet))
                     HaplotypeCaller
                       .jointCall(
                         JointCallInput(
@@ -214,7 +221,20 @@ class ProtoPipeline(progressServer: SendProgressData)(
                           contigs
                         ))(ResourceConfig.minimal)
                       .map(Some(_))
-                  else Future.successful(None)
+                      .andThen({
+                        case Success(Some(vcf)) =>
+                          for {
+                            vcfPath <- vcf.vcf.uri
+                          } progressServer.send(
+                            ProgressData.JointCallsAvailable(
+                              project,
+                              analysisId,
+                              samples.map(_.sampleId).toSet,
+                              samples.flatMap(_.runFolders.map(_.runId)).toSet,
+                              vcfPath.toString))
+
+                      })
+                  } else Future.successful(None)
                 }
             }
         }

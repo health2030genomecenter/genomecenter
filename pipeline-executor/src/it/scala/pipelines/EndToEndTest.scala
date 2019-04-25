@@ -127,6 +127,12 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             .get
             .size shouldBe 12,
           30 seconds)
+
+        io.circe.parser
+          .decode[Seq[ProgressData]](getProgress("/v2/projects?progress=true"))
+          .right
+          .get
+
         getProgress("/v2/bams/project1").size > 3 shouldBe true
         getProgress("/v2/vcfs/project1") shouldBe "\n"
 
