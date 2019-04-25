@@ -407,7 +407,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
   def processCompletedRunsAndProjects =
     Flow[Completeds]
-      .buffer(size = 10000, OverflowStrategy.backpressure)
+      .buffer(size = 10000, OverflowStrategy.fail)
       .map { case Completeds(runs, projects) => (runs, projects) }
       .via(unzipThenMerge(processCompletedRuns, processCompletedProjects))
 
