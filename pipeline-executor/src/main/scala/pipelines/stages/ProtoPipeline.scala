@@ -98,6 +98,8 @@ class ProtoPipeline(progressServer: SendProgressData)(
         .filter(_.project == project)
         .map(_.withoutRunId)
 
+    val runsIncluded = samples0.flatMap(_.runFolders.map(_.runId)).toSet
+
     val sampleQCsWES =
       samples.flatMap(_.extractWESQCFiles)
 
@@ -143,9 +145,10 @@ class ProtoPipeline(progressServer: SendProgressData)(
               .toStable
           ))(ResourceConfig.minimal)
 
-        reads <- ReadQC.readQC(
-          ReadQCInput(fastqsOfThisRun.toSet.toStable,
-                      project + "." + samples.size))(ResourceConfig.minimal)
+        reads <- ReadQC.readQC(ReadQCInput(
+          fastqsOfThisRun.toSet.toStable,
+          project + ".s" + samples.size + "r" + runsIncluded.size + ".h" + runsIncluded.hashCode))(
+          ResourceConfig.minimal)
 
       } yield (qctables, reads)
     }
