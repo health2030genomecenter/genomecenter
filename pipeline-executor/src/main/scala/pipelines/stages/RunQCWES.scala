@@ -175,7 +175,7 @@ object AlignmentQC {
               s"${mayVcfOverallMetrics.map(_.metrics.totalIndel.toDouble).getOrElse(Double.NaN)}" -> right,
               s"${mayVcfOverallMetrics.map(_.metrics.indelsInDbSnp.toDouble).getOrElse(Double.NaN)}" -> right,
               s"${mayVcfOverallMetrics.map(_.metrics.novelIndel.toDouble).getOrElse(Double.NaN)}" -> right,
-              "Table" -> right
+              "wxs-persample" -> right
             ))
 
       }
@@ -249,7 +249,7 @@ object AlignmentQC {
         "ExclBaseQ" -> right,
         "ExclOverlap" -> right,
         "ExclOffTarget" -> right,
-        "Table" -> right
+        "rnaseq" -> right
       )
     )
 
