@@ -530,6 +530,188 @@ object AlignmentQC {
     """<!DOCTYPE html><head></head><body>""" + laneTable + sampleTable + rnaTable + "</body>"
 
   }
+  def makeNarrowHtmlTable(
+      laneMetrics: Seq[
+        (AlignmentSummaryMetrics.Root, HsMetrics.Root, AnalysisId)],
+      sampleMetrics: Seq[
+        (DuplicationMetrics.Root,
+         FastpReportModel.Root,
+         WgsMetrics.Root,
+         Option[VariantCallingMetrics.Root],
+         Option[VariantCallingMetrics.Root],
+         InsertSizeMetrics.Root,
+         AnalysisId)],
+      rnaSeqMetrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
+
+    val left = true
+    val right = false
+    val sampleLines = sampleMetrics
+      .sortBy(_._1.project.toString)
+      .sortBy(_._1.sampleId.toString)
+      .map {
+        case (dups,
+              fastpMetrics,
+              wgsMetrics,
+              mayVcfIntervalMetrics,
+              mayVcfOverallMetrics,
+              insertSizeMetrics,
+              analysisId) =>
+          import dups.metrics._
+          import dups._
+          import fastpMetrics.metrics._
+          import wgsMetrics.metrics._
+          import insertSizeMetrics.metrics._
+
+          Html.line(
+            Seq(
+              project -> left,
+              sampleId -> left,
+              f"$meanCoverage%13.1fx" -> right,
+              f"${pctDuplication * 100}%6.2f%%" -> right,
+              f"${readPairDuplicates / 1E6}%7.2fM" -> right,
+              f"${readPairOpticalDuplicates / 1E6}%8.2fM" -> right,
+              modeInsertSize.toString -> right,
+              f"${pctCoverage20x * 100}%11.2f%%" -> right,
+              f"${pctCoverage60x * 100}%11.2f%%" -> right,
+              f"$pctExcludedTotal%11.2f%%" -> right,
+              f"${mayVcfIntervalMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
+              f"${mayVcfIntervalMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right
+            ))
+
+      }
+      .mkString("\n")
+
+    val laneLines = laneMetrics
+      .sortBy(_._1.project.toString)
+      .sortBy(_._1.sampleId.toString)
+      .sortBy(_._1.runId.toString)
+      .sortBy(_._1.lane.toInt)
+      .map {
+        case (alignment, targetSelection, analysisId) =>
+          import alignment.pairMetrics._
+          import targetSelection.metrics._
+          import alignment._
+
+          val totalReads = alignment.pairMetrics.totalReads
+
+          val coveragePerRead = meanTargetCoverage / totalReads.toDouble
+
+          Html.line(
+            Seq(
+              project -> left,
+              sampleId -> left,
+              runId -> left,
+              lane.toString -> left,
+              f"${totalReads / 1E6}%10.2fM" -> right,
+              f"$meanTargetCoverage%13.1fx" -> right,
+              f"$meanTargetCoverageIncludingDuplicates%13.1fx" -> right,
+              f"${pctPfReads * 100}%6.2f%%" -> right,
+              f"${pctPfReadsAligned * 100}%13.2f%%" -> right,
+              f"${pctUsableBasesOnTarget * 100}%13.2f%%" -> right,
+              f"${pctPfUniqueReadsAligned * 100}%15.2f%%" -> right,
+              badCycles.toString -> right,
+              f"${pctChimeras * 100}%8.2f%%" -> right,
+              f"${pctTargetBases20 * 100}%11.2f%%" -> right,
+              f"${pctTargetBases30 * 100}%11.2f%%" -> right,
+              f"${pctTargetBases50 * 100}%11.2f%%" -> right,
+              f"${coveragePerRead * 1E6}%11.3f" -> right,
+              f"${pctExcDupe * 100}%11.2f%%" -> right,
+              f"${pctExcMapQ * 100}%11.2f%%" -> right,
+              f"${pctExcBaseQ * 100}%11.2f%%" -> right,
+              f"${pctExcOverlap * 100}%11.2f%%" -> right,
+              f"${pctExcOffTarget * 100}%11.2f%%" -> right,
+            ))
+
+      }
+      .mkString("\n")
+
+    val laneHeader = Html.mkHeader(
+      List("Proj", "Sample", "Run", "Lane"),
+      List(
+        "TotalReads" -> right,
+        "MeanTargetCoverage" -> right,
+        "MeanTargetCoverageDupeIncl" -> right,
+        "PFReads" -> right,
+        "PFReadsAligned" -> right,
+        "OnTargetUsableBases" -> right,
+        "PFUniqueReadsAligned" -> right,
+        "BadCycles" -> right,
+        "Chimera" -> right,
+        "TargetBase20" -> right,
+        "TargetBase30" -> right,
+        "TargetBase50" -> right,
+        "CoveragePerMillionRead" -> right,
+        "ExclDupe" -> right,
+        "ExclMapQ" -> right,
+        "ExclBaseQ" -> right,
+        "ExclOverlap" -> right,
+        "ExclOffTarget" -> right,
+      )
+    )
+
+    val sampleHeader = Html.mkHeader(
+      List("Proj", "Sample"),
+      List(
+        "MeanCoverage" -> right,
+        "Dup" -> right,
+        "DupReadPairs" -> right,
+        "OptDupReadPairs" -> right,
+        "InsertSizePeak" -> right,
+        "Wgs20x" -> right,
+        "Wgs60x" -> right,
+        "Excluded" -> right,
+        "TotalSnpsInCapture" -> right,
+        "TotalSnps" -> right,
+        "TotalIndelInCapture" -> right,
+        "TotalIndel" -> right
+      )
+    )
+
+    val rnaLines = rnaSeqMetrics
+      .sortBy(_._2.project.toString)
+      .sortBy(_._2.sampleId.toString)
+      .map {
+        case (analysisId, starMetrics) =>
+          import starMetrics._
+          import starMetrics.metrics._
+
+          Html.line(
+            Seq(
+              project -> left,
+              sampleId -> left,
+              runId -> left,
+              f"${numberOfReads / 1E6}%10.2fM" -> right,
+              f"$meanReadLength%13.2f" -> right,
+              f"${uniquelyMappedReads / 1E6}%10.2fM" -> right,
+              f"${uniquelyMappedPercentage * 100}%6.2f%%" -> right,
+              f"${multiplyMappedReads / 1E6}%10.2fM" -> right,
+              f"${multiplyMappedReadsPercentage * 100}%6.2f%%" -> right
+            ))
+
+      }
+      .mkString("\n")
+
+    val rnaHeader = Html.mkHeader(
+      List("Proj", "Sample", "Run"),
+      List(
+        "TotalReads" -> right,
+        "MeanReadLength" -> right,
+        "UniquelyMapped" -> right,
+        "UniquelyMapped%" -> right,
+        "Multimapped" -> right,
+        "Multimapped%" -> right
+      )
+    )
+
+    val rnaTable = """<table style="border-collapse: collapse;">""" + rnaHeader + "\n<tbody>" + rnaLines + "</tbody></table>"
+    val laneTable = """<table style="border-collapse: collapse;">""" + laneHeader + "\n<tbody>" + laneLines + "</tbody></table>"
+    val sampleTable = """<table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table>"
+
+    """<!DOCTYPE html><head></head><body>""" + laneTable + sampleTable + rnaTable + "</body>"
+
+  }
 
   val runQCTable =
     AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 3) {
@@ -666,7 +848,7 @@ object AlignmentQC {
                 _._7) ++ parsedRNAMetrics.map(_._1)).distinct
               Future.traverse(analyses) { analysis =>
                 val table =
-                  makeHtmlTable(laneMetrics.filter(_._3 == analysis),
+                  makeNarrowHtmlTable(laneMetrics.filter(_._3 == analysis),
                                 sampleMetrics.filter(_._7 == analysis),
                                 parsedRNAMetrics.filter(_._1 == analysis))
                 SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
