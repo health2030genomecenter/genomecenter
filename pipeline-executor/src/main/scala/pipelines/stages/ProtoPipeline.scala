@@ -81,8 +81,8 @@ class ProtoPipeline(progressServer: SendProgressData)(
       samples.flatMap(_._2.flatMap(_.rna.toSeq.map(rnaResult =>
         (rnaResult.analysisId, rnaResult.star))))
 
-    val allSamples = samples.toSeq.flatMap(_._2.map(_.sampleId))
-    val allRuns = samples.toSeq.map(_._1)
+    val allSamples = samples.toSeq.flatMap(_._2.map(_.sampleId)).distinct
+    val allRuns = samples.toSeq.map(_._1).distinct
 
     val individualRunQCs = Future.traverse(samples.toSeq.map(_._2)) { samples =>
       processCompletedRun(samples)

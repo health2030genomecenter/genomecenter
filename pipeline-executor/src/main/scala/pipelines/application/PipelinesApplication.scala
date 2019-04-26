@@ -431,6 +431,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       }
       .buffer(1, OverflowStrategy.dropHead)
       .mapAsync(1) { completedRuns =>
+        logger.debug(s"Completing ${completedRuns.size} runs.")
         pipeline.processCompletedRuns(completedRuns).recover {
           case error =>
             logger.error(
