@@ -14,8 +14,8 @@ trait Pipeline[DemultiplexedSample, SampleResult, DeliverableList] {
       d: DemultiplexedSample): (Project, SampleId, RunId)
   def getKeysOfSampleResult(d: SampleResult): (Project, SampleId, RunId)
 
-  def processCompletedRun(samples: Seq[SampleResult])(
-      implicit tsc: TaskSystemComponents): Future[(RunId, Boolean)]
+  def processCompletedRuns(samples: Map[RunId, Seq[SampleResult]])(
+      implicit tsc: TaskSystemComponents): Future[Unit]
   def processCompletedProject(samples: Seq[SampleResult])(
       implicit tsc: TaskSystemComponents)
     : Future[(Project, Boolean, Option[DeliverableList])]

@@ -9,7 +9,7 @@ import akka.actor.ActorSystem
 import scala.concurrent.{ExecutionContext, Future}
 
 import org.gc.pipelines.util.ActorSource
-import org.gc.pipelines.util.AkkaStreamComponents.{unzipThenMerge, deduplicate}
+import org.gc.pipelines.util.AkkaStreamComponents.{deduplicate}
 import org.gc.pipelines.model.{Project, SampleId, RunId}
 
 case class RunFinished(runId: RunId, success: Boolean)
@@ -407,38 +407,39 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     Flow[Completeds]
       .buffer(size = 10000, OverflowStrategy.fail)
       .map { case Completeds(runs, projects) => (runs, projects) }
-      .via(unzipThenMerge(processCompletedRuns, processCompletedProjects))
+      .alsoTo(processCompletedRuns)
+      .map { case (_, completedProject) => completedProject }
+      .via(processCompletedProjects)
 
   def processCompletedRuns =
-    Flow[CompletedRun]
+    Flow[(CompletedRun, CompletedProject)]
+      .map { case (completedRun, _) => completedRun }
       .filter(_.samples.nonEmpty)
       .map {
         case CompletedRun(samples) =>
           val (_, _, runId) = getKeysOfSampleResult(samples.head)
           logger.info(s"Run $runId finished with ${samples.size} samples.")
+          processingFinishedListener ! RunFinished(runId, true)
           (runId, samples)
       }
-      .groupBy(maxSubstreams = 10000, { case (runId, _) => runId })
+      .groupBy(maxSubstreams = 100000, { case (runId, _) => runId })
       .via(deduplicate)
-      .buffer(1, OverflowStrategy.dropHead)
-      .mapAsync(1) {
-        case (runId, samples) =>
-          pipeline.processCompletedRun(samples).recover {
-            case error =>
-              logger.error(
-                s"$pipeline failed on ${runId} while processing completed run",
-                error)
-              (runId, false)
-          }
-      }
-      .map {
-        case (runId, success) =>
-          processingFinishedListener ! RunFinished(runId, success)
-          logger.debug(
-            s"Processing of completed run $runId finished (with or without error). Success: $success")
-          runId
-      }
       .mergeSubstreams
+      .scan(Map.empty[RunId, Seq[SampleResult]]) {
+        case (map, (runId, samples)) =>
+          map.updated(runId, samples)
+      }
+      .buffer(1, OverflowStrategy.dropHead)
+      .mapAsync(1) { completedRuns =>
+        pipeline.processCompletedRuns(completedRuns).recover {
+          case error =>
+            logger.error(
+              s"$pipeline failed while processing completed runs ${completedRuns.toSeq.map(_._1).mkString(", ")}",
+              error)
+            ()
+        }
+      }
+      .to(Sink.ignore)
 
   def processCompletedProjects =
     Flow[CompletedProject]

@@ -25,21 +25,6 @@ object AkkaStreamComponents extends StrictLogging {
         FlowShape(broadcast.in, merge.out)
     })
 
-  def unzipThenMerge[I1, I2, O](flow1: Flow[I1, O, _],
-                                flow2: Flow[I2, O, _]): Flow[(I1, I2), O, _] =
-    Flow.fromGraph(GraphDSL.create(flow1, flow2)((_, _)) {
-      implicit builder => (flow1, flow2) =>
-        import GraphDSL.Implicits._
-
-        val unzipper = builder.add(Unzip[I1, I2])
-        val merge = builder.add(Merge[O](2))
-
-        unzipper.out0 ~> flow1 ~> merge.in(0)
-        unzipper.out1 ~> flow2 ~> merge.in(1)
-
-        FlowShape(unzipper.in, merge.out)
-    })
-
   def deduplicateBy[T, K](fun: T => K): Flow[T, T, _] =
     Flow[T]
       .mapConcat(t => List(t, t))

@@ -16,7 +16,8 @@ import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   ProgressData,
   WESConfiguration,
-  AnalysisConfiguration
+  AnalysisConfiguration,
+  RunFinished
 }
 import org.gc.pipelines.model.Project
 
@@ -97,9 +98,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
                 _.endsWith("projectQC/project1/project1.1.wes.qc.table.html")))
             assert(deliverableListLines.exists(_.endsWith(
               "projects/project1/sample1/fastp/runid1/project1.sample1.runid1.fastp.html")))
-            assert(
-              deliverableListLines.exists(
-                _.endsWith("readqc.pdf")))
+            assert(deliverableListLines.exists(_.endsWith("readqc.pdf")))
         }
 
         When(
@@ -170,6 +169,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         probe.expectMsgPF(15 seconds) {
           case sample: SampleFinished[_] =>
             sample.sample shouldBe "sample1"
+          case _: RunFinished =>
         }
         And("The progress data should reflect the 3rd set of processing steps")
         MyTestKit.awaitAssert(

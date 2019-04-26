@@ -992,10 +992,10 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult, Unit] {
   def getKeysOfSampleResult(d: FakeSampleResult): (Project, SampleId, RunId) =
     (d.project, d.sampleId, d.runId)
 
-  def processCompletedRun(samples: Seq[FakeSampleResult])(
-      implicit tsc: TaskSystemComponents): Future[(RunId, Boolean)] =
+  def processCompletedRuns(samples: Map[RunId, Seq[FakeSampleResult]])(
+      implicit tsc: TaskSystemComponents): Future[Unit] =
     Future.successful {
-      samples.head.runId -> true
+      ()
     }
 
   lazy val completedProjects =

@@ -72,6 +72,35 @@ class ProtoPipeline(progressServer: SendProgressData)(
     }
 
   }
+  def processCompletedRuns(samples: Map[RunId, Seq[SampleResult]])(
+      implicit tsc: TaskSystemComponents): Future[Unit] = {
+
+    val sampleQCsWES =
+      samples.flatMap(_._2.flatMap(_.extractWESQCFiles))
+    val sampleQCsRNA =
+      samples.flatMap(_._2.flatMap(_.rna.toSeq.map(rnaResult =>
+        (rnaResult.analysisId, rnaResult.star))))
+
+    val allSamples = samples.toSeq.flatMap(_._2.map(_.sampleId))
+    val allRuns = samples.toSeq.map(_._1)
+
+    val individualRunQCs = Future.traverse(samples.toSeq.map(_._2)) { samples =>
+      processCompletedRun(samples)
+    }
+    for {
+      _ <- inAllQCFolder { implicit tsc =>
+        AlignmentQC.runQCTable(
+          RunQCTableInput(
+            s"s${allSamples.size}.r${allRuns.size}.hs${allSamples.hashCode}.hr${allRuns.hashCode}",
+            sampleQCsWES.toSet.toStable,
+            sampleQCsRNA.toSet.toStable
+          ))(ResourceConfig.minimal)
+
+      }
+      _ <- individualRunQCs
+    } yield ()
+
+  }
 
   def processCompletedProject(samples0: Seq[SampleResult])(
       implicit tsc: TaskSystemComponents)
@@ -595,6 +624,10 @@ class ProtoPipeline(progressServer: SendProgressData)(
   private def inRunQCFolder[T](runId: RunId)(f: TaskSystemComponents => T)(
       implicit tsc: TaskSystemComponents) =
     tsc.withFilePrefix(Seq("runQC", runId))(f)
+
+  private def inAllQCFolder[T](f: TaskSystemComponents => T)(
+      implicit tsc: TaskSystemComponents) =
+    tsc.withFilePrefix(Seq("allQC"))(f)
 
   private def inProjectQCFolder[T](project: Project)(
       f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
