@@ -18,10 +18,8 @@ import org.gc.pipelines.model.{
   RunId,
   DemultiplexingSummary
 }
-import org.gc.pipelines.util.StableSet.syntax
 import org.gc.pipelines.stages.Demultiplexing
 import scalaj.http.Http
-import io.circe.parser.decode
 
 object CliHelpers {
   val runConfigurationExample =
@@ -271,7 +269,6 @@ object Pipelinectl extends App {
   case object QueryAnalyses extends CliCommand
   case object QueryDeliverables extends CliCommand
   case object AnalyseResourceUsage extends CliCommand
-  case object LastRun extends CliCommand
 
   val config = {
     val configInUserHome =
@@ -321,9 +318,6 @@ object Pipelinectl extends App {
       printDot: Option[Boolean] = None,
       samplesFile: Option[String] = None,
       listProjects: Option[Boolean] = None,
-      remoteHost: Option[String] = None,
-      remotePrefix: Option[String] = None,
-      remoteUser: Option[String] = None,
       queryProgressOfAllProjects: Boolean = false,
       suppressCompletedTasks: Boolean = false
   )
@@ -364,11 +358,11 @@ object Pipelinectl extends App {
       version("version"),
       cmd("add-run")
         .text(
-          "Adds a new run. The run will be processed immediately and on all future restarts of the pipeline (subject to checkpointing). To overwrite the configuration of a run call this command multiple times.")
+          "Adds a new run. The run will be processed immediately and on all future restarts of the pipeline. To overwrite the configuration of a run invoke this command multiple times.")
         .action((_, c) => c.copy(command = AppendRun))
         .children(
           arg[String]("configuration-file")
-            .text("path to run configuration, stdin for stdin")
+            .text("path to run configuration, stdin for stdin. The configuration is copied and the file is not referenced in the future.")
             .action((v, c) => c.copy(configPath = Some(v)))
             .validate(v =>
               if (v == "stdin") success
@@ -387,7 +381,7 @@ object Pipelinectl extends App {
         .action((_, c) => c.copy(command = SendReprocessAllRuns)),
       cmd("delete-run")
         .text(
-          "Deletes an existing run. A deleted run won't get processed after restarting the pipeline. No files are deleted.")
+          "Deletes an existing run. A deleted run won't get processed after restarting the pipeline. No files are deleted from the disk. The run's reads won't show up in any future analyses and reports. Does not affect currently running jobs (i.e. does not stop jobs).")
         .action((_, c) => c.copy(command = DeleteRun))
         .children(
           arg[String]("runID")
@@ -397,7 +391,7 @@ object Pipelinectl extends App {
         ),
       cmd("assign-analysis")
         .text(
-          "Assigns an analysis configuration to a project name. All samples in the project will be processed with that analysis. You can assign multiple analyses per project, or overwrite existing configuration by calling this command multiple times. You can either specify a new analysis configuration or copy from an existing project.")
+          "Assigns an analysis configuration to a project name. All samples in the project will be processed with that analysis. You can assign multiple analyses per project, or overwrite existing configuration by calling this command multiple times. You can either specify a new analysis configuration or copy from an existing project. The configuration is copied and the file is not referenced any more. ")
         .action((_, c) => c.copy(command = Assign))
         .children(
           opt[String]('p', "project")
@@ -426,7 +420,7 @@ object Pipelinectl extends App {
         ),
       cmd("unassign-analysis")
         .text(
-          "Unassign project - analysisID pair. Samples of the project won't be processed with that analysis in the future. Does not affect already started analyses.")
+          "Unassign project - analysisID pair. Samples of the project won't be processed with that analysis in the future. Does not affect already started analyses (does not stop jobs). Future analyses and reports won't show up the deleted analysis.")
         .action((_, c) => c.copy(command = Unassign))
         .children(
           opt[String]('p', "project")
@@ -546,7 +540,7 @@ object Pipelinectl extends App {
             .text("run id")
             .action((v, c) => c.copy(runId = Some(v))),
           opt[String]('f', "file")
-            .text("log file")
+            .text("log file. This file is written by the pipeline daemon to the path specified in the 'tasks.tracker.logFile' configuration key.")
             .action((v, c) => c.copy(configPath = Some(v)))
             .required,
           opt[String]("subtree")
@@ -555,20 +549,6 @@ object Pipelinectl extends App {
           opt[Unit]("dot")
             .text("print dot document for graphviz")
             .action((_, c) => c.copy(printDot = Some(true)))
-        ),
-      cmd("lastrun")
-        .text(
-          "Modifies the 'lastRunOfSamples' field of the runs of a project and resends the run. Use it to force analysis of samples irrespective of the read coverage. ")
-        .action((_, c) => c.copy(command = LastRun))
-        .children(
-          opt[String]("project")
-            .text("project name")
-            .required
-            .action((v, c) => c.copy(project = Some(v))),
-          opt[String]("samples-file")
-            .text(
-              "path to a file listing sample ids. Use stdin for standard input.")
-            .action((v, c) => c.copy(samplesFile = Some(v)))
         )
     )
   }
@@ -739,90 +719,6 @@ object Pipelinectl extends App {
                   projectEvents,
                   suppressCompletedTasks = config.suppressCompletedTasks))
 
-          }
-        case LastRun =>
-          val project = config.project.get
-          println(
-            s"Command: force full analysis of  samples from project ${config.project.get}")
-          val sampleFilter = config.samplesFile match {
-            case None =>
-              println("Applying for all samples of the project")
-              None
-            case Some(f) =>
-              println(s"Reading sample id list from $f")
-              Some(
-                scala.io.Source
-                  .fromString(readFileOrStdin(f))
-                  .getLines
-                  .map(SampleId(_))
-                  .toSet)
-          }
-
-          val samplesOfProject = {
-            val json = get(s"/v2/projects/$project")
-            io.circe.parser.decode[Seq[ProgressData]](json).right.get.collect {
-              case sampleProcessingStarted: ProgressData.SampleProcessingStarted =>
-                sampleProcessingStarted
-            }
-          }
-
-          val lastRunOfSelectedSamples = {
-            val lastRunOfSamples =
-              samplesOfProject
-                .groupBy(
-                  sampleProcessingStarted =>
-                    (sampleProcessingStarted.project,
-                     sampleProcessingStarted.sample))
-                .toSeq
-                .map {
-                  case (sample, group) => (sample, group.last.run)
-                }
-            lastRunOfSamples.filter {
-              case ((_, sample), _) =>
-                sampleFilter
-                  .map(filter => filter.contains(sample))
-                  .getOrElse(true)
-
-            }
-          }
-
-          val numberOfSamplesMatched = lastRunOfSelectedSamples.size
-          println(numberOfSamplesMatched + " samples matched.")
-          val runsInvolved = lastRunOfSelectedSamples.map(_._2).distinct
-          println(s"Runs involved: ${runsInvolved.mkString(", ")}")
-
-          val samplesToFinishPerRun = lastRunOfSelectedSamples.groupBy {
-            case (_, runId) => runId
-          }
-
-          val editedRunConfigurations = samplesToFinishPerRun.map {
-            case (run, group) =>
-              val samples = group.map(_._1)
-              val currentRunConfiguration =
-                decode[Seq[RunfolderReadyForProcessing]](
-                  get(s"/v2/runconfigurations/$run")).right.get.head
-              val conf = currentRunConfiguration.runConfiguration
-              val currentValue =
-                conf.lastRunOfSamples.toSeq
-              val newValue =
-                (currentValue.toSeq ++ samples).toSet.toStable
-              println(
-                s"Run $run was last run for ${currentValue.size} samples, updated to ${newValue.size}.")
-              currentRunConfiguration.copy(
-                runConfiguration = conf.copy(lastRunOfSamples = newValue))
-
-          }
-
-          editedRunConfigurations.foreach { conf =>
-            println(s"Resend run configuration as \n \n $conf ")
-            println("Y if OK")
-            if (scala.io.Source.stdin.take(1).mkString == "Y") {
-              import io.circe.syntax._
-              val response = post("/v2/runs", conf.asJson.noSpaces)
-              if (response.code != 200) {
-                println("Request failed: " + response)
-              } else println("OK")
-            }
           }
 
         case PrintHelp =>
