@@ -14,7 +14,8 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
 
   case class Entry[K](
       schemaVersion: Int,
-      data: K
+      data: K,
+      timestamp: Option[String]
   )
   object Entry {
     implicit def encoder[K: Encoder]: Encoder[Entry[K]] =
@@ -28,7 +29,10 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
   def append(e: T) = synchronized {
     import io.circe.syntax._
 
-    val data = printer.pretty(Entry(currentVersion, e).asJson)
+    val currentDateTimeAsString =
+      java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC).toString
+    val data = printer.pretty(
+      Entry(currentVersion, e, Some(currentDateTimeAsString)).asJson)
     // The expected frequency of appends are low, thus instead of keeping a
     // file descriptor open for a very long time
     // we open it for write each time.
