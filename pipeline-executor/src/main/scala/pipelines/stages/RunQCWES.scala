@@ -796,7 +796,7 @@ object AlignmentQC {
     val laneTable = """<table style="border-collapse: collapse;">""" + laneHeader + "\n<tbody>" + laneLines + "</tbody></table>"
     val sampleTable = """<table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table>"
 
-    """<!DOCTYPE html><head></head><body>""" + laneTable + sampleTable + rnaTable + "</body>"
+    """<!DOCTYPE html><head></head><body>""" + sampleTable + laneTable + rnaTable + "</body>"
 
   }
 
