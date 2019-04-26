@@ -545,28 +545,108 @@ object AlignmentQC {
 
     val left = true
     val right = false
+
+    case class AggregatedLaneMetrics(
+        totalReads: Long,
+        totalPfReads: Long,
+        totalPfReadsAligned: Long,
+        totalPfNonDupReads: Long,
+        totalPfNonDupReadsAligned: Long,
+        totalMeanTargetCoverage: Double,
+        totalMeanTargetCoverageIncludingDuplicates: Double,
+        totalCoveragePerRead: Double,
+        totalPercentPfNonDupReadsAligned: Double,
+        totalPercentPfReadsAligned: Double
+    )
+
+    val aggregatedLanesPerSample = laneMetrics
+      .groupBy(v => (v._1.project, v._1.sampleId))
+      .map {
+        case (projectAndSample, group) =>
+          val totalReads = group.map {
+            case (alignment, _, _) => alignment.pairMetrics.totalReads
+          }.sum
+          val totalMeanTargetCoverage = group.map {
+            case (_, targetSelection, _) =>
+              targetSelection.metrics.meanTargetCoverage
+          }.sum
+          val totalMeanTargetCoverageIncludingDuplicates = group.map {
+            case (_, targetSelection, _) =>
+              targetSelection.metrics.meanTargetCoverageIncludingDuplicates
+          }.sum
+
+          val totalCoveragePerRead = totalMeanTargetCoverage / totalReads.toDouble
+
+          val totalPfReadsAligned = group.map {
+            case (alignment, _, _) => alignment.pairMetrics.pfReadsAligned
+          }.sum
+
+          val totalPfReads = group.map {
+            case (alignment, _, _) => alignment.pairMetrics.pfReads
+          }.sum
+
+          val totalPercentPfReadsAligned = totalPfReadsAligned.toDouble / totalPfReads.toDouble
+
+          val totalPfUniqueReads = group.map {
+            case (_, targetSelection, _) =>
+              targetSelection.metrics.pfUniqueReads
+          }.sum
+          val totalPfUniqueReadsAligned = group.map {
+            case (_, targetSelection, _) =>
+              targetSelection.metrics.pfUniqueReadsAligned
+          }.sum
+          val totalPercentPfUniqueReadsAligned = totalPfUniqueReads.toDouble / totalPfUniqueReadsAligned
+            .toDouble
+
+          (projectAndSample,
+           AggregatedLaneMetrics(
+             totalReads = totalReads,
+             totalPfReads = totalPfReads,
+             totalPfReadsAligned = totalPfReadsAligned,
+             totalPfNonDupReads = totalPfUniqueReads,
+             totalPfNonDupReadsAligned = totalPfUniqueReadsAligned,
+             totalMeanTargetCoverage = totalMeanTargetCoverage,
+             totalMeanTargetCoverageIncludingDuplicates =
+               totalMeanTargetCoverageIncludingDuplicates,
+             totalCoveragePerRead = totalCoveragePerRead,
+             totalPercentPfNonDupReadsAligned = totalPercentPfUniqueReadsAligned,
+             totalPercentPfReadsAligned = totalPercentPfReadsAligned
+           ))
+
+      }
+
     val sampleLines = sampleMetrics
       .sortBy(_._1.project.toString)
       .sortBy(_._1.sampleId.toString)
       .map {
         case (dups,
-              fastpMetrics,
+              _,
               wgsMetrics,
               mayVcfIntervalMetrics,
               mayVcfOverallMetrics,
               insertSizeMetrics,
-              analysisId) =>
+              _) =>
           import dups.metrics._
           import dups._
-          import fastpMetrics.metrics._
           import wgsMetrics.metrics._
           import insertSizeMetrics.metrics._
+
+          val aggregatedLaneMetrics =
+            aggregatedLanesPerSample((project, sampleId))
 
           Html.line(
             Seq(
               project -> left,
               sampleId -> left,
               f"$meanCoverage%13.1fx" -> right,
+              f"${aggregatedLaneMetrics.totalMeanTargetCoverage}%13.1fx" -> right,
+              f"${aggregatedLaneMetrics.totalMeanTargetCoverageIncludingDuplicates}%13.1fx" -> right,
+              f"${aggregatedLaneMetrics.totalReads / 1E6}%10.2fM" -> right,
+              f"${aggregatedLaneMetrics.totalPfReads / 1E6}%10.2fM" -> right,
+              f"${aggregatedLaneMetrics.totalPercentPfReadsAligned * 100}%6.2f%%" -> right,
+              f"${aggregatedLaneMetrics.totalPfNonDupReads / 1E6}%10.2fM" -> right,
+              f"${aggregatedLaneMetrics.totalPfNonDupReadsAligned / 1E6}%10.2fM" -> right,
+              f"${aggregatedLaneMetrics.totalPercentPfNonDupReadsAligned * 100}%6.2f%%" -> right,
               f"${pctDuplication * 100}%6.2f%%" -> right,
               f"${readPairDuplicates / 1E6}%7.2fM" -> right,
               f"${readPairOpticalDuplicates / 1E6}%8.2fM" -> right,
@@ -589,7 +669,7 @@ object AlignmentQC {
       .sortBy(_._1.runId.toString)
       .sortBy(_._1.lane.toInt)
       .map {
-        case (alignment, targetSelection, analysisId) =>
+        case (alignment, targetSelection, _) =>
           import alignment.pairMetrics._
           import targetSelection.metrics._
           import alignment._
@@ -654,7 +734,14 @@ object AlignmentQC {
     val sampleHeader = Html.mkHeader(
       List("Proj", "Sample"),
       List(
-        "MeanCoverage" -> right,
+        "MeanWgsCoverage" -> right,
+        "MeanTargetCoverage" -> right,
+        "MeanTargetCoverageDupIncl" -> right,
+        "TotalReads" -> right,
+        "PFReads" -> right,
+        "PFReadsAligned" -> right,
+        "PFUniqueReads" -> right,
+        "PFUniqueReadsAligned" -> right,
         "Dup" -> right,
         "DupReadPairs" -> right,
         "OptDupReadPairs" -> right,
@@ -673,7 +760,7 @@ object AlignmentQC {
       .sortBy(_._2.project.toString)
       .sortBy(_._2.sampleId.toString)
       .map {
-        case (analysisId, starMetrics) =>
+        case (_, starMetrics) =>
           import starMetrics._
           import starMetrics.metrics._
 
@@ -849,8 +936,8 @@ object AlignmentQC {
               Future.traverse(analyses) { analysis =>
                 val table =
                   makeNarrowHtmlTable(laneMetrics.filter(_._3 == analysis),
-                                sampleMetrics.filter(_._7 == analysis),
-                                parsedRNAMetrics.filter(_._1 == analysis))
+                                      sampleMetrics.filter(_._7 == analysis),
+                                      parsedRNAMetrics.filter(_._1 == analysis))
                 SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
                            fileName + "." + analysis + ".wes.qc.table.html")
               }
