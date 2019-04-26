@@ -476,7 +476,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   def sampleProcessing
     : Flow[(RunWithAnalyses, DemultiplexedSample), SampleResult, _] = {
 
-    val maxTotalAccumulatedSamples = 10000
+    val maxTotalAccumulatedSamples = 1000000
 
     Flow[(RunWithAnalyses, DemultiplexedSample)]
       .scan((Set.empty[SampleId],
