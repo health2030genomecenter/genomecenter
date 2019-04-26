@@ -7,7 +7,7 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import fileutils.TempFile
 import org.gc.pipelines.util.Exec
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Html, BAM, JVM, StableSet}
+import org.gc.pipelines.util.{Html, BAM, JVM, StableSet, Csv}
 import org.gc.pipelines.model.{FastpReport => FastpReportModel}
 import java.io.File
 import akka.stream.scaladsl.Source
@@ -76,8 +76,10 @@ case class RunQCTableInput(fileName: String,
                            rnaSeqAnalyses: StableSet[(AnalysisId, StarResult)])
     extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
-case class RunQCTable(htmlTable: SharedFile, rnaCsvTable: SharedFile)
-    extends WithSharedFiles(htmlTable, rnaCsvTable)
+case class RunQCTable(htmlTable: SharedFile,
+                      rnaCsvTable: SharedFile,
+                      csvTable: SharedFile)
+    extends WithSharedFiles(htmlTable, rnaCsvTable, csvTable)
 
 object AlignmentQC {
 
@@ -116,6 +118,215 @@ object AlignmentQC {
     } yield parsed
   }
 
+  def makeCsvTable(
+      laneMetrics: Seq[
+        (AlignmentSummaryMetrics.Root, HsMetrics.Root, AnalysisId)],
+      sampleMetrics: Seq[
+        (DuplicationMetrics.Root,
+         FastpReportModel.Root,
+         WgsMetrics.Root,
+         Option[VariantCallingMetrics.Root],
+         Option[VariantCallingMetrics.Root],
+         InsertSizeMetrics.Root,
+         AnalysisId)],
+      rnaSeqMetrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
+
+    val left = true
+    val right = false
+    val sampleLines = sampleMetrics
+      .sortBy(_._1.project.toString)
+      .sortBy(_._1.sampleId.toString)
+      .map {
+        case (dups,
+              fastpMetrics,
+              wgsMetrics,
+              mayVcfIntervalMetrics,
+              mayVcfOverallMetrics,
+              insertSizeMetrics,
+              analysisId) =>
+          import dups.metrics._
+          import dups._
+          import fastpMetrics.metrics._
+          import wgsMetrics.metrics._
+          import insertSizeMetrics.metrics._
+
+          Csv.line(
+            Seq(
+              project -> left,
+              sampleId -> left,
+              analysisId -> left,
+              f"${genomeTerritory / 1E6}%10.2fMb" -> right,
+              // f"${totalReads / 1E6}%10.2fM" -> right,
+              f"$meanCoverage%13.1fx" -> right,
+              f"${pctDuplication * 100}%6.2f%%" -> right,
+              f"${readPairDuplicates / 1E6}%7.2fM" -> right,
+              f"${readPairOpticalDuplicates / 1E6}%8.2fM" -> right,
+              f"$gcContent%6.2f" -> right,
+              modeInsertSize.toString -> right,
+              f"${pctCoverage20x * 100}%11.2f%%" -> right,
+              f"${pctCoverage60x * 100}%11.2f%%" -> right,
+              f"$pctExcludedTotal%11.2f%%" -> right,
+              f"${mayVcfIntervalMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.snpsInDbSnp).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.novelSnp).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.dbSnpTiTv).getOrElse(Double.NaN)}%11.2f" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.novelTiTv).getOrElse(Double.NaN)}%11.2f" -> right,
+              f"${mayVcfIntervalMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.indelsInDbSnp).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.novelIndel).getOrElse(Double.NaN)}%s" -> right,
+              "Table" -> right
+            ))
+
+      }
+      .mkString("\n")
+
+    val laneLines = laneMetrics
+      .sortBy(_._1.project.toString)
+      .sortBy(_._1.sampleId.toString)
+      .sortBy(_._1.runId.toString)
+      .sortBy(_._1.lane.toInt)
+      .map {
+        case (alignment, targetSelection, analysisId) =>
+          import alignment.pairMetrics._
+          import targetSelection.metrics._
+          import alignment._
+
+          val totalReads = alignment.pairMetrics.totalReads
+
+          val coveragePerRead = meanTargetCoverage / totalReads.toDouble
+
+          Csv.line(
+            Seq(
+              project -> left,
+              sampleId -> left,
+              analysisId -> left,
+              runId -> left,
+              lane.toString -> left,
+              baitSet -> left,
+              f"${totalReads / 1E6}%10.2fM" -> right,
+              f"$meanTargetCoverage%13.1fx" -> right,
+              f"$meanTargetCoverageIncludingDuplicates%13.1fx" -> right,
+              f"${pctPfReads * 100}%6.2f%%" -> right,
+              f"${pctPfReadsAligned * 100}%13.2f%%" -> right,
+              f"${pctUsableBasesOnTarget * 100}%13.2f%%" -> right,
+              f"${pctPfUniqueReadsAligned * 100}%15.2f%%" -> right,
+              badCycles.toString -> right,
+              f"${pctChimeras * 100}%8.2f%%" -> right,
+              f"${pctTargetBases20 * 100}%11.2f%%" -> right,
+              f"${pctTargetBases30 * 100}%11.2f%%" -> right,
+              f"${pctTargetBases50 * 100}%11.2f%%" -> right,
+              f"${coveragePerRead * 1E6}%11.3f" -> right,
+              f"${pctExcDupe * 100}%11.2f%%" -> right,
+              f"${pctExcMapQ * 100}%11.2f%%" -> right,
+              f"${pctExcBaseQ * 100}%11.2f%%" -> right,
+              f"${pctExcOverlap * 100}%11.2f%%" -> right,
+              f"${pctExcOffTarget * 100}%11.2f%%" -> right,
+              "wxs-perlane" -> right
+            ))
+
+      }
+      .mkString("\n")
+
+    val laneHeader = Csv.mkHeader(
+      List("Proj", "Sample", "Analysis", "Run", "Lane", "CaptureKit"),
+      List(
+        "TotalReads" -> right,
+        "MeanTargetCoverage" -> right,
+        "MeanTargetCoverageDupeIncl" -> right,
+        "PFReads" -> right,
+        "PFReadsAligned" -> right,
+        "OnTargetUsableBases" -> right,
+        "PFUniqueReadsAligned" -> right,
+        "BadCycles" -> right,
+        "Chimera" -> right,
+        "TargetBase20" -> right,
+        "TargetBase30" -> right,
+        "TargetBase50" -> right,
+        "CoveragePerMillionRead" -> right,
+        "ExclDupe" -> right,
+        "ExclMapQ" -> right,
+        "ExclBaseQ" -> right,
+        "ExclOverlap" -> right,
+        "ExclOffTarget" -> right,
+        "Table" -> right
+      )
+    )
+
+    val sampleHeader = Csv.mkHeader(
+      List("Proj", "Sample", "Analysis"),
+      List(
+        "GenomeSize" -> right,
+        "MeanCoverage" -> right,
+        "Dup" -> right,
+        "DupReadPairs" -> right,
+        "OptDupReadPairs" -> right,
+        "GC" -> right,
+        "InsertSizePeak" -> right,
+        "Wgs20x" -> right,
+        "Wgs60x" -> right,
+        "Excluded" -> right,
+        "TotalSnpsInCapture" -> right,
+        "TotalSnps" -> right,
+        "DbSnpSnp" -> right,
+        "NovelSnp" -> right,
+        "DbSnpTi/Tv" -> right,
+        "NovelTi/Tv" -> right,
+        "TotalIndelInCapture" -> right,
+        "TotalIndel" -> right,
+        "DbpSnpIndel" -> right,
+        "NovelIndel" -> right,
+        "wxs-persample" -> right
+      )
+    )
+
+    val rnaLines = rnaSeqMetrics
+      .sortBy(_._2.project.toString)
+      .sortBy(_._2.sampleId.toString)
+      .map {
+        case (analysisId, starMetrics) =>
+          import starMetrics._
+          import starMetrics.metrics._
+
+          Csv.line(
+            Seq(
+              project -> left,
+              sampleId -> left,
+              runId -> left,
+              analysisId -> left,
+              f"${numberOfReads / 1E6}%10.2fM" -> right,
+              f"$meanReadLength%13.2f" -> right,
+              f"${uniquelyMappedReads / 1E6}%10.2fM" -> right,
+              f"${uniquelyMappedPercentage * 100}%6.2f%%" -> right,
+              f"${multiplyMappedReads / 1E6}%10.2fM" -> right,
+              f"${multiplyMappedReadsPercentage * 100}%6.2f%%" -> right,
+              "rna" -> right
+            ))
+
+      }
+      .mkString("\n")
+
+    val rnaHeader = Csv.mkHeader(
+      List("Proj", "Sample", "Run", "AnalysisId"),
+      List(
+        "TotalReads" -> right,
+        "MeanReadLength" -> right,
+        "UniquelyMapped" -> right,
+        "UniquelyMapped%" -> right,
+        "Multimapped" -> right,
+        "Multimapped%" -> right,
+        "Table" -> right
+      )
+    )
+
+    val rnaTable = rnaHeader + "\n" + rnaLines
+    val laneTable = laneHeader + "\n" + laneLines
+    val sampleTable = sampleHeader + "\n" + sampleLines
+
+    laneTable + "\n" + sampleTable + "\n" + rnaTable
+
+  }
   def makeHtmlTable(
       laneMetrics: Seq[
         (AlignmentSummaryMetrics.Root, HsMetrics.Root, AnalysisId)],
@@ -443,6 +654,12 @@ object AlignmentQC {
               SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
                          fileName + ".wes.qc.table.html")
             }
+            csvTable <- {
+              val table =
+                makeCsvTable(laneMetrics, sampleMetrics, parsedRNAMetrics)
+              SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
+                         fileName + ".wes.qc.table.csv")
+            }
             _ <- {
               val analyses
                 : Seq[AnalysisId] = (laneMetrics.map(_._3) ++ sampleMetrics.map(
@@ -456,7 +673,7 @@ object AlignmentQC {
                            fileName + "." + analysis + ".wes.qc.table.html")
               }
             }
-          } yield RunQCTable(htmlTable, rnaCSVTable)
+          } yield RunQCTable(htmlTable, rnaCSVTable, csvTable)
 
     }
 
