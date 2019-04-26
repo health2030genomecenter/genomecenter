@@ -411,6 +411,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .map { case (_, completedProject) => completedProject }
       .via(processCompletedProjects)
 
+  import scala.concurrent.duration._
+
   def processCompletedRuns =
     Flow[(CompletedRun, CompletedProject)]
       .map { case (completedRun, _) => completedRun }
@@ -430,6 +432,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           map.updated(runId, samples)
       }
       .buffer(1, OverflowStrategy.dropHead)
+      .throttle(1,
+                1 minute,
+                maximumBurst = 1,
+                mode = akka.stream.ThrottleMode.Shaping)
       .mapAsync(1) { completedRuns =>
         logger.debug(s"Completing ${completedRuns.size} runs.")
         pipeline.processCompletedRuns(completedRuns).recover {
