@@ -5,6 +5,7 @@ import tasks.circesupport._
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import scala.concurrent.{Future, ExecutionContext}
+import org.gc.pipelines.model.{SampleId, Project}
 import org.gc.pipelines.util.{
   Exec,
   GATK,
@@ -22,7 +23,7 @@ import Executables.{picardJar, gatkJar}
 case class HaplotypeCallerInput(
     bam: CoordinateSortedBam,
     indexedReference: IndexedReferenceFasta,
-    contigs: Option[ContigsFile]
+    contigs: Option[ContigsFile],
 ) extends WithSharedFiles(bam.files ++ indexedReference.files: _*)
 
 case class VariantCallingMetricsResult(
@@ -120,7 +121,103 @@ case class JointCallInput(
 ) extends WithSharedFiles(
       haplotypeCallerReferenceCalls.toSeq.flatMap(_.files): _*)
 
+case class SingleSampleVariantDiscoveryInput(
+    bam: CoordinateSortedBam,
+    indexedReference: IndexedReferenceFasta,
+    contigsFile: Option[ContigsFile],
+    dbSnpVcf: VCF,
+    project: Project,
+    sampleId: SampleId,
+    variantEvaluationIntervals: BedFile,
+    vqsrTrainingFiles: Option[VQSRTrainingFiles])
+    extends WithSharedFiles(
+      bam.files ++ indexedReference.files ++ contigsFile.toSeq
+        .flatMap(_.files) ++ dbSnpVcf.files ++ variantEvaluationIntervals.files ++ vqsrTrainingFiles.toSeq
+        .flatMap(_.files): _*)
+
+case class SingleSampleVariantDiscoveryResult(
+    haplotypeCallerReferenceCalls: VCF,
+    genotypedVcf: VCF,
+    gvcfQCInterval: VariantCallingMetricsResult,
+    gvcfQCOverall: VariantCallingMetricsResult)
+
 object HaplotypeCaller {
+
+  val singleSampleVariantDiscovery =
+    AsyncTask[SingleSampleVariantDiscoveryInput,
+              SingleSampleVariantDiscoveryResult](
+      "__single-sample-variant-discovery",
+      1) {
+      case SingleSampleVariantDiscoveryInput(bam,
+                                             indexedReference,
+                                             contigsFile,
+                                             dbSnpVcf,
+                                             project,
+                                             sampleId,
+                                             variantEvaluationIntervals,
+                                             vqsrTrainingFiles) =>
+        implicit computationEnvironment =>
+          def intoIntermediateFolder[T] =
+            appendToFilePrefix[T](Seq("intermediate"))
+          def intoQCFolder[T] =
+            appendToFilePrefix[T](Seq("QC"))
+
+          releaseResources
+
+          for {
+            haplotypeCallerReferenceCalls <- HaplotypeCaller.haplotypeCaller(
+              HaplotypeCallerInput(bam, indexedReference, contigsFile))(
+              ResourceConfig.minimal)
+
+            GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
+              implicit computationEnvironment =>
+                HaplotypeCaller.genotypeGvcfs(
+                  GenotypeGVCFsInput(
+                    StableSet(haplotypeCallerReferenceCalls),
+                    indexedReference,
+                    dbSnpVcf,
+                    project + "." + sampleId + ".single",
+                    vqsrTrainingFiles = vqsrTrainingFiles,
+                    contigsFile = contigsFile
+                  ))(ResourceConfig.minimal)
+            }
+
+            genotypedVcf <- HaplotypeCaller.mergeVcfs(
+              MergeVCFInput(
+                genotypesScattered,
+                project + "." + sampleId + ".single.genotyped.vcf.gz"))(
+              ResourceConfig.minimal
+            )
+
+            startGvcfQCInInterval = intoQCFolder {
+              implicit computationEnvironment =>
+                HaplotypeCaller.collectVariantCallingMetrics(
+                  CollectVariantCallingMetricsInput(
+                    indexedReference,
+                    genotypedVcf,
+                    dbSnpVcf,
+                    Some(variantEvaluationIntervals)))(
+                  ResourceConfig.minimal
+                )
+            }
+            startGvcfQCOverall = intoQCFolder {
+              implicit computationEnvironment =>
+                HaplotypeCaller.collectVariantCallingMetrics(
+                  CollectVariantCallingMetricsInput(indexedReference,
+                                                    genotypedVcf,
+                                                    dbSnpVcf,
+                                                    None))(
+                  ResourceConfig.minimal)
+            }
+            gvcfQCInterval <- startGvcfQCInInterval
+            gvcfQCOverall <- startGvcfQCOverall
+          } yield
+            SingleSampleVariantDiscoveryResult(haplotypeCallerReferenceCalls,
+                                               genotypedVcf,
+                                               gvcfQCInterval,
+                                               gvcfQCOverall)
+
+    }
 
   lazy val defaultContigs: Set[String] =
     scala.io.Source
@@ -955,4 +1052,16 @@ object JointCallInput {
     deriveEncoder[JointCallInput]
   implicit val decoder: Decoder[JointCallInput] =
     deriveDecoder[JointCallInput]
+}
+object SingleSampleVariantDiscoveryInput {
+  implicit val encoder: Encoder[SingleSampleVariantDiscoveryInput] =
+    deriveEncoder[SingleSampleVariantDiscoveryInput]
+  implicit val decoder: Decoder[SingleSampleVariantDiscoveryInput] =
+    deriveDecoder[SingleSampleVariantDiscoveryInput]
+}
+object SingleSampleVariantDiscoveryResult {
+  implicit val encoder: Encoder[SingleSampleVariantDiscoveryResult] =
+    deriveEncoder[SingleSampleVariantDiscoveryResult]
+  implicit val decoder: Decoder[SingleSampleVariantDiscoveryResult] =
+    deriveDecoder[SingleSampleVariantDiscoveryResult]
 }

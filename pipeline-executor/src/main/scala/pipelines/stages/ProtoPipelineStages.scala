@@ -67,14 +67,6 @@ object ProtoPipelineStages extends StrictLogging {
           val runIdTag =
             demultiplexed.runIdTag
 
-          def intoIntermediateFolder[T] =
-            appendToFilePrefix[T](
-              Seq("projects",
-                  demultiplexed.project,
-                  demultiplexed.sampleId,
-                  analysisId,
-                  "intermediate").filter(_.nonEmpty))
-
           def intoRunIntermediateFolder[T] =
             appendToFilePrefix[T](
               Seq("projects",
@@ -103,6 +95,60 @@ object ProtoPipelineStages extends StrictLogging {
             appendToFilePrefix[T](
               Seq("coverages", demultiplexed.project, analysisId)
                 .filter(_.nonEmpty))
+
+          def variantDiscovery(
+              doVariantCalling: Boolean,
+              wgsMeanCoverage: Double,
+              targetedMeanCoverage: Double,
+              minimumWGSCoverage: Option[Double],
+              minimumTargetedCoverage: Option[Double],
+              bam: CoordinateSortedBam,
+              indexedReference: IndexedReferenceFasta,
+              contigsFile: Option[ContigsFile],
+              dbSnpVcf: VCF,
+              project: Project,
+              sampleId: SampleId,
+              runIdTag: String,
+              analysisId: AnalysisId,
+              variantEvaluationIntervals: BedFile,
+              vqsrTrainingFiles: Option[VQSRTrainingFiles],
+              priorityVcf: Priority
+          ) =
+            if (!executeVariantCalling(
+                  doVariantCalling = doVariantCalling,
+                  wgsCoverage = wgsMeanCoverage,
+                  targetedCoverage = targetedMeanCoverage,
+                  minimumTargetedCoverage = minimumTargetedCoverage,
+                  minimumWGSCoverage = minimumWGSCoverage
+                ))
+              Future.successful(None)
+            else {
+              for {
+                calls <- intoFinalFolder { implicit computationEnvironment =>
+                  HaplotypeCaller.singleSampleVariantDiscovery(
+                    SingleSampleVariantDiscoveryInput(
+                      bam = bam,
+                      indexedReference = indexedReference,
+                      contigsFile = contigsFile,
+                      dbSnpVcf = dbSnpVcf,
+                      project = project,
+                      sampleId = sampleId,
+                      variantEvaluationIntervals = variantEvaluationIntervals,
+                      vqsrTrainingFiles = vqsrTrainingFiles
+                    )
+                  )(ResourceConfig.minimal, priorityVcf)
+                }
+                genotypedVcfPath <- calls.genotypedVcf.vcf.uri
+                  .map(_.toString)
+                _ = ProgressServer.send(
+                  VCFAvailable(project,
+                               sampleId,
+                               runIdTag,
+                               analysisId,
+                               genotypedVcfPath))
+              } yield Some(calls)
+
+            }
 
           for {
 
@@ -237,106 +283,42 @@ object ProtoPipelineStages extends StrictLogging {
                   demultiplexed.sampleId
                 )
 
-                variantCalls <- if (!executeVariantCalling(
-                                      doVariantCalling = doVariantCalling,
-                                      wgsCoverage = wgsMeanCoverage,
-                                      targetedCoverage = targetedMeanCoverage,
-                                      minimumTargetedCoverage =
-                                        minimumTargetedCoverage,
-                                      minimumWGSCoverage = minimumWGSCoverage
-                                    ))
-                  Future.successful(None)
-                else {
-                  for {
-                    haplotypeCallerReferenceCalls <- intoFinalFolder {
-                      implicit computationEnvironment =>
-                        HaplotypeCaller.haplotypeCaller(
-                          HaplotypeCallerInput(recalibrated,
-                                               indexedReference,
-                                               contigsFile))(
-                          ResourceConfig.minimal,
-                          priorityVcf)
-                    }
-
-                    GenotypeGVCFsResult(_, genotypesScattered) <- intoIntermediateFolder {
-                      implicit computationEnvironment =>
-                        HaplotypeCaller.genotypeGvcfs(
-                          GenotypeGVCFsInput(
-                            StableSet(haplotypeCallerReferenceCalls),
-                            indexedReference,
-                            dbSnpVcf,
-                            demultiplexed.project + "." + demultiplexed.sampleId + ".single",
-                            vqsrTrainingFiles = vqsrTrainingFiles,
-                            contigsFile = contigsFile
-                          ))(ResourceConfig.minimal, priorityVcf)
-                    }
-
-                    genotypedVcf <- intoFinalFolder {
-                      implicit computationEnvironment =>
-                        HaplotypeCaller.mergeVcfs(MergeVCFInput(
-                          genotypesScattered,
-                          demultiplexed.project + "." + demultiplexed.sampleId + ".single.genotyped.vcf.gz"))(
-                          ResourceConfig.minimal,
-                          priorityVcf)
-                    }
-
-                    genotypedVcfPath <- genotypedVcf.vcf.uri.map(_.toString)
-                    _ = ProgressServer.send(
-                      VCFAvailable(demultiplexed.project,
-                                   demultiplexed.sampleId,
-                                   runIdTag,
-                                   analysisId,
-                                   genotypedVcfPath))
-
-                    startGvcfQCInInterval = intoQCFolder {
-                      implicit computationEnvironment =>
-                        HaplotypeCaller.collectVariantCallingMetrics(
-                          CollectVariantCallingMetricsInput(
-                            indexedReference,
-                            genotypedVcf,
-                            dbSnpVcf,
-                            Some(variantEvaluationIntervals)))(
-                          ResourceConfig.minimal,
-                          priorityVcf)
-                    }
-                    startGvcfQCOverall = intoQCFolder {
-                      implicit computationEnvironment =>
-                        HaplotypeCaller.collectVariantCallingMetrics(
-                          CollectVariantCallingMetricsInput(indexedReference,
-                                                            genotypedVcf,
-                                                            dbSnpVcf,
-                                                            None))(
-                          ResourceConfig.minimal,
-                          priorityVcf)
-                    }
-                    gvcfQCInterval <- startGvcfQCInInterval
-                    gvcfQCOverall <- startGvcfQCOverall
-                  } yield
-                    Some(
-                      (haplotypeCallerReferenceCalls,
-                       genotypedVcf,
-                       gvcfQCInterval,
-                       gvcfQCOverall))
-                }
-
+                variantCalls <- variantDiscovery(
+                  doVariantCalling = doVariantCalling,
+                  wgsMeanCoverage = wgsMeanCoverage,
+                  targetedMeanCoverage = targetedMeanCoverage,
+                  minimumWGSCoverage = minimumWGSCoverage,
+                  minimumTargetedCoverage = minimumTargetedCoverage,
+                  bam = recalibrated,
+                  indexedReference = indexedReference,
+                  contigsFile = contigsFile,
+                  dbSnpVcf = dbSnpVcf,
+                  project = demultiplexed.project,
+                  sampleId = demultiplexed.sampleId,
+                  runIdTag = runIdTag,
+                  analysisId = analysisId,
+                  variantEvaluationIntervals = variantEvaluationIntervals,
+                  vqsrTrainingFiles = vqsrTrainingFiles,
+                  priorityVcf = priorityVcf
+                )
               } yield
                 Some(
                   PerSampleMergedWESResult(
                     bam = recalibrated,
-                    haplotypeCallerReferenceCalls = variantCalls.map(_._1),
-                    gvcf = variantCalls.map(_._2),
+                    haplotypeCallerReferenceCalls =
+                      variantCalls.map(_.haplotypeCallerReferenceCalls),
+                    gvcf = variantCalls.map(_.genotypedVcf),
                     project = demultiplexed.project,
                     sampleId = demultiplexed.sampleId,
                     alignmentQC = alignmentQC,
                     duplicationQC = markDuplicateMetrics,
                     targetSelectionQC = targetSelectionQC,
                     wgsQC = wgsQC,
-                    gvcfQCInterval = variantCalls.map(_._3),
-                    gvcfQCOverall = variantCalls.map(_._4),
+                    gvcfQCInterval = variantCalls.map(_.gvcfQCInterval),
+                    gvcfQCOverall = variantCalls.map(_.gvcfQCOverall),
                     referenceFasta = indexedReference
                   ))
             }
-
           } yield
             SingleSamplePipelineResult(
               alignedLanes = alignedLanes,
