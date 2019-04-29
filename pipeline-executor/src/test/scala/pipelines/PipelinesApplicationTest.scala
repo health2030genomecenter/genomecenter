@@ -888,7 +888,8 @@ class PipelinesApplicationTest
       referenceFasta = referenceFasta,
       geneModelGtf = gtfFile.getAbsolutePath,
       qtlToolsCommandLineArguments = Nil,
-      quantificationGtf = gtfFile.getAbsolutePath
+      quantificationGtf = gtfFile.getAbsolutePath,
+      starVersion = Some("2.6.0a")
     )
   }
 

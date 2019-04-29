@@ -75,7 +75,8 @@ case class SingleSamplePipelineInputRNASeq(
     gtf: GTFFile,
     readLengths: StableSet[(ReadType, Int)],
     qtlToolsArguments: Seq[String],
-    quantificationGtf: GTFFile
+    quantificationGtf: GTFFile,
+    starVersion: StarVersion
 ) extends WithSharedFiles(
       demultiplexed.files ++ reference.files ++ gtf.files: _*)
 

@@ -596,7 +596,11 @@ class ProtoPipeline(progressServer: SendProgressData)(
           gtf,
           readLengths.toSeq.toSet.toStable,
           conf.qtlToolsCommandLineArguments,
-          quantificationGtf = quantificationGtf
+          quantificationGtf = quantificationGtf,
+          starVersion = conf.starVersion match {
+            case Some("2.6.1c") => StarVersion.Star261c
+            case _              => StarVersion.Star260a
+          }
         ))(ResourceConfig.minimal,
            labels =
              ResourceConfig.projectLabel(samplesForRNASeqAnalysis.project))

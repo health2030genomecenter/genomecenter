@@ -126,6 +126,9 @@ object CliHelpers {
       geneModelGtf = 
       qtlToolsCommandLineArguments = # array of strings e.g. [--minimum-mapq,5]
       quantificationGtf = 
+
+      # optional if missing or not exactly 2.6.1c then 2.6.0a is used
+      # starVersion = 
     }
   }
   """

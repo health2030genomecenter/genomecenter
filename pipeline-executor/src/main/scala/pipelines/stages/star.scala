@@ -12,7 +12,26 @@ import tasks.circesupport._
 import fileutils.TempFile
 import scala.concurrent.{Future, ExecutionContext}
 import java.io.File
-import Executables.{starExecutable, picardJar}
+import Executables.{star260aExecutable, star261cExecutable, picardJar}
+
+sealed trait StarVersion {
+  def executable: String
+}
+object StarVersion {
+  case object Star261c extends StarVersion {
+    def executable: String = star261cExecutable
+    override def toString = "2.6.1c"
+  }
+  case object Star260a extends StarVersion {
+    def executable: String = star260aExecutable
+    override def toString = "2.6.0a"
+  }
+
+  implicit val encoder: Encoder[StarVersion] =
+    deriveEncoder[StarVersion]
+  implicit val decoder: Decoder[StarVersion] =
+    deriveDecoder[StarVersion]
+}
 
 case class StarAlignmentInput(
     fastqs: StableSet[FastQPerLane],
@@ -21,7 +40,8 @@ case class StarAlignmentInput(
     runId: RunId,
     reference: StarIndexedReferenceFasta,
     gtf: SharedFile,
-    readLength: Int
+    readLength: Int,
+    starVersion: StarVersion
 ) extends WithSharedFiles(fastqs.toSeq.flatMap(l =>
       List(l.read1.file, l.read2.file)) ++ Seq(reference.fasta, gtf): _*)
 
@@ -40,14 +60,21 @@ case class StarIndexedReferenceFasta(fasta: SharedFile,
     } yield indexFiles.head.getParent
 }
 
+case class StarIndexInput(
+    reference: ReferenceFasta,
+    starVersion: StarVersion
+) extends WithSharedFiles(reference.files: _*)
+
 object StarAlignment {
 
   val indexReference =
-    AsyncTask[ReferenceFasta, StarIndexedReferenceFasta]("__star-index", 1) {
-      case ReferenceFasta(fasta) =>
+    AsyncTask[StarIndexInput, StarIndexedReferenceFasta]("__star-index", 1) {
+      case StarIndexInput(ReferenceFasta(fasta), starVersion) =>
         implicit computationEnvironment =>
           val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
+
+          val starExecutable = starVersion.executable
 
           for {
             localFasta <- fasta.file
@@ -80,13 +107,18 @@ object StarAlignment {
 
               for {
                 indexFiles <- Future
-                  .traverse(indexFiles)(f =>
-                    SharedFile(f, fasta.name + ".star/" + f.getName))
+                  .traverse(indexFiles)(
+                    f =>
+                      SharedFile(
+                        f,
+                        fasta.name + "." + starVersion + ".star/" + f.getName))
                   .map(_.toSet)
-                _ <- SharedFile(tmpStdOut,
-                                name = fasta.name + ".star.index.stdout")
-                _ <- SharedFile(tmpStdErr,
-                                name = fasta.name + ".star.index.stderr")
+                _ <- SharedFile(
+                  tmpStdOut,
+                  name = fasta.name + "." + starVersion + ".star.index.stdout")
+                _ <- SharedFile(
+                  tmpStdErr,
+                  name = fasta.name + "." + starVersion + ".star.index.stderr")
               } yield StarIndexedReferenceFasta(fasta, indexFiles.toStable)
             }
           } yield result
@@ -100,7 +132,8 @@ object StarAlignment {
                               runId,
                               reference,
                               gtf,
-                              readLength) =>
+                              readLength,
+                              starVersion) =>
         implicit computationEnvironment =>
           val starNumberOfThreads = math.max(1, resourceAllocated.cpu - 1) + 3
 
@@ -129,6 +162,8 @@ object StarAlignment {
           val fastqsSeq = fastqs.toSeq
 
           def fetchFiles(f: Seq[SharedFile]) = Future.traverse(f)(_.file)
+
+          val starExecutable = starVersion.executable
 
           val resultF = for {
             read1 <- fetchFiles(fastqsSeq.map(_.read1.file))
@@ -174,7 +209,7 @@ object StarAlignment {
               Exec.bashAudit(logDiscriminator = "star.pipes." + sampleId,
                              onError = Exec.ThrowIfNonZero)(bashScript)
 
-              val nameStub = readGroupName
+              val nameStub = readGroupName + "." + starVersion
 
               val expectedLog = new File(tmpStarFolder, "Log.out")
               val expectedFinalLog = new File(tmpStarFolder, "Log.final.out")
@@ -228,4 +263,10 @@ object StarResult {
     deriveEncoder[StarResult]
   implicit val decoder: Decoder[StarResult] =
     deriveDecoder[StarResult]
+}
+object StarIndexInput {
+  implicit val encoder: Encoder[StarIndexInput] =
+    deriveEncoder[StarIndexInput]
+  implicit val decoder: Decoder[StarIndexInput] =
+    deriveDecoder[StarIndexInput]
 }

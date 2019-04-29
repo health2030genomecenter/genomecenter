@@ -21,7 +21,10 @@ class StarAlignmentTestSuite
         val fasta = fetchReference(referenceFile)
 
         val result =
-          await(StarAlignment.indexReference(fasta)(ResourceRequest(1, 500)))
+          await(
+            StarAlignment.indexReference(
+              StarIndexInput(fasta, StarVersion.Star260a))(
+              ResourceRequest(1, 500)))
 
         result.indexFiles.size shouldBe 8
         import scala.concurrent.ExecutionContext.Implicits.global
@@ -57,7 +60,8 @@ class StarAlignmentTestSuite
             runId = runId,
             reference = indexedFasta,
             gtf = await(SharedFile(gtfFile, "gtf")),
-            readLength = 151
+            readLength = 151,
+            starVersion = StarVersion.Star260a
           )
 
         val result =

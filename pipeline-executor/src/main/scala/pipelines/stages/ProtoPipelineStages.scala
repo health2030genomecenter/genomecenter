@@ -348,7 +348,8 @@ object ProtoPipelineStages extends StrictLogging {
                                            geneModelGtf,
                                            readLengths,
                                            qtlToolsArguments,
-                                           quantificationGtf) =>
+                                           quantificationGtf,
+                                           starVersion) =>
         implicit computationEnvironment =>
           releaseResources
 
@@ -377,7 +378,8 @@ object ProtoPipelineStages extends StrictLogging {
                       analysisId).filter(_.nonEmpty))
 
               for {
-                indexedFasta <- StarAlignment.indexReference(referenceFasta)(
+                indexedFasta <- StarAlignment.indexReference(
+                  StarIndexInput(referenceFasta, starVersion))(
                   ResourceConfig.createStarIndex)
 
                 processedSample <- inProjectFolder {
@@ -391,7 +393,8 @@ object ProtoPipelineStages extends StrictLogging {
                           runId = demultiplexed.lanes.toSeq.head.runId,
                           reference = indexedFasta,
                           gtf = geneModelGtf.file,
-                          readLength = maxReadLength
+                          readLength = maxReadLength,
+                          starVersion = starVersion
                         ))(ResourceConfig.starAlignment, priorityBam)
                       coordinateSorted <- BWAAlignment.sortByCoordinateAndIndex(
                         starResult.bam.bam)(ResourceConfig.sortBam, priorityBam)

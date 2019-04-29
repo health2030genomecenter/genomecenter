@@ -15,7 +15,8 @@ object Executables {
       "samtools" -> samtoolsExecutable,
       "fastp" -> fastpExecutable,
       "readQCJar" -> readQCJar,
-      "star" -> starExecutable
+      "star261c" -> star261cExecutable,
+      "star260a" -> star260aExecutable
     ).toList
       .sortBy(_._1)
       .map(v => v._1 + ":" + v._2)
@@ -84,7 +85,7 @@ object Executables {
       .getExecutableFromJar("/readqc", "readqc")
       .getAbsolutePath
 
-  val starExecutable: String = {
+  val star261cExecutable: String = {
     val resourceName =
       if (util.isMac) "/bin/STAR_ffd8416315_2.6.1c_mac"
       else if (util.isLinux) "/bin/STAR_ffd8416315_2.6.1c_linux64"
@@ -93,6 +94,18 @@ object Executables {
           "Unknown OS: " + System.getProperty("os.name"))
     fileutils.TempFile
       .getExecutableFromJar(resourceName, "STAR_ffd8416315_2.6.1c")
+      .getAbsolutePath
+  }
+
+  val star260aExecutable: String = {
+    val resourceName =
+      if (util.isMac) "/bin/STAR_2b95e47_2.6.0a_mac"
+      else if (util.isLinux) "/bin/STAR_2b95e47_2.6.0a_linux64"
+      else
+        throw new RuntimeException(
+          "Unknown OS: " + System.getProperty("os.name"))
+    fileutils.TempFile
+      .getExecutableFromJar(resourceName, "STAR_2b95e47_2.6.0a")
       .getAbsolutePath
   }
 }

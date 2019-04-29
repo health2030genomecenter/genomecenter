@@ -78,7 +78,8 @@ case class RNASeqConfiguration(
     referenceFasta: String,
     geneModelGtf: String,
     qtlToolsCommandLineArguments: Seq[String],
-    quantificationGtf: String
+    quantificationGtf: String,
+    starVersion: Option[String]
 ) extends AnalysisConfiguration {
   def files = Set(referenceFasta, geneModelGtf, quantificationGtf)
 }
@@ -295,7 +296,8 @@ object RNASeqConfiguration {
     geneModelGtf = config.getString("geneModelGtf"),
     qtlToolsCommandLineArguments =
       config.getStringList("qtlToolsCommandLineArguments").asScala.toList,
-    quantificationGtf = config.getString("quantificationGtf")
+    quantificationGtf = config.getString("quantificationGtf"),
+    starVersion = option(config, "starVersion")(c => p => c.getString(p))
   )
 
 }
