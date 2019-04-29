@@ -76,9 +76,9 @@ class ProtoPipeline(progressServer: SendProgressData)(
       implicit tsc: TaskSystemComponents): Future[Unit] = {
 
     val sampleQCsWES =
-      samples.flatMap(_._2.flatMap(_.extractWESQCFiles))
+      samples.toSeq.flatMap(_._2.flatMap(_.extractWESQCFiles))
     val sampleQCsRNA =
-      samples.flatMap(_._2.flatMap(_.rna.toSeq.map(rnaResult =>
+      samples.toSeq.flatMap(_._2.flatMap(_.rna.toSeq.map(rnaResult =>
         (rnaResult.analysisId, rnaResult.star))))
 
     val allSamples = samples.toSeq.flatMap(_._2.map(_.sampleId)).distinct
