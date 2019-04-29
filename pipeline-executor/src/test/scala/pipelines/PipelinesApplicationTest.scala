@@ -867,7 +867,8 @@ class PipelinesApplicationTest
         minimumWGSCoverage = Some(20.0),
         minimumTargetCoverage = Some(20.0),
         variantCallingContigs = None,
-        singleSampleVqsr = None
+        singleSampleVqsr = None,
+        keepVcf = None
       )
 
     val analysisAssignment = AnalysisAssignments(

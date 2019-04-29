@@ -204,7 +204,8 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
       minimumTargetCoverage = None,
       minimumWGSCoverage = None,
       variantCallingContigs = None,
-      singleSampleVqsr = None
+      singleSampleVqsr = None,
+      keepVcf = None
     )
 
     val wesConfigurationWithHighTargetCoverage = wesConfiguration.copy(

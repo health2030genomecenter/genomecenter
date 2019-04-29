@@ -92,7 +92,8 @@ case class SingleSamplePipelineInput(
     minimumWGSCoverage: Option[Double],
     minimumTargetCoverage: Option[Double],
     contigsFile: Option[ContigsFile],
-    vqsrTrainingFiles: Option[VQSRTrainingFiles])
+    vqsrTrainingFiles: Option[VQSRTrainingFiles],
+    keepVcf: Option[Boolean])
     extends WithSharedFiles(demultiplexed.files ++ reference.files ++ knownSites
       .flatMap(_.files) ++ selectionTargetIntervals.files ++ alignedLanes.toSeq
       .flatMap(_.files): _*)

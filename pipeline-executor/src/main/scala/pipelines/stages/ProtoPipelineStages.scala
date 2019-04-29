@@ -52,7 +52,8 @@ object ProtoPipelineStages extends StrictLogging {
                                      minimumWGSCoverage,
                                      minimumTargetedCoverage,
                                      contigsFile,
-                                     vqsrTrainingFiles) =>
+                                     vqsrTrainingFiles,
+                                     keepVcf) =>
         implicit computationEnvironment =>
           log.info(s"Processing demultiplexed sample $demultiplexed")
           releaseResources
@@ -112,7 +113,8 @@ object ProtoPipelineStages extends StrictLogging {
               analysisId: AnalysisId,
               variantEvaluationIntervals: BedFile,
               vqsrTrainingFiles: Option[VQSRTrainingFiles],
-              priorityVcf: Priority
+              priorityVcf: Priority,
+              keepVcf: Boolean
           ) =
             if (!executeVariantCalling(
                   doVariantCalling = doVariantCalling,
@@ -134,18 +136,25 @@ object ProtoPipelineStages extends StrictLogging {
                       project = project,
                       sampleId = sampleId,
                       variantEvaluationIntervals = variantEvaluationIntervals,
-                      vqsrTrainingFiles = vqsrTrainingFiles
+                      vqsrTrainingFiles = vqsrTrainingFiles,
+                      keepVcf = keepVcf
                     )
                   )(ResourceConfig.minimal, priorityVcf)
                 }
-                genotypedVcfPath <- calls.genotypedVcf.vcf.uri
-                  .map(_.toString)
-                _ = ProgressServer.send(
-                  VCFAvailable(project,
-                               sampleId,
-                               runIdTag,
-                               analysisId,
-                               genotypedVcfPath))
+                genotypedVcfPath <- calls.genotypedVcf
+                  .map(
+                    _.vcf.uri
+                      .map(_.toString)
+                      .map(Some(_)))
+                  .getOrElse(Future.successful(None))
+                _ = genotypedVcfPath.foreach { genotypedVcfPath =>
+                  ProgressServer.send(
+                    VCFAvailable(project,
+                                 sampleId,
+                                 runIdTag,
+                                 analysisId,
+                                 genotypedVcfPath))
+                }
               } yield Some(calls)
 
             }
@@ -299,15 +308,16 @@ object ProtoPipelineStages extends StrictLogging {
                   analysisId = analysisId,
                   variantEvaluationIntervals = variantEvaluationIntervals,
                   vqsrTrainingFiles = vqsrTrainingFiles,
-                  priorityVcf = priorityVcf
+                  priorityVcf = priorityVcf,
+                  keepVcf = keepVcf.exists(identity)
                 )
               } yield
                 Some(
                   PerSampleMergedWESResult(
                     bam = recalibrated,
                     haplotypeCallerReferenceCalls =
-                      variantCalls.map(_.haplotypeCallerReferenceCalls),
-                    gvcf = variantCalls.map(_.genotypedVcf),
+                      variantCalls.flatMap(_.haplotypeCallerReferenceCalls),
+                    gvcf = variantCalls.flatMap(_.genotypedVcf),
                     project = demultiplexed.project,
                     sampleId = demultiplexed.sampleId,
                     alignmentQC = alignmentQC,

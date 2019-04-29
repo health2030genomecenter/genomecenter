@@ -129,15 +129,16 @@ case class SingleSampleVariantDiscoveryInput(
     project: Project,
     sampleId: SampleId,
     variantEvaluationIntervals: BedFile,
-    vqsrTrainingFiles: Option[VQSRTrainingFiles])
+    vqsrTrainingFiles: Option[VQSRTrainingFiles],
+    keepVcf: Boolean)
     extends WithSharedFiles(
       bam.files ++ indexedReference.files ++ contigsFile.toSeq
         .flatMap(_.files) ++ dbSnpVcf.files ++ variantEvaluationIntervals.files ++ vqsrTrainingFiles.toSeq
         .flatMap(_.files): _*)
 
 case class SingleSampleVariantDiscoveryResult(
-    haplotypeCallerReferenceCalls: VCF,
-    genotypedVcf: VCF,
+    haplotypeCallerReferenceCalls: Option[VCF],
+    genotypedVcf: Option[VCF],
     gvcfQCInterval: VariantCallingMetricsResult,
     gvcfQCOverall: VariantCallingMetricsResult)
 
@@ -155,7 +156,8 @@ object HaplotypeCaller {
                                              project,
                                              sampleId,
                                              variantEvaluationIntervals,
-                                             vqsrTrainingFiles) =>
+                                             vqsrTrainingFiles,
+                                             keepVcf) =>
         implicit computationEnvironment =>
           def intoIntermediateFolder[T] =
             appendToFilePrefix[T](Seq("intermediate"))
@@ -211,11 +213,17 @@ object HaplotypeCaller {
             }
             gvcfQCInterval <- startGvcfQCInInterval
             gvcfQCOverall <- startGvcfQCOverall
+
+            _ <- if (!keepVcf) haplotypeCallerReferenceCalls.vcf.delete
+            else Future.successful(())
+            _ <- if (!keepVcf) genotypedVcf.vcf.delete
+            else Future.successful(())
           } yield
-            SingleSampleVariantDiscoveryResult(haplotypeCallerReferenceCalls,
-                                               genotypedVcf,
-                                               gvcfQCInterval,
-                                               gvcfQCOverall)
+            SingleSampleVariantDiscoveryResult(
+              if (keepVcf) Some(haplotypeCallerReferenceCalls) else None,
+              if (keepVcf) Some(genotypedVcf) else None,
+              gvcfQCInterval,
+              gvcfQCOverall)
 
     }
 

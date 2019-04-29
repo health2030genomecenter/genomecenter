@@ -511,7 +511,8 @@ class ProtoPipeline(progressServer: SendProgressData)(
             contigsFile = contigsFile,
             vqsrTrainingFiles =
               if (conf.singleSampleVqsr.exists(_ == true)) vqsrTrainingFiles
-              else None
+              else None,
+            keepVcf = conf.keepVcf
           ))(
           ResourceConfig.minimal,
           labels =

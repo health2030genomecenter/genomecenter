@@ -261,7 +261,8 @@ class ProtopipelineIntegrationTestSuite
       minimumTargetCoverage = None,
       minimumWGSCoverage = None,
       variantCallingContigs = None,
-      singleSampleVqsr = None
+      singleSampleVqsr = None,
+      keepVcf = Some(true)
     )
 
     val rnaConfiguration = RNASeqConfiguration(

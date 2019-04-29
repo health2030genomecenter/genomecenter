@@ -89,15 +89,26 @@ object CliHelpers {
       # vqsrOneKgHighConfidenceSnps =
       # vqsrDbSnp138 = 
 
-      # optional, if missing variant calls are made 
+      # optional, if missing or true variant calls are made 
+      # if present and false variant calls are not made
       # variantCalls = 
+
+      # optional, if missing or false variant calls are deleted after QC
+      # if present and true variant calls are kept
+      # if keepVcf = true and variantCalls = false, then variant calls are not made
+      # keepVcf = 
       
-      # optional, if missing joint calls are NOT made
+      # optional, if missing or false joint calls are NOT made
+      # if present and true joint calls are made
+      # if variant calls are not made, or are not kept then joint calls are not made
       # jointCalls = 
 
-      # optional minimum coverage (WGS, or targeted)
-      # If present the pipeline will stop early if coverage is not met 
+      # optional minimum WGS coverage
+      # If present the pipeline will stop early if WGS coverage is not met 
       # minimumWGSCoverage =
+
+      # optional minimum targeted coverage
+      # If present the pipeline will stop early if targeted coverage is not met 
       # minimumTargetCoverage =
 
       # optional, if missing main human chromosomes ([chr]1-22,X,Y,M,MT) are used

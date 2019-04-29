@@ -216,7 +216,8 @@ sample3,sample3,,,boo,boo,ATCACG,MolBC,NNNNNNNNNN,project3,,001
       minimumTargetCoverage = None,
       minimumWGSCoverage = None,
       variantCallingContigs = None,
-      singleSampleVqsr = None
+      singleSampleVqsr = None,
+      keepVcf = None
     )
 
     val runConfiguration = RunConfiguration(
