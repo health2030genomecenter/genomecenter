@@ -30,7 +30,11 @@ class ConfigurationQueryHttpComponent(state: PipelineState)(
               state.analyses
                 .map { data =>
                   val projects: Seq[Project] =
-                    data.assignments.keySet.toSeq.sortBy(_.toString)
+                    data.assignments
+                      .filter(_._2.nonEmpty)
+                      .keySet
+                      .toSeq
+                      .sortBy(_.toString)
                   projects
                 }
 
