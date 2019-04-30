@@ -55,6 +55,9 @@ case class ApplyBQSRInputScatteredPiece(bam: CoordinateSortedBam,
 
 case class BQSRResult(coordinateSortedBam: CoordinateSortedBam,
                       duplicateMetric: DuplicationQCResult)
+    extends WithMutableSharedFiles(
+      mutables = coordinateSortedBam.files ++ duplicateMetric.files,
+      immutables = Nil)
 
 object BaseQualityScoreRecalibration {
 
