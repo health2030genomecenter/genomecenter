@@ -368,53 +368,56 @@ object ProtoPipelineStages extends StrictLogging {
             else readLengthsFromFastQs.max
           }
 
-          computationEnvironment.withFilePrefix(Seq("projects")) {
-            implicit computationEnvironment =>
-              def inProjectFolder[T] =
-                appendToFilePrefix[T](
-                  Seq(demultiplexed.project,
-                      demultiplexed.sampleId,
-                      demultiplexed.runIdTag,
-                      analysisId).filter(_.nonEmpty))
+          def inProjectFolder[T] =
+            appendToFilePrefix[T](
+              Seq("projects",
+                  demultiplexed.project,
+                  demultiplexed.sampleId,
+                  demultiplexed.runIdTag,
+                  analysisId).filter(_.nonEmpty))
 
-              for {
-                indexedFasta <- StarAlignment.indexReference(
+          def inReferenceFolder[T] =
+            appendToFilePrefix[T](
+              Seq("references", analysisId, starVersion.toString)
+                .filter(_.nonEmpty))
+
+          for {
+            indexedFasta <- inReferenceFolder {
+              implicit computationEnvironment =>
+                StarAlignment.indexReference(
                   StarIndexInput(referenceFasta, starVersion))(
                   ResourceConfig.createStarIndex)
+            }
 
-                processedSample <- inProjectFolder {
-                  implicit computationEnvironment =>
-                    for {
-                      starResult <- StarAlignment.alignSample(
-                        StarAlignmentInput(
-                          fastqs = demultiplexed.lanes,
-                          project = demultiplexed.project,
-                          sampleId = demultiplexed.sampleId,
-                          runId = demultiplexed.lanes.toSeq.head.runId,
-                          reference = indexedFasta,
-                          gtf = geneModelGtf.file,
-                          readLength = maxReadLength,
-                          starVersion = starVersion
-                        ))(ResourceConfig.starAlignment, priorityBam)
-                      coordinateSorted <- BWAAlignment.sortByCoordinateAndIndex(
-                        starResult.bam.bam)(ResourceConfig.sortBam, priorityBam)
-                      counts <- QTLToolsQuantification.quantify(
-                        QTLToolsQuantificationInput(
-                          coordinateSorted,
-                          quantificationGtf,
-                          qtlToolsArguments
-                        ))(ResourceConfig.qtlToolsQuantification,
-                           priorityPostBam)
-                      _ <- coordinateSorted.bam.delete
+            processedSample <- inProjectFolder {
+              implicit computationEnvironment =>
+                for {
+                  starResult <- StarAlignment.alignSample(
+                    StarAlignmentInput(
+                      fastqs = demultiplexed.lanes,
+                      project = demultiplexed.project,
+                      sampleId = demultiplexed.sampleId,
+                      runId = demultiplexed.lanes.toSeq.head.runId,
+                      reference = indexedFasta,
+                      gtf = geneModelGtf.file,
+                      readLength = maxReadLength,
+                      starVersion = starVersion
+                    ))(ResourceConfig.starAlignment, priorityBam)
+                  coordinateSorted <- BWAAlignment.sortByCoordinateAndIndex(
+                    starResult.bam.bam)(ResourceConfig.sortBam, priorityBam)
+                  counts <- QTLToolsQuantification.quantify(
+                    QTLToolsQuantificationInput(
+                      coordinateSorted,
+                      quantificationGtf,
+                      qtlToolsArguments
+                    ))(ResourceConfig.qtlToolsQuantification, priorityPostBam)
+                  _ <- coordinateSorted.bam.delete
 
-                    } yield
-                      SingleSamplePipelineResultRNA(analysisId,
-                                                    starResult,
-                                                    counts)
-                }
+                } yield
+                  SingleSamplePipelineResultRNA(analysisId, starResult, counts)
+            }
 
-              } yield processedSample
-          }
+          } yield processedSample
 
     }
 
