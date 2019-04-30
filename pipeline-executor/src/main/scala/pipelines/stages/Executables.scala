@@ -11,6 +11,7 @@ object Executables {
       "fakeRscript" -> fakeRscript,
       "picarJar" -> picardJar,
       "umiprocessorJar" -> umiProcessorJar,
+      "bcftools" -> bcftoolsExecutable,
       "bwa" -> bwaExecutable,
       "samtools" -> samtoolsExecutable,
       "fastp" -> fastpExecutable,
@@ -52,6 +53,18 @@ object Executables {
           "Unknown OS: " + System.getProperty("os.name"))
     fileutils.TempFile
       .getExecutableFromJar(resourceName, "bwa_0.7.17-r1188")
+      .getAbsolutePath
+  }
+
+  val bcftoolsExecutable: String = {
+    val resourceName =
+      if (util.isMac) "/bin/bcftools_1.9_mac"
+      else if (util.isLinux) "/bin/bcftools_1.9_linux64"
+      else
+        throw new RuntimeException(
+          "Unknown OS: " + System.getProperty("os.name"))
+    fileutils.TempFile
+      .getExecutableFromJar(resourceName, "bcftools_1.9")
       .getAbsolutePath
   }
 

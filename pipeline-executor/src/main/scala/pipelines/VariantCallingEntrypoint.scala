@@ -36,7 +36,8 @@ object VariantCallingEntrypoint extends App {
             dbSnpVcf,
             bam.bam.name + ".single",
             vqsrTrainingFiles = vqsrTrainingFiles,
-            contigsFile = contigsFile
+            contigsFile = contigsFile,
+            atSitesOnly = None
           ))(ResourceConfig.minimal)
 
       genotypedVcf <- HaplotypeCaller.mergeVcfs(

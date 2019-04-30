@@ -54,7 +54,8 @@ case class WESConfiguration(
     minimumTargetCoverage: Option[Double],
     variantCallingContigs: Option[String],
     singleSampleVqsr: Option[Boolean],
-    keepVcf: Option[Boolean]
+    keepVcf: Option[Boolean],
+    mergeSingleCalls: Option[Boolean]
 ) extends AnalysisConfiguration {
 
   def ignoreMinimumCoverage =
@@ -357,7 +358,9 @@ object WESConfiguration {
       option(config, "variantCallingContigs")(c => p => c.getString(p)),
     singleSampleVqsr =
       option(config, "singleSampleVqsr")(c => p => c.getBoolean(p)),
-    keepVcf = option(config, "keepVcf")(c => p => c.getBoolean(p))
+    keepVcf = option(config, "keepVcf")(c => p => c.getBoolean(p)),
+    mergeSingleCalls =
+      option(config, "mergeSingleCalls")(c => p => c.getBoolean(p))
   )
 }
 object DemultiplexingConfiguration {

@@ -30,6 +30,7 @@ class HaplotypeCallerTest
           dbsnpvcf,
           "boo",
           None,
+          None,
           None
         )
 

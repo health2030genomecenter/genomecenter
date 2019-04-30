@@ -16,9 +16,10 @@ import org.gc.pipelines.util.{
   Fasta,
   traverseAll
 }
+import StableSet.syntax
 import java.io.File
 import scala.collection.JavaConverters._
-import Executables.{picardJar, gatkJar}
+import Executables.{picardJar, gatkJar, bcftoolsExecutable}
 
 case class HaplotypeCallerInput(
     bam: CoordinateSortedBam,
@@ -55,7 +56,8 @@ case class GenotypeGVCFsOnIntervalInput(targetVcfs: StableSet[VCF],
                                         reference: IndexedReferenceFasta,
                                         dbSnpVcf: VCF,
                                         interval: String,
-                                        name: String)
+                                        name: String,
+                                        atSitesOnly: Option[StableSet[VCF]])
     extends WithSharedFiles(
       targetVcfs.toSeq
         .flatMap(_.files) ++ reference.files ++ dbSnpVcf.files: _*)
@@ -65,7 +67,8 @@ case class GenotypeGVCFsInput(targetVcfs: StableSet[VCF],
                               dbSnpVcf: VCF,
                               name: String,
                               vqsrTrainingFiles: Option[VQSRTrainingFiles],
-                              contigsFile: Option[ContigsFile])
+                              contigsFile: Option[ContigsFile],
+                              atSitesOnly: Option[StableSet[VCF]])
     extends WithSharedFiles(
       targetVcfs.toSeq
         .flatMap(_.files) ++ reference.files ++ dbSnpVcf.files: _*)
@@ -120,6 +123,15 @@ case class JointCallInput(
     contigsFile: Option[ContigsFile]
 ) extends WithSharedFiles(
       haplotypeCallerReferenceCalls.toSeq.flatMap(_.files): _*)
+case class MergeSingleCallsInput(
+    haplotypeCallerReferenceCalls: StableSet[VCF],
+    nonRefSites: StableSet[VCF],
+    indexedReference: IndexedReferenceFasta,
+    dbSnpVcf: VCF,
+    outputFileName: String,
+    contigsFile: Option[ContigsFile]
+) extends WithSharedFiles(
+      haplotypeCallerReferenceCalls.toSeq.flatMap(_.files): _*)
 
 case class SingleSampleVariantDiscoveryInput(
     bam: CoordinateSortedBam,
@@ -147,6 +159,9 @@ case class SingleSampleVariantDiscoveryResult(
         .flatMap(_.files) ++ gvcfQCInterval.files ++ gvcfQCOverall.files,
       immutables = Nil
     )
+
+case class CombineGenotypesInput(vcfs: StableSet[VCF], outputFileName: String)
+    extends WithSharedFiles(vcfs.toSeq.flatMap(_.files): _*)
 
 object HaplotypeCaller {
 
@@ -186,7 +201,8 @@ object HaplotypeCaller {
                     dbSnpVcf,
                     project + "." + sampleId + ".single",
                     vqsrTrainingFiles = vqsrTrainingFiles,
-                    contigsFile = contigsFile
+                    contigsFile = contigsFile,
+                    atSitesOnly = None
                   ))(ResourceConfig.minimal)
             }
 
@@ -266,7 +282,8 @@ object HaplotypeCaller {
                     dbSnpVcf,
                     outputFileName + ".genotypes",
                     vqsrTrainingFiles = vqsrTrainingFiles,
-                    contigsFile = contigsFile
+                    contigsFile = contigsFile,
+                    atSitesOnly = None
                   ))(ResourceConfig.minimal)
             }
 
@@ -277,6 +294,91 @@ object HaplotypeCaller {
               ResourceConfig.minimal)
 
           } yield genotypesVCF
+
+    }
+
+  val mergeSingleCalls =
+    AsyncTask[MergeSingleCallsInput, VCF]("__joint-call", 1) {
+      case MergeSingleCallsInput(haplotypeCallerReferenceCalls,
+                                 singleCallNonRefSites,
+                                 indexedReference,
+                                 dbSnpVcf,
+                                 outputFileName,
+                                 contigsFile) =>
+        implicit computationEnvironment =>
+          releaseResources
+
+          val samples = haplotypeCallerReferenceCalls.size + "h" + haplotypeCallerReferenceCalls.hashCode
+
+          def intoIntermediateFolder[T] =
+            appendToFilePrefix[T](Seq("intermediate").filter(_.nonEmpty))
+
+          for {
+            genotypedVCFS <- intoIntermediateFolder {
+              implicit computationEnvironment =>
+                traverseAll(haplotypeCallerReferenceCalls.toSeq) {
+                  haplotypeCallerReferenceCall =>
+                    for {
+                      GenotypeGVCFsResult(_, genotypesScattered) <- HaplotypeCaller
+                        .genotypeGvcfs(
+                          GenotypeGVCFsInput(
+                            StableSet(haplotypeCallerReferenceCall),
+                            indexedReference,
+                            dbSnpVcf,
+                            haplotypeCallerReferenceCall.vcf.name + ".genotypesAtUnion",
+                            vqsrTrainingFiles = None,
+                            contigsFile = contigsFile,
+                            atSitesOnly = Some(singleCallNonRefSites)
+                          ))(ResourceConfig.minimal)
+
+                      genotypedVCF <- HaplotypeCaller.mergeVcfs(MergeVCFInput(
+                        genotypesScattered,
+                        haplotypeCallerReferenceCall.vcf.name + s".genotypesAtUnion.genotyped.vcf.gz"))(
+                        ResourceConfig.minimal)
+                    } yield genotypedVCF
+                }
+            }
+
+            combined <- HaplotypeCaller.combineGenotypes(
+              CombineGenotypesInput(
+                genotypedVCFS.toSet.toStable,
+                outputFileName + ".merged." + samples + ".vcf.gz"))(
+              ResourceConfig.minimal)
+
+          } yield combined
+
+    }
+
+  val combineGenotypes =
+    AsyncTask[CombineGenotypesInput, VCF]("__combine-genotypes", 1) {
+      case CombineGenotypesInput(vcfs, outputFileName) =>
+        implicit computationEnvironment =>
+          for {
+            localVcfs <- Future.traverse(vcfs.toSeq)(_.vcf.file)
+            merged <- {
+
+              val tmpStdOut = Files.createTempFile(".stdout")
+              val tmpStdErr = Files.createTempFile(".stderr")
+              val vcfOutput = Files.createTempFile(".vcf.gz").getAbsolutePath
+
+              val input = localVcfs
+                .map(_.getAbsolutePath)
+                .mkString(" ")
+
+              Exec.bashAudit(logDiscriminator = "bcftools.merge",
+                             onError = Exec.ThrowIfNonZero)(s""" \\
+              $bcftoolsExecutable merge --output $vcfOutput --output-type z $input \\
+                    > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+                    """)
+
+              for {
+                _ <- SharedFile(tmpStdOut, outputFileName + ".stdout", true)
+                _ <- SharedFile(tmpStdErr, outputFileName + ".stderr", true)
+                vcf <- SharedFile(new File(vcfOutput), outputFileName, true)
+              } yield VCF(vcf, None)
+
+            }
+          } yield merged
 
     }
 
@@ -598,7 +700,8 @@ object HaplotypeCaller {
                                                input.reference,
                                                input.dbSnpVcf,
                                                interval,
-                                               input.name))(
+                                               input.name,
+                                               input.atSitesOnly))(
                   genotypeGvcfResourceRequest)
               }
             }
@@ -636,12 +739,17 @@ object HaplotypeCaller {
                                         reference,
                                         dbsnp,
                                         interval,
-                                        name) =>
+                                        name,
+                                        atSitesOnly) =>
         implicit computationEnvironment =>
           for {
             localVcfs <- Future.traverse(vcfs.toSeq)(_.localFile)
             reference <- reference.localFile
             dbsnp <- dbsnp.localFile
+            atSitesOnly <- atSitesOnly match {
+              case None        => Future.successful(Nil)
+              case Some(sites) => Future.traverse(sites.toSeq)(_.vcf.file)
+            }
             vcf <- {
 
               val tmpStdOut = Files.createTempFile(".stdout")
@@ -677,6 +785,10 @@ object HaplotypeCaller {
       """)
               }
 
+              val sitesOnlyInterval =
+                if (atSitesOnly.isEmpty) ""
+                else atSitesOnly.mkString(" --intervals ", " --intervals ", "")
+
               Exec.bashAudit(logDiscriminator = "genotypegvcfs",
                              onError = Exec.ThrowIfNonZero)(s"""\\
         java -Xmx5G ${JVM.serial} \\
@@ -690,6 +802,8 @@ object HaplotypeCaller {
             --use-new-qual-calculator \\
             ${GATK.skipGcs} \\
             --intervals $interval \\
+            $sitesOnlyInterval \\
+            --interval-set-rule INTERSECTION \\
             -V gendb://${genomeDbWorkfolder.getAbsolutePath} \\
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """)
@@ -1078,4 +1192,16 @@ object SingleSampleVariantDiscoveryResult {
     deriveEncoder[SingleSampleVariantDiscoveryResult]
   implicit val decoder: Decoder[SingleSampleVariantDiscoveryResult] =
     deriveDecoder[SingleSampleVariantDiscoveryResult]
+}
+object MergeSingleCallsInput {
+  implicit val encoder: Encoder[MergeSingleCallsInput] =
+    deriveEncoder[MergeSingleCallsInput]
+  implicit val decoder: Decoder[MergeSingleCallsInput] =
+    deriveDecoder[MergeSingleCallsInput]
+}
+object CombineGenotypesInput {
+  implicit val encoder: Encoder[CombineGenotypesInput] =
+    deriveEncoder[CombineGenotypesInput]
+  implicit val decoder: Decoder[CombineGenotypesInput] =
+    deriveDecoder[CombineGenotypesInput]
 }
