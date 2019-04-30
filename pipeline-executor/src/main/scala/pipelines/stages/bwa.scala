@@ -342,7 +342,7 @@ object BWAAlignment {
   val mergeAndMarkDuplicate =
     AsyncTask[BamsWithSampleMetadata, MarkDuplicateResult](
       "__merge-markduplicate",
-      2) {
+      3) {
       case BamsWithSampleMetadata(project, sampleId, bams) =>
         implicit computationEnvironment =>
           val tempFolder =
