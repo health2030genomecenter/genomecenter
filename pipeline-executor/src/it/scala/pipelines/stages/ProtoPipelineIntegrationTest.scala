@@ -270,7 +270,8 @@ class ProtopipelineIntegrationTestSuite
       referenceFasta = referenceFasta,
       geneModelGtf = gtfFile.getAbsolutePath,
       qtlToolsCommandLineArguments = Nil,
-      quantificationGtf = gtfFile.getAbsolutePath
+      quantificationGtf = gtfFile.getAbsolutePath,
+      starVersion = None
     )
 
     val runConfiguration = RunConfiguration(
