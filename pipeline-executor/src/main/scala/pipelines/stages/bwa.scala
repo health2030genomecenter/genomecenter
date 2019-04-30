@@ -81,7 +81,7 @@ case class DuplicationQCResult(markDuplicateMetrics: SharedFile)
 case class MarkDuplicateResult(
     bam: BamWithSampleMetadata,
     duplicateMetric: DuplicationQCResult
-)
+) extends WithSharedFiles(bam.files ++ duplicateMetric.files: _*)
 
 case class ComputeSplitIntervalInput(fq: FastQ, maxReads: Long)
     extends WithSharedFiles(fq.files: _*)
