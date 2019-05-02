@@ -594,7 +594,7 @@ object AlignmentQC {
             case (_, targetSelection, _) =>
               targetSelection.metrics.pfUniqueReadsAligned
           }.sum
-          val totalPercentPfUniqueReadsAligned = totalPfUniqueReads.toDouble / totalPfUniqueReadsAligned
+          val totalPercentPfUniqueReadsAligned = totalPfUniqueReadsAligned.toDouble / totalPfUniqueReads
             .toDouble
 
           (projectAndSample,
@@ -644,7 +644,6 @@ object AlignmentQC {
               f"${aggregatedLaneMetrics.totalPfReads / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPercentPfReadsAligned * 100}%6.2f%%" -> right,
               f"${aggregatedLaneMetrics.totalPfNonDupReads / 1E6}%10.2fM" -> right,
-              f"${aggregatedLaneMetrics.totalPfNonDupReadsAligned / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPercentPfNonDupReadsAligned * 100}%6.2f%%" -> right,
               f"${pctDuplication * 100}%6.2f%%" -> right,
               f"${readPairDuplicates / 1E6}%7.2fM" -> right,
@@ -800,7 +799,7 @@ object AlignmentQC {
   }
 
   val runQCTable =
-    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 4) {
+    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 5) {
       case RunQCTableInput(fileName, sampleMetrics, rnaAnalyses) =>
         implicit computationEnvironment =>
           def read(f: File) = fileutils.openSource(f)(_.mkString)
