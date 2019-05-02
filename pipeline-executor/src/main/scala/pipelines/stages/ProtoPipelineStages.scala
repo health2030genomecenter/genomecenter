@@ -141,6 +141,7 @@ object ProtoPipelineStages extends StrictLogging {
                     )
                   )(ResourceConfig.minimal, priorityVcf)
                 }
+                // progress reporting (side effect) from here on
                 genotypedVcfPath <- calls.genotypedVcf
                   .map(
                     _.vcf.uri

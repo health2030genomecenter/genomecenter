@@ -141,6 +141,12 @@ case class SingleSampleVariantDiscoveryResult(
     genotypedVcf: Option[VCF],
     gvcfQCInterval: VariantCallingMetricsResult,
     gvcfQCOverall: VariantCallingMetricsResult)
+    extends WithMutableSharedFiles(
+      mutables = haplotypeCallerReferenceCalls.toSeq
+        .flatMap(_.files) ++ genotypedVcf.toSeq
+        .flatMap(_.files) ++ gvcfQCInterval.files ++ gvcfQCOverall.files,
+      immutables = Nil
+    )
 
 object HaplotypeCaller {
 

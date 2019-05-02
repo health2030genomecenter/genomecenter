@@ -31,10 +31,11 @@ case class SelectionQCInput(bam: CoordinateSortedBam,
       (bam.files ++ reference.files ++ selectionTargetIntervals.files): _*)
 
 case class SelectionQCResult(hsMetrics: SharedFile)
-    extends WithSharedFiles(hsMetrics)
+    extends WithMutableSharedFiles(mutables = List(hsMetrics), immutables = Nil)
 
 case class CollectWholeGenomeMetricsResult(wgsMetrics: SharedFile)
-    extends WithSharedFiles(wgsMetrics)
+    extends WithMutableSharedFiles(mutables = List(wgsMetrics),
+                                   immutables = Nil)
 
 case class AlignmentQCResult(
     alignmentSummary: SharedFile,
@@ -44,13 +45,14 @@ case class AlignmentQCResult(
     preAdapterDetail: SharedFile,
     preAdapterSummary: SharedFile,
     insertSizeMetrics: SharedFile
-) extends WithSharedFiles(alignmentSummary,
-                            biasDetail,
-                            biasSummary,
-                            errorSummary,
-                            preAdapterDetail,
-                            preAdapterSummary,
-                            insertSizeMetrics)
+) extends WithMutableSharedFiles(mutables = List(alignmentSummary,
+                                                   biasDetail,
+                                                   biasSummary,
+                                                   errorSummary,
+                                                   preAdapterDetail,
+                                                   preAdapterSummary,
+                                                   insertSizeMetrics),
+                                   immutables = Nil)
 
 case class SampleMetrics(analysisId: AnalysisId,
                          alignmentSummary: SharedFile,
