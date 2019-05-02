@@ -180,6 +180,35 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             .size shouldBe 18,
           5 seconds)
 
+        When("A second run of the same samples is registered")
+        And("A configuration with an already demultiplexed set of fastq files")
+        val runConfiguration2 = s"""
+            runId = runid2
+            demultiplexing = []
+            fastqs = [
+              {
+                project = project1
+                sampleId = sample1
+                lanes = [
+                  {
+                    lane = 1
+                    read1 = $read1
+                    read2 = $read2
+                  }
+                ]
+              }
+            ]
+        """
+        println(runConfiguration2)
+        postString("/v2/runs", runConfiguration2).status.intValue shouldBe 200
+
+        Then("The sample's processing should finish immediately")
+        probe.expectMsgPF(timeout) {
+          case sample: SampleFinished[_] =>
+            sample.sample shouldBe "sample1"
+        }
+        getProgress("/v2/runs") shouldBe "runid1\nrunid2\n"
+
       }
     }
 
