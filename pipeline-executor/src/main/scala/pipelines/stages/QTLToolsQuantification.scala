@@ -57,8 +57,8 @@ object QTLToolsQuantification {
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """
 
-              Exec.bash(logDiscriminator = "qtltools.quant",
-                        onError = Exec.ThrowIfNonZero)(bashScript)
+              Exec.bashAudit(logDiscriminator = "qtltools.quant",
+                             onError = Exec.ThrowIfNonZero)(bashScript)
 
               val nameStub = bam.bam.name + ".qtltools.quant"
 
