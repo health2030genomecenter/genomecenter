@@ -28,7 +28,7 @@ object QTLToolsQuantification {
   val quantify =
     AsyncTask[QTLToolsQuantificationInput, QTLToolsQuantificationResult](
       "__qtltools-quant",
-      3) {
+      4) {
       case QTLToolsQuantificationInput(bam,
                                        gtf,
                                        additionalCommandLineArguments) =>
@@ -52,6 +52,7 @@ object QTLToolsQuantification {
         --bam ${localBam.getAbsolutePath}\\
         --rpkm \\
         --out $output \\
+        --no-hash \\
         ${additionalCommandLineArguments.mkString(" ")} \\
       \\
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)

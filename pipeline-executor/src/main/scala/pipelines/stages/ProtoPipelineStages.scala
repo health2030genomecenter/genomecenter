@@ -341,7 +341,7 @@ object ProtoPipelineStages extends StrictLogging {
   val singleSampleRNA =
     AsyncTask[SingleSamplePipelineInputRNASeq, SingleSamplePipelineResultRNA](
       "__rna-persample-allsamples",
-      2) {
+      3) {
       case SingleSamplePipelineInputRNASeq(analysisId,
                                            demultiplexed,
                                            referenceFasta,
