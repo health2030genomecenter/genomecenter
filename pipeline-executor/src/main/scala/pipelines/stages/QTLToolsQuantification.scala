@@ -28,7 +28,7 @@ object QTLToolsQuantification {
   val quantify =
     AsyncTask[QTLToolsQuantificationInput, QTLToolsQuantificationResult](
       "__qtltools-quant",
-      2) {
+      3) {
       case QTLToolsQuantificationInput(bam,
                                        gtf,
                                        additionalCommandLineArguments) =>
@@ -47,7 +47,7 @@ object QTLToolsQuantification {
             result <- {
 
               val bashScript = s"""\\
-     $qtltoolsExecutable quan \\
+     $qtltoolsExecutable quan2 \\
         --gtf ${localGtf.getAbsolutePath}\\
         --bam ${localBam.getAbsolutePath}\\
         --rpkm \\
