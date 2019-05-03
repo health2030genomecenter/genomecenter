@@ -625,6 +625,135 @@ object AlignmentQC {
 
       }
 
+    val aggregatedLanesPerSamplePerRun = laneMetrics
+      .groupBy(v => (v._1.project, v._1.sampleId, v._1.runId))
+      .map {
+        case (projectAndSampleAndRun, group) =>
+          val totalReads = group.map {
+            case (alignment, _, _) => alignment.pairMetrics.totalReads
+          }.sum
+          val totalMeanTargetCoverage = group.map {
+            case (_, targetSelection, _) =>
+              targetSelection.metrics.meanTargetCoverage
+          }.sum
+          val totalMeanTargetCoverageIncludingDuplicates = group.map {
+            case (_, targetSelection, _) =>
+              targetSelection.metrics.meanTargetCoverageIncludingDuplicates
+          }.sum
+
+          val totalCoveragePerRead = totalMeanTargetCoverage / totalReads.toDouble
+
+          val totalPfReadsAligned = group.map {
+            case (alignment, _, _) => alignment.pairMetrics.pfReadsAligned
+          }.sum
+
+          val totalPfReads = group.map {
+            case (alignment, _, _) => alignment.pairMetrics.pfReads
+          }.sum
+
+          val totalPercentPfReadsAligned = totalPfReadsAligned.toDouble / totalPfReads.toDouble
+
+          val totalPfUniqueReads = group.map {
+            case (_, targetSelection, _) =>
+              targetSelection.metrics.pfUniqueReads
+          }.sum
+          val totalPfUniqueReadsAligned = group.map {
+            case (_, targetSelection, _) =>
+              targetSelection.metrics.pfUniqueReadsAligned
+          }.sum
+          val totalPercentPfUniqueReadsAligned = totalPfUniqueReadsAligned.toDouble / totalPfUniqueReads
+            .toDouble
+
+          (projectAndSampleAndRun,
+           AggregatedLaneMetrics(
+             totalReads = totalReads,
+             totalPfReads = totalPfReads,
+             totalPfReadsAligned = totalPfReadsAligned,
+             totalPfUniqueReads = totalPfUniqueReads,
+             totalPfUniqueReadsAligned = totalPfUniqueReadsAligned,
+             totalMeanTargetCoverage = totalMeanTargetCoverage,
+             totalMeanTargetCoverageIncludingDuplicates =
+               totalMeanTargetCoverageIncludingDuplicates,
+             totalCoveragePerRead = totalCoveragePerRead,
+             totalPercentPfUniqueReadsAligned = totalPercentPfUniqueReadsAligned,
+             totalPercentPfReadsAligned = totalPercentPfReadsAligned
+           ))
+
+      }
+
+    val sampleMetricsPerSample =
+      sampleMetrics.groupBy(v => (v._1.project, v._1.sampleId)).map {
+        case (key, group) => (key, group.head)
+      }
+
+    val runLines = aggregatedLanesPerSamplePerRun.toSeq
+      .sortBy(_._1._1.toString)
+      .sortBy(_._1._2.toString)
+      .sortBy(_._1._3.toString)
+      .map {
+        case ((project, sample, run), aggregatedLaneMetrics) =>
+          val (dups,
+               _,
+               wgsMetrics,
+               mayVcfIntervalMetrics,
+               mayVcfOverallMetrics,
+               insertSizeMetrics,
+               _) = sampleMetricsPerSample((project, sample))
+
+          Html.line(
+            Seq(
+              project -> left,
+              sample -> left,
+              run -> left,
+              f"${wgsMetrics.metrics.meanCoverage}%13.1fx" -> right,
+              f"${aggregatedLaneMetrics.totalMeanTargetCoverage}%13.1fx" -> right,
+              f"${aggregatedLaneMetrics.totalMeanTargetCoverageIncludingDuplicates}%13.1fx" -> right,
+              f"${aggregatedLaneMetrics.totalReads / 1E6}%10.2fM" -> right,
+              f"${aggregatedLaneMetrics.totalPfReads / 1E6}%10.2fM" -> right,
+              f"${aggregatedLaneMetrics.totalPercentPfReadsAligned * 100}%6.2f%%" -> right,
+              f"${aggregatedLaneMetrics.totalPfUniqueReads / 1E6}%10.2fM" -> right,
+              f"${aggregatedLaneMetrics.totalPercentPfUniqueReadsAligned * 100}%6.2f%%" -> right,
+              f"${dups.metrics.pctDuplication * 100}%6.2f%%" -> right,
+              f"${dups.metrics.readPairDuplicates / 1E6}%7.2fM" -> right,
+              f"${dups.metrics.readPairOpticalDuplicates / 1E6}%8.2fM" -> right,
+              insertSizeMetrics.metrics.modeInsertSize.toString -> right,
+              f"${wgsMetrics.metrics.pctCoverage20x * 100}%11.2f%%" -> right,
+              f"${wgsMetrics.metrics.pctCoverage60x * 100}%11.2f%%" -> right,
+              f"${wgsMetrics.metrics.pctExcludedTotal}%11.2f%%" -> right,
+              f"${mayVcfIntervalMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
+              f"${mayVcfIntervalMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right,
+              f"${mayVcfOverallMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right
+            ))
+
+      }
+      .mkString("\n")
+
+    val runHeader = Html.mkHeader(
+      List("Proj", "Sample", "Run"),
+      List(
+        "MEAN_COVERAGE(Wgs)" -> right,
+        "MEAN_TARGET_COVERAGE" -> right,
+        "MeanTargetCoverageDupIncl" -> right,
+        "TOTAL_READS" -> right,
+        "PF_READS" -> right,
+        "PCT_PF_READS_ALIGNED" -> right,
+        "PF_UNIQUE_READS" -> right,
+        "PCT_PF_UQ_READS_ALIGNED" -> right,
+        "PERCENT_DUPLICATION" -> right,
+        "READ_PAIR_DUPLICATES" -> right,
+        "READ_PAIR_OPTICAL_DUPLICATES" -> right,
+        "MODE_INSERT_SIZE" -> right,
+        "PCT_20X(Wgs)" -> right,
+        "PCT_60X(Wgs)" -> right,
+        "PCT_EXC_TOTAL" -> right,
+        "TOTAL_SNPS(Capture)" -> right,
+        "TOTAL_SNPS(Wgs)" -> right,
+        "TOTAL_INDELS(Capture)" -> right,
+        "TOTAL_INDELS(Wgs)" -> right
+      )
+    )
+
     val sampleLines = sampleMetrics
       .sortBy(_._1.project.toString)
       .sortBy(_._1.sampleId.toString)
@@ -813,8 +942,12 @@ object AlignmentQC {
       if (sampleLines.isEmpty) ""
       else
         """<table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table>"
+    val runTable =
+      if (runLines.isEmpty) ""
+      else
+        """<table style="border-collapse: collapse;">""" + runHeader + "\n<tbody>" + runLines + "</tbody></table>"
 
-    """<!DOCTYPE html><head></head><body>""" + sampleTable + laneTable + rnaTable + "</body>"
+    """<!DOCTYPE html><head></head><body>""" + runTable + sampleTable + laneTable + rnaTable + "</body>"
 
   }
 
