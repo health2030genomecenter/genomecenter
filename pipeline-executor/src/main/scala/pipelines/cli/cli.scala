@@ -699,7 +699,9 @@ object Pipelinectl extends App {
                         DemultiplexingSummary.renderAsTable(
                           DemultiplexingSummary.fromStats(
                             stats,
-                            samples.map{ case (project,sample,_) => sample -> project}.toMap,
+                            samples.map {
+                              case (project, sample, _) => sample -> project
+                            }.toMap,
                             Demultiplexing.readGlobalIndexSetFromClassPath))
                     }
                 }
