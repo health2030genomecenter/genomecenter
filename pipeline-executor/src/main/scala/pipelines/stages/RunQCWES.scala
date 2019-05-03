@@ -233,24 +233,24 @@ object AlignmentQC {
     val laneHeader = Csv.mkHeader(
       List("Proj", "Sample", "Analysis", "Run", "Lane", "CaptureKit"),
       List(
-        "TotalReads" -> right,
-        "MeanTargetCoverage" -> right,
+        "TOTAL_READS" -> right,
+        "MEAN_TARGET_COVERAGE" -> right,
         "MeanTargetCoverageDupeIncl" -> right,
-        "PFReads" -> right,
-        "PFReadsAligned" -> right,
-        "OnTargetUsableBases" -> right,
-        "PFUniqueReadsAligned" -> right,
-        "BadCycles" -> right,
-        "Chimera" -> right,
-        "TargetBase20" -> right,
-        "TargetBase30" -> right,
-        "TargetBase50" -> right,
+        "PF_READS" -> right,
+        "PCT_PF_READS_ALIGNED" -> right,
+        "PCT_USABLE_BASES_ON_TARGET" -> right,
+        "PCT_PF_UQ_READS_ALIGNED" -> right,
+        "BAD_CYCLES" -> right,
+        "PCT_CHIMERAS" -> right,
+        "PCT_TARGET_BASES_20X" -> right,
+        "PCT_TARGET_BASES_30X" -> right,
+        "PCT_TARGET_BASES_50X" -> right,
         "CoveragePerMillionRead" -> right,
-        "ExclDupe" -> right,
-        "ExclMapQ" -> right,
-        "ExclBaseQ" -> right,
-        "ExclOverlap" -> right,
-        "ExclOffTarget" -> right,
+        "PCT_EXC_DUPE" -> right,
+        "PCT_EXC_MAPQ" -> right,
+        "PCT_EXC_BASEQ" -> right,
+        "PCT_EXC_OVERLAP" -> right,
+        "PCT_EXC_OFF_TARGET" -> right,
         "rnaseq" -> right
       )
     )
@@ -258,26 +258,26 @@ object AlignmentQC {
     val sampleHeader = Csv.mkHeader(
       List("Proj", "Sample", "Analysis"),
       List(
-        "GenomeSize" -> right,
-        "MeanCoverage" -> right,
-        "Dup" -> right,
-        "DupReadPairs" -> right,
-        "OptDupReadPairs" -> right,
+        "GENOME_TERRITORY" -> right,
+        "MEAN_COVERAGE" -> right,
+        "PERCENT_DUPLICATION" -> right,
+        "READ_PAIR_DUPLICATES" -> right,
+        "READ_PAIR_OPTICAL_DUPLICATES" -> right,
         "GC" -> right,
-        "InsertSizePeak" -> right,
-        "Wgs20x" -> right,
-        "Wgs60x" -> right,
-        "Excluded" -> right,
-        "TotalSnpsInCapture" -> right,
-        "TotalSnps" -> right,
-        "DbSnpSnp" -> right,
-        "NovelSnp" -> right,
-        "DbSnpTi/Tv" -> right,
-        "NovelTi/Tv" -> right,
-        "TotalIndelInCapture" -> right,
-        "TotalIndel" -> right,
-        "DbpSnpIndel" -> right,
-        "NovelIndel" -> right,
+        "MODE_INSERT_SIZE" -> right,
+        "PCT_20X(Wgs)" -> right,
+        "PCT_60X(Wgs)" -> right,
+        "PCT_EXC_TOTAL" -> right,
+        "TOTAL_SNPS(Capture)" -> right,
+        "TOTAL_SNPS(Wgs)" -> right,
+        "NUM_IN_DB_SNP" -> right,
+        "NOVEL_SNPS" -> right,
+        "DBSNP_TITV" -> right,
+        "NOVEL_TITV" -> right,
+        "TOTAL_INDELS(Capture)" -> right,
+        "TOTAL_INDELS(Wgs)" -> right,
+        "NUM_IN_DB_SNP_INDELS" -> right,
+        "NOVEL_INDELS" -> right,
         "wxs-persample" -> right
       )
     )
@@ -440,50 +440,50 @@ object AlignmentQC {
     val laneHeader = Html.mkHeader(
       List("Proj", "Sample", "Analysis", "Run", "Lane", "CaptureKit"),
       List(
-        "TotalReads" -> right,
-        "MeanTargetCoverage" -> right,
+        "TOTAL_READS" -> right,
+        "MEAN_TARGET_COVERAGE" -> right,
         "MeanTargetCoverageDupeIncl" -> right,
-        "PFReads" -> right,
-        "PFReadsAligned" -> right,
-        "OnTargetUsableBases" -> right,
-        "PFUniqueReadsAligned" -> right,
-        "BadCycles" -> right,
-        "Chimera" -> right,
-        "TargetBase20" -> right,
-        "TargetBase30" -> right,
-        "TargetBase50" -> right,
+        "PF_READS" -> right,
+        "PCT_PF_READS_ALIGNED" -> right,
+        "PCT_USABLE_BASES_ON_TARGET" -> right,
+        "PCT_PF_UQ_READS_ALIGNED(PFUniqueReadsAligned)" -> right,
+        "BAD_CYCLES" -> right,
+        "PCT_CHIMERAS" -> right,
+        "PCT_TARGET_BASES_20X" -> right,
+        "PCT_TARGET_BASES_30X" -> right,
+        "PCT_TARGET_BASES_50X" -> right,
         "CoveragePerMillionRead" -> right,
-        "ExclDupe" -> right,
-        "ExclMapQ" -> right,
-        "ExclBaseQ" -> right,
-        "ExclOverlap" -> right,
-        "ExclOffTarget" -> right,
+        "PCT_EXC_DUPE" -> right,
+        "PCT_EXC_MAPQ" -> right,
+        "PCT_EXC_BASEQ" -> right,
+        "PCT_EXC_OVERLAP" -> right,
+        "PCT_EXC_OFF_TARGET" -> right,
       )
     )
 
     val sampleHeader = Html.mkHeader(
       List("Proj", "Sample", "Analysis"),
       List(
-        "GenomeSize" -> right,
-        "MeanCoverage" -> right,
-        "Dup" -> right,
-        "DupReadPairs" -> right,
-        "OptDupReadPairs" -> right,
+        "GENOME_TERRITORY(GenomeSize)" -> right,
+        "MEAN_COVERAGE" -> right,
+        "PERCENT_DUPLICATION" -> right,
+        "READ_PAIR_DUPLICATES" -> right,
+        "READ_PAIR_OPTICAL_DUPLICATES" -> right,
         "GC" -> right,
-        "InsertSizePeak" -> right,
-        "Wgs20x" -> right,
-        "Wgs60x" -> right,
-        "Excluded" -> right,
-        "TotalSnpsInCapture" -> right,
-        "TotalSnps" -> right,
-        "DbSnpSnp" -> right,
-        "NovelSnp" -> right,
-        "DbSnpTi/Tv" -> right,
-        "NovelTi/Tv" -> right,
-        "TotalIndelInCapture" -> right,
-        "TotalIndel" -> right,
-        "DbpSnpIndel" -> right,
-        "NovelIndel" -> right
+        "MODE_INSERT_SIZE" -> right,
+        "PCT_20X(Wgs)" -> right,
+        "PCT_60X(Wgs)" -> right,
+        "PCT_EXC_TOTAL" -> right,
+        "TOTAL_SNPS(Capture)" -> right,
+        "TOTAL_SNPS(Wgs)" -> right,
+        "NUM_IN_DB_SNP" -> right,
+        "NOVEL_SNPS" -> right,
+        "DBSNP_TITV" -> right,
+        "NOVEL_TITV" -> right,
+        "TOTAL_INDELS(Capture)" -> right,
+        "TOTAL_INDELS(Wgs)" -> right,
+        "NUM_IN_DB_SNP_INDELS" -> right,
+        "NOVEL_INDELS" -> right
       )
     )
 
@@ -719,49 +719,49 @@ object AlignmentQC {
     val laneHeader = Html.mkHeader(
       List("Proj", "Sample", "Run", "Lane"),
       List(
-        "TotalReads" -> right,
-        "MeanTargetCoverage" -> right,
+        "TOTAL_READS" -> right,
+        "MEAN_TARGET_COVERAGE" -> right,
         "MeanTargetCoverageDupeIncl" -> right,
-        "PFReads" -> right,
-        "PFReadsAligned" -> right,
-        "OnTargetUsableBases" -> right,
-        "PFUniqueReadsAligned" -> right,
-        "BadCycles" -> right,
-        "Chimera" -> right,
-        "TargetBase20" -> right,
-        "TargetBase30" -> right,
-        "TargetBase50" -> right,
+        "PF_READS" -> right,
+        "PCT_PF_READS_ALIGNED" -> right,
+        "PCT_USABLE_BASES_ON_TARGET" -> right,
+        "PCT_PF_UQ_READS_ALIGNED(PFUniqueReadsAligned)" -> right,
+        "BAD_CYCLES" -> right,
+        "PCT_CHIMERAS" -> right,
+        "PCT_TARGET_BASES_20X" -> right,
+        "PCT_TARGET_BASES_30X" -> right,
+        "PCT_TARGET_BASES_50X" -> right,
         "CoveragePerMillionRead" -> right,
-        "ExclDupe" -> right,
-        "ExclMapQ" -> right,
-        "ExclBaseQ" -> right,
-        "ExclOverlap" -> right,
-        "ExclOffTarget" -> right,
+        "PCT_EXC_DUPE" -> right,
+        "PCT_EXC_MAPQ" -> right,
+        "PCT_EXC_BASEQ" -> right,
+        "PCT_EXC_OVERLAP" -> right,
+        "PCT_EXC_OFF_TARGET" -> right
       )
     )
 
     val sampleHeader = Html.mkHeader(
       List("Proj", "Sample"),
       List(
-        "MeanWgsCoverage" -> right,
-        "MeanTargetCoverage" -> right,
+        "MEAN_COVERAGE(Wgs)" -> right,
+        "MEAN_TARGET_COVERAGE" -> right,
         "MeanTargetCoverageDupIncl" -> right,
-        "TotalReads" -> right,
-        "PFReads" -> right,
-        "PFReadsAligned" -> right,
-        "PFUniqueReads" -> right,
-        "PFUniqueReadsAligned" -> right,
-        "Dup" -> right,
-        "DupReadPairs" -> right,
-        "OptDupReadPairs" -> right,
-        "InsertSizePeak" -> right,
-        "Wgs20x" -> right,
-        "Wgs60x" -> right,
-        "Excluded" -> right,
-        "TotalSnpsInCapture" -> right,
-        "TotalSnps" -> right,
-        "TotalIndelInCapture" -> right,
-        "TotalIndel" -> right
+        "TOTAL_READS" -> right,
+        "PF_READS" -> right,
+        "PCT_PF_READS_ALIGNED" -> right,
+        "PF_UNIQUE_READS" -> right,
+        "PCT_PF_UQ_READS_ALIGNED" -> right,
+        "PERCENT_DUPLICATION" -> right,
+        "READ_PAIR_DUPLICATES" -> right,
+        "READ_PAIR_OPTICAL_DUPLICATES" -> right,
+        "MODE_INSERT_SIZE" -> right,
+        "PCT_20X(Wgs)" -> right,
+        "PCT_60X(Wgs)" -> right,
+        "PCT_EXC_TOTAL" -> right,
+        "TOTAL_SNPS(Capture)" -> right,
+        "TOTAL_SNPS(Wgs)" -> right,
+        "TOTAL_INDELS(Capture)" -> right,
+        "TOTAL_INDELS(Wgs)" -> right
       )
     )
 
@@ -801,9 +801,18 @@ object AlignmentQC {
       )
     )
 
-    val rnaTable = """<table style="border-collapse: collapse;">""" + rnaHeader + "\n<tbody>" + rnaLines + "</tbody></table>"
-    val laneTable = """<table style="border-collapse: collapse;">""" + laneHeader + "\n<tbody>" + laneLines + "</tbody></table>"
-    val sampleTable = """<table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table>"
+    val rnaTable =
+      if (rnaLines.isEmpty) ""
+      else
+        """<table style="border-collapse: collapse;">""" + rnaHeader + "\n<tbody>" + rnaLines + "</tbody></table>"
+    val laneTable =
+      if (laneLines.isEmpty) ""
+      else
+        """<table style="border-collapse: collapse;">""" + laneHeader + "\n<tbody>" + laneLines + "</tbody></table>"
+    val sampleTable =
+      if (sampleLines.isEmpty) ""
+      else
+        """<table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table>"
 
     """<!DOCTYPE html><head></head><body>""" + sampleTable + laneTable + rnaTable + "</body>"
 
