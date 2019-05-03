@@ -560,12 +560,12 @@ object AlignmentQC {
         totalReads: Long,
         totalPfReads: Long,
         totalPfReadsAligned: Long,
-        totalPfNonDupReads: Long,
-        totalPfNonDupReadsAligned: Long,
+        totalPfUniqueReads: Long,
+        totalPfUniqueReadsAligned: Long,
         totalMeanTargetCoverage: Double,
         totalMeanTargetCoverageIncludingDuplicates: Double,
         totalCoveragePerRead: Double,
-        totalPercentPfNonDupReadsAligned: Double,
+        totalPercentPfUniqueReadsAligned: Double,
         totalPercentPfReadsAligned: Double
     )
 
@@ -613,13 +613,13 @@ object AlignmentQC {
              totalReads = totalReads,
              totalPfReads = totalPfReads,
              totalPfReadsAligned = totalPfReadsAligned,
-             totalPfNonDupReads = totalPfUniqueReads,
-             totalPfNonDupReadsAligned = totalPfUniqueReadsAligned,
+             totalPfUniqueReads = totalPfUniqueReads,
+             totalPfUniqueReadsAligned = totalPfUniqueReadsAligned,
              totalMeanTargetCoverage = totalMeanTargetCoverage,
              totalMeanTargetCoverageIncludingDuplicates =
                totalMeanTargetCoverageIncludingDuplicates,
              totalCoveragePerRead = totalCoveragePerRead,
-             totalPercentPfNonDupReadsAligned = totalPercentPfUniqueReadsAligned,
+             totalPercentPfUniqueReadsAligned = totalPercentPfUniqueReadsAligned,
              totalPercentPfReadsAligned = totalPercentPfReadsAligned
            ))
 
@@ -654,8 +654,8 @@ object AlignmentQC {
               f"${aggregatedLaneMetrics.totalReads / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPfReads / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPercentPfReadsAligned * 100}%6.2f%%" -> right,
-              f"${aggregatedLaneMetrics.totalPfNonDupReads / 1E6}%10.2fM" -> right,
-              f"${aggregatedLaneMetrics.totalPercentPfNonDupReadsAligned * 100}%6.2f%%" -> right,
+              f"${aggregatedLaneMetrics.totalPfUniqueReads / 1E6}%10.2fM" -> right,
+              f"${aggregatedLaneMetrics.totalPercentPfUniqueReadsAligned * 100}%6.2f%%" -> right,
               f"${pctDuplication * 100}%6.2f%%" -> right,
               f"${readPairDuplicates / 1E6}%7.2fM" -> right,
               f"${readPairOpticalDuplicates / 1E6}%8.2fM" -> right,
