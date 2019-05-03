@@ -4,13 +4,23 @@ import akka.http.scaladsl.server.Directives._
 import scala.concurrent.ExecutionContext
 import org.gc.pipelines.model._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import tasks.TaskSystemComponents
 
 class ConfigurationQueryHttpComponent(state: PipelineState)(
-    implicit ec: ExecutionContext)
+    implicit ec: ExecutionContext,
+    tsc: TaskSystemComponents)
     extends HttpComponent {
 
   def byRun(r: RunId) =
     state.pastRuns.map(_.filter(_.run.runId == r).map(_.run))
+
+  val fileSystemRoot = tsc.tasksConfig.storageURI.getPath
+
+  def findFastqFiles(runId: RunId): List[String] = {
+    import better.files._
+    val root = new java.io.File(fileSystemRoot + "/demultiplexing/" + runId)
+    root.toScala.glob("*.fastq.gz").map(_.toJava.getAbsolutePath).toList
+  }
 
   val route =
     get {
@@ -62,6 +72,32 @@ class ConfigurationQueryHttpComponent(state: PipelineState)(
 
                 ofProject
                   .flatMap(_.find(_.analysisId == analysisId))
+              }
+            }
+          } ~
+          path("free-runs") {
+            parameters("fastq".?) { withFastQ =>
+              complete {
+                for {
+                  assignments <- state.analyses
+                  runs <- state.pastRuns
+                } yield {
+                  val projectsWithAssignments =
+                    assignments.assignments.filter(_._2.nonEmpty).keySet
+                  runs
+                    .filter {
+                      case RunWithAnalyses(run, _) =>
+                        (projectsWithAssignments & run.projects.toSet).isEmpty
+                    }
+                    .map {
+                      case RunWithAnalyses(run, _) =>
+                        val fqList =
+                          if (withFastQ.nonEmpty) findFastqFiles(run.runId)
+                          else Nil
+                        (run.runId, fqList)
+                    }
+                }
+
               }
             }
           }

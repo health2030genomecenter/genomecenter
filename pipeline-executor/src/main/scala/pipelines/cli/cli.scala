@@ -270,6 +270,7 @@ object Pipelinectl extends App {
   case object PrintHelp extends CliCommand
   case object AppendRun extends CliCommand
   case object DeleteRun extends CliCommand
+  case object DeleteFreeRuns extends CliCommand
   case object SendReprocessAllRuns extends CliCommand
   case object Assign extends CliCommand
   case object Unassign extends CliCommand
@@ -282,6 +283,7 @@ object Pipelinectl extends App {
   case object QueryRunConfigurations extends CliCommand
   case object QueryAnalyses extends CliCommand
   case object QueryDeliverables extends CliCommand
+  case object QueryFreeRuns extends CliCommand
   case object AnalyseResourceUsage extends CliCommand
 
   val config = {
@@ -324,6 +326,7 @@ object Pipelinectl extends App {
       command: CliCommand = PrintHelp,
       configPath: Option[String] = None,
       runId: Option[String] = None,
+      runIds: Seq[String] = Nil,
       project: Option[String] = None,
       projectFrom: Option[String] = None,
       analysisId: Option[String] = None,
@@ -333,7 +336,8 @@ object Pipelinectl extends App {
       samplesFile: Option[String] = None,
       listProjects: Option[Boolean] = None,
       queryProgressOfAllProjects: Boolean = false,
-      suppressCompletedTasks: Boolean = false
+      suppressCompletedTasks: Boolean = false,
+      queryFastQsOfFreeRuns: Boolean = false
   )
 
   def printAddRunHelpAndExit() = {
@@ -402,6 +406,15 @@ object Pipelinectl extends App {
             .text("run ID of the run to delete")
             .action((v, c) => c.copy(runId = Some(v)))
             .required
+        ),
+      cmd("delete-freeruns")
+        .text(
+          "Deletes all existing runs. A deleted run won't get processed after restarting the pipeline. No files are deleted from the disk. The run's reads won't show up in any future analyses and reports. Does not affect currently running jobs (i.e. does not stop jobs).")
+        .action((_, c) => c.copy(command = DeleteFreeRuns))
+        .children(
+          opt[Seq[String]]('k', "keep")
+            .text("run ID of the run to NOT delete")
+            .action((v, c) => c.copy(runIds = v))
         ),
       cmd("assign-analysis")
         .text(
@@ -536,6 +549,14 @@ object Pipelinectl extends App {
             .text("List all projects with active analysis configuration")
             .action((_, c) => c.copy(listProjects = Some(true)))
         ),
+      cmd("query-freeruns")
+        .text("Query runs which contain unprocessed projects")
+        .action((_, c) => c.copy(command = QueryAnalyses))
+        .children(
+          opt[Unit]("fastqs")
+            .text("List fastq files of free runs. (SLOW)")
+            .action((_, c) => c.copy(queryFastQsOfFreeRuns = true))
+        ),
       cmd("analyse-resource-usage")
         .text("Analyses resource usage log")
         .action((_, c) => c.copy(command = AnalyseResourceUsage))
@@ -570,7 +591,50 @@ object Pipelinectl extends App {
   OParser.parse(parser1, args, Config()) match {
     case Some(config) =>
       config.command match {
+        case DeleteFreeRuns =>
+          val runs = io.circe.parser
+            .decode[List[(RunId, Seq[String])]](get("/v2/free-runs"))
+            .right
+            .get
+            .map(_._1)
+            .distinct
 
+          val keep = config.runIds.toSet
+
+          val runsToDelete = runs.filterNot(keep)
+
+          println(
+            s"Deleting runs: \n${runsToDelete.mkString("\n")} \n Type Y if OK")
+          if (scala.io.Source.stdin.take(1).mkString != "Y") {
+            System.exit(0)
+            ???
+          }
+          runsToDelete.foreach { runId =>
+            val response = delete("/v2/runs/" + runId)
+            if (response.code != 200) {
+              println(s"$runId Request failed: " + response)
+            } else {
+              println(s"$runId OK")
+            }
+          }
+
+        case QueryFreeRuns =>
+          val response =
+            if (config.queryFastQsOfFreeRuns) get("/v2/free-runs?fastq=true")
+            else get("/v2/free-runs")
+
+          val parsed = io.circe.parser
+            .decode[List[(RunId, Seq[String])]](response)
+            .right
+            .get
+
+          if (config.queryFastQsOfFreeRuns)
+            parsed.foreach {
+              case (_, fastqs) =>
+                fastqs.foreach { path =>
+                  println(path)
+                }
+            } else parsed.foreach { case (run, _) => println(run) }
         case SendReprocessAllRuns =>
           val response = post("/v2/reprocess")
           if (response.code != 200) {
