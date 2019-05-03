@@ -9,8 +9,10 @@ import scala.concurrent.Future
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import org.gc.pipelines.util.StableSet
+import org.gc.pipelines.util.traverseAll
 import org.gc.pipelines.application.ProgressData
 import ProgressData.DeliveryListAvailable
+import org.gc.pipelines.util.ResourceConfig
 
 case class CollectDeliverablesInput(
     samples: StableSet[SampleResult],
@@ -22,6 +24,23 @@ case class DeliverableList(lists: Seq[(Project, SharedFile, ProgressData)])
     extends WithSharedFiles(lists.map(_._2): _*)
 
 object Delivery {
+
+  def md5 = AsyncTask[SharedFile, String]("__md5", 1) {
+    file => implicit computationEnvironment =>
+      implicit val mat = computationEnvironment.components.actorMaterializer
+
+      val digest = java.security.MessageDigest.getInstance("MD5")
+
+      for {
+        _ <- file.source.runForeach { byteString =>
+          digest.update(byteString.toArray)
+        }
+      } yield
+        javax.xml.bind.DatatypeConverter
+          .printHexBinary(digest.digest())
+          .toLowerCase()
+
+  }
 
   def extractFastqList(
       fastqs: Set[PerSamplePerRunFastQ]): Map[Project, Seq[SharedFile]] =
@@ -116,22 +135,57 @@ object Delivery {
           val collectedOtherFiles =
             otherFiles.toSeq.groupBy(_._1).map(x => x._1 -> x._2.map(_._2))
 
-          val collectedFiles = List(collectedRnaSeqBam,
-                                    wesBamAndVcfs,
-                                    collectedFastp,
-                                    collectedFastqs,
-                                    collectedOtherFiles,
-                                    collectedRnaSeqQuantification)
-            .reduce(
-              tasks.util
+          val collectedFilesWithProject: Seq[(Project, SharedFile)] =
+            List(collectedRnaSeqBam,
+                 wesBamAndVcfs,
+                 collectedFastp,
+                 collectedFastqs,
+                 collectedOtherFiles,
+                 collectedRnaSeqQuantification)
+              .reduce(tasks.util
                 .addMaps(_, _)(_ ++ _))
-            .toSeq
+              .toSeq
+              .flatMap {
+                case (project, files) => files.map(f => (project, f))
+              }
+
+          def createMd5Summary(
+              filesWithMd5: Seq[(SharedFile, String)]): String = {
+            filesWithMd5
+              .map {
+                case (file, md5) =>
+                  s"MD5(${file.path.toString}) = $md5"
+              }
+              .mkString("\n")
+          }
+
+          releaseResources
 
           for {
-            pathLists <- Future.traverse(collectedFiles) {
+            withMd5Flattened <- traverseAll(collectedFilesWithProject) {
+              case (project, file) =>
+                md5(file)(ResourceConfig.minimal).map { md5 =>
+                  (project, file, md5)
+                }
+            }
+            withMd5PerProject = withMd5Flattened
+              .groupBy { case (project, _, _) => project }
+              .map {
+                case (project, group) =>
+                  (project, group.map { case (_, file, md5) => (file, md5) })
+              }
+            pathLists <- Future.traverse(withMd5PerProject.toSeq) {
               case (project, files) =>
                 for {
-                  pathList <- Future.traverse(files)(_.uri.map(_.path))
+                  md5File <- inProjectFolder(project) {
+                    implicit computationEnvironment =>
+                      SharedFile(
+                        Source.single(ByteString(createMd5Summary(files))),
+                        "md5.txt")
+                  }
+                  pathList <- Future.traverse(md5File +: files.map(_._1))(
+                    _.uri.map(_.path))
+
                 } yield {
 
                   (project, pathList.distinct)

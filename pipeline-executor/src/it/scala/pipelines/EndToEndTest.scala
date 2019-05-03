@@ -99,6 +99,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             assert(deliverableListLines.exists(_.endsWith(
               "projects/project1/sample1/fastp/runid1/project1.sample1.runid1.fastp.html")))
             assert(deliverableListLines.exists(_.endsWith("readqc.pdf")))
+            assert(deliverableListLines.exists(_.endsWith("md5.txt")))
         }
 
         When(
