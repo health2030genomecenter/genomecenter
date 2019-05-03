@@ -524,9 +524,18 @@ object AlignmentQC {
       )
     )
 
-    val rnaTable = """<table style="border-collapse: collapse;">""" + rnaHeader + "\n<tbody>" + rnaLines + "</tbody></table>"
-    val laneTable = """<table style="border-collapse: collapse;">""" + laneHeader + "\n<tbody>" + laneLines + "</tbody></table>"
-    val sampleTable = """<table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table>"
+    val rnaTable =
+      if (rnaLines.isEmpty) ""
+      else
+        """<table style="border-collapse: collapse;">""" + rnaHeader + "\n<tbody>" + rnaLines + "</tbody></table>"
+    val laneTable =
+      if (laneLines.isEmpty) ""
+      else
+        """<table style="border-collapse: collapse;">""" + laneHeader + "\n<tbody>" + laneLines + "</tbody></table>"
+    val sampleTable =
+      if (sampleLines.isEmpty) ""
+      else
+        """<table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table>"
 
     """<!DOCTYPE html><head></head><body>""" + laneTable + sampleTable + rnaTable + "</body>"
 
