@@ -681,31 +681,17 @@ object AlignmentQC {
 
       }
 
-    val sampleMetricsPerSample =
-      sampleMetrics.groupBy(v => (v._1.project, v._1.sampleId)).map {
-        case (key, group) => (key, group.head)
-      }
-
     val runLines = aggregatedLanesPerSamplePerRun.toSeq
-      .sortBy(_._1._1.toString)
-      .sortBy(_._1._2.toString)
       .sortBy(_._1._3.toString)
+      .sortBy(_._1._2.toString)
+      .sortBy(_._1._1.toString)
       .map {
         case ((project, sample, run), aggregatedLaneMetrics) =>
-          val (dups,
-               _,
-               wgsMetrics,
-               mayVcfIntervalMetrics,
-               mayVcfOverallMetrics,
-               insertSizeMetrics,
-               _) = sampleMetricsPerSample((project, sample))
-
           Html.line(
             Seq(
               project -> left,
               sample -> left,
               run -> left,
-              f"${wgsMetrics.metrics.meanCoverage}%13.1fx" -> right,
               f"${aggregatedLaneMetrics.totalMeanTargetCoverage}%13.1fx" -> right,
               f"${aggregatedLaneMetrics.totalMeanTargetCoverageIncludingDuplicates}%13.1fx" -> right,
               f"${aggregatedLaneMetrics.totalReads / 1E6}%10.2fM" -> right,
@@ -713,17 +699,6 @@ object AlignmentQC {
               f"${aggregatedLaneMetrics.totalPercentPfReadsAligned * 100}%6.2f%%" -> right,
               f"${aggregatedLaneMetrics.totalPfUniqueReads / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPercentPfUniqueReadsAligned * 100}%6.2f%%" -> right,
-              f"${dups.metrics.pctDuplication * 100}%6.2f%%" -> right,
-              f"${dups.metrics.readPairDuplicates / 1E6}%7.2fM" -> right,
-              f"${dups.metrics.readPairOpticalDuplicates / 1E6}%8.2fM" -> right,
-              insertSizeMetrics.metrics.modeInsertSize.toString -> right,
-              f"${wgsMetrics.metrics.pctCoverage20x * 100}%11.2f%%" -> right,
-              f"${wgsMetrics.metrics.pctCoverage60x * 100}%11.2f%%" -> right,
-              f"${wgsMetrics.metrics.pctExcludedTotal}%11.2f%%" -> right,
-              f"${mayVcfIntervalMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
-              f"${mayVcfOverallMetrics.map(_.metrics.totalSnps).getOrElse("")}%s" -> right,
-              f"${mayVcfIntervalMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right,
-              f"${mayVcfOverallMetrics.map(_.metrics.totalIndel).getOrElse(Double.NaN)}%s" -> right
             ))
 
       }
@@ -732,7 +707,6 @@ object AlignmentQC {
     val runHeader = Html.mkHeader(
       List("Proj", "Sample", "Run"),
       List(
-        "MEAN_COVERAGE(Wgs)" -> right,
         "MEAN_TARGET_COVERAGE" -> right,
         "MeanTargetCoverageDupIncl" -> right,
         "TOTAL_READS" -> right,
@@ -740,17 +714,6 @@ object AlignmentQC {
         "PCT_PF_READS_ALIGNED" -> right,
         "PF_UNIQUE_READS" -> right,
         "PCT_PF_UQ_READS_ALIGNED" -> right,
-        "PERCENT_DUPLICATION" -> right,
-        "READ_PAIR_DUPLICATES" -> right,
-        "READ_PAIR_OPTICAL_DUPLICATES" -> right,
-        "MODE_INSERT_SIZE" -> right,
-        "PCT_20X(Wgs)" -> right,
-        "PCT_60X(Wgs)" -> right,
-        "PCT_EXC_TOTAL" -> right,
-        "TOTAL_SNPS(Capture)" -> right,
-        "TOTAL_SNPS(Wgs)" -> right,
-        "TOTAL_INDELS(Capture)" -> right,
-        "TOTAL_INDELS(Wgs)" -> right
       )
     )
 
@@ -952,7 +915,7 @@ object AlignmentQC {
   }
 
   val runQCTable =
-    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 5) {
+    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 6) {
       case RunQCTableInput(fileName, sampleMetrics, rnaAnalyses) =>
         implicit computationEnvironment =>
           def read(f: File) = fileutils.openSource(f)(_.mkString)
