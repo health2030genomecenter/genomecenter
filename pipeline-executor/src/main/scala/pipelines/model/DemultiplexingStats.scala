@@ -355,7 +355,7 @@ object DemultiplexingSummary {
     val indexSwapSection =
       if (indexSwapLines.nonEmpty) {
         indexSwapHeader + "\n" + indexSwapLines.mkString("\n") + "\n\n"
-      } else ""
+      } else "\nNO UNEXPECTED KNOWN INDICES IN QUANTITY ABOVE 0.1%\n"
 
     val barcodeHeader =
       "Unknown barcodes:\nLane   Barcode            Count           %"
