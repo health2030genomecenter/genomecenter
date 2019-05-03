@@ -164,8 +164,10 @@ object Delivery {
           for {
             withMd5Flattened <- traverseAll(collectedFilesWithProject) {
               case (project, file) =>
-                md5(file)(ResourceConfig.minimal).map { md5 =>
-                  (project, file, md5)
+                inProjectFolder(project) { implicit computationEnvironment =>
+                  md5(file)(ResourceConfig.minimal).map { md5 =>
+                    (project, file, md5)
+                  }
                 }
             }
             withMd5PerProject = withMd5Flattened
