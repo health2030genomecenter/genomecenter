@@ -692,14 +692,14 @@ object Pipelinectl extends App {
 
               val asString = runEvents
                 .flatMap {
-                  case Demultiplexed(_, _, stats) =>
+                  case Demultiplexed(_, samples, stats) =>
                     stats.map {
                       case (demultiplexingId, stats) =>
                         "Demultiplexing run with ID: " + demultiplexingId + ":\n"
                         DemultiplexingSummary.renderAsTable(
                           DemultiplexingSummary.fromStats(
                             stats,
-                            Map.empty,
+                            samples.map{ case (project,sample,_) => sample -> project}.toMap,
                             Demultiplexing.readGlobalIndexSetFromClassPath))
                     }
                 }
