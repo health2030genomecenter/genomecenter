@@ -12,7 +12,7 @@ import tasks.circesupport._
 import fileutils.TempFile
 import scala.concurrent.{Future, ExecutionContext}
 import java.io.File
-import Executables.{star260aExecutable, star261cExecutable, picardJar}
+import Executables.{star261aExecutable, star261cExecutable, picardJar}
 
 sealed trait StarVersion {
   def executable: String
@@ -22,9 +22,9 @@ object StarVersion {
     def executable: String = star261cExecutable
     override def toString = "2.6.1c"
   }
-  case object Star260a extends StarVersion {
-    def executable: String = star260aExecutable
-    override def toString = "2.6.0a"
+  case object Star261a extends StarVersion {
+    def executable: String = star261aExecutable
+    override def toString = "2.6.1a"
   }
 
   implicit val encoder: Encoder[StarVersion] =
