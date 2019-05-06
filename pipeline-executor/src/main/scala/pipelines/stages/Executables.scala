@@ -99,13 +99,13 @@ object Executables {
 
   val star261aExecutable: String = {
     val resourceName =
-      if (util.isMac) "/bin/STAR_ffd8416315_2.6.1a_mac"
-      else if (util.isLinux) "/bin/STAR_ffd8416315_2.6.1a_linux64"
+      if (util.isMac) "/bin/STAR_45f7bd7_2.6.1a_mac"
+      else if (util.isLinux) "/bin/STAR_45f7bd7_2.6.1a_linux64"
       else
         throw new RuntimeException(
           "Unknown OS: " + System.getProperty("os.name"))
     fileutils.TempFile
-      .getExecutableFromJar(resourceName, "STAR_2b95e47_2.6.1a")
+      .getExecutableFromJar(resourceName, "STAR_45f7bd7_2.6.1a")
       .getAbsolutePath
   }
 }
