@@ -373,7 +373,9 @@
           "doJointCalls" : true,
           "minimumWGSCoverage" : null,
           "minimumTargetCoverage" : null,
-          "variantCallingContigs" : null
+          "variantCallingContigs" : null,
+          "singleSampleVqsr" : null,
+          "keepVcf" : null
         },
         "variantCallingContigs" : {
           "file" : {
@@ -387,7 +389,9 @@
             "hash" : 13
           }
         }
-      }
+      },
+      [
+      ]
     ]
   ],
   "rna" : [

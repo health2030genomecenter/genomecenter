@@ -23,7 +23,7 @@ class StarAlignmentTestSuite
         val result =
           await(
             StarAlignment.indexReference(
-              StarIndexInput(fasta, StarVersion.Star260a))(
+              StarIndexInput(fasta, StarVersion.Star261a))(
               ResourceRequest(1, 500)))
 
         result.indexFiles.size shouldBe 8
@@ -61,7 +61,7 @@ class StarAlignmentTestSuite
             reference = indexedFasta,
             gtf = await(SharedFile(gtfFile, "gtf")),
             readLength = 151,
-            starVersion = StarVersion.Star260a
+            starVersion = StarVersion.Star261a
           )
 
         val result =

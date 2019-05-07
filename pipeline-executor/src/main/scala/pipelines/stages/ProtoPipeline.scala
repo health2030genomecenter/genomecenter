@@ -112,11 +112,11 @@ class ProtoPipeline(progressServer: SendProgressData)(
     val samples =
       samples0.map { sample =>
         val existHg19 = sample.wes.exists {
-          case (_, analysisConfig) => analysisConfig.analysisId == "hg19"
+          case (_, analysisConfig, _) => analysisConfig.analysisId == "hg19"
         }
         if (existHg19)
           sample.copy(wes = sample.wes.filterNot {
-            case (_, analysisConfig) => analysisConfig.analysisId == ""
+            case (_, analysisConfig, _) => analysisConfig.analysisId == ""
           })
         else sample
 
@@ -140,7 +140,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
         .flatMap { sampleResult =>
           sampleResult.wes
             .flatMap {
-              case (wesResult, wesConfig) =>
+              case (wesResult, wesConfig, _) =>
                 wesResult.mergedRuns.map { result =>
                   (result, wesConfig)
                 }
@@ -404,10 +404,13 @@ class ProtoPipeline(progressServer: SendProgressData)(
               demultiplexedSample.runId + " " + demultiplexedSample.project + " " + demultiplexedSample.sampleId + " past result: " + pastSampleResult
                 .map(_.runFolders.map(_.runId)))
 
-            val pastResultsMatchingAnalysisId = pastSampleResult.toSeq
+            val pastResultsMatchingAnalysisId
+              : Option[(SingleSamplePipelineResult,
+                        SingleSampleConfiguration,
+                        List[(RunId, MeanCoverageResult)])] = pastSampleResult
               .flatMap(_.wes
                 .find {
-                  case (_, wesConfigurationOfPastSample) =>
+                  case (_, wesConfigurationOfPastSample, _) =>
                     val matchingAnalysisId = wesConfigurationOfPastSample.analysisId == conf.analysisId
                     val matchingMigratedOldAnalysisId = wesConfigurationOfPastSample.analysisId == "" && conf.analysisId == "hg19"
 
@@ -415,18 +418,28 @@ class ProtoPipeline(progressServer: SendProgressData)(
                       "matchingAnalysisId: " + matchingAnalysisId + " matchingMigratedOldAnalysisId: " + matchingMigratedOldAnalysisId + " " + demultiplexedSample + " " + conf)
 
                     matchingAnalysisId || matchingMigratedOldAnalysisId
-                }
-                .toSeq
-                .flatMap {
-                  case (wesResultOfPastSample, _) =>
-                    wesResultOfPastSample.alignedLanes.toSeq
                 })
+
+            val pastAlignedLanes =
+              pastResultsMatchingAnalysisId.toSeq.flatMap {
+                case (wesResultOfPastSample, _, _) =>
+                  wesResultOfPastSample.alignedLanes.toSeq
+              }
+
+            val pastPerRunCoverages = pastResultsMatchingAnalysisId
+              .map { case (_, _, coverages) => coverages }
+              .getOrElse(Nil)
 
             wes(
               demultiplexedSample,
               conf,
-              pastResultsMatchingAnalysisId.toSet.toStable
-            )
+              pastAlignedLanes.toSet.toStable
+            ).map {
+              case (result, config) =>
+                (result,
+                 config,
+                 (demultiplexedSample.runId, result.coverage) :: pastPerRunCoverages)
+            }
           }
 
         val perSampleResultsRNA = if (readLengths.isEmpty) {

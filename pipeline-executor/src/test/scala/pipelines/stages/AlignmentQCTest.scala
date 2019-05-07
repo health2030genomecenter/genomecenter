@@ -45,7 +45,8 @@ class AlignmentQCTest
              Some(vcfQc),
              Some(vcfQc),
              insertSize,
-             AnalysisId("boo"))),
+             AnalysisId("boo"),
+             List(RunId("someRunId") -> MeanCoverageResult(1.0, 3.0)))),
           List()
         ))
     }

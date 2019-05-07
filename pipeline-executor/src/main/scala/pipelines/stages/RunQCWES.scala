@@ -64,7 +64,8 @@ case class SampleMetrics(analysisId: AnalysisId,
                          gvcfQCOverallMetrics: Option[SharedFile],
                          project: Project,
                          sampleId: SampleId,
-                         insertSizeMetrics: SharedFile)
+                         insertSizeMetrics: SharedFile,
+                         fastCoverages: List[(RunId, MeanCoverageResult)])
     extends WithSharedFiles(List(
       alignmentSummary,
       hsMetrics,
@@ -130,7 +131,8 @@ object AlignmentQC {
          Option[VariantCallingMetrics.Root],
          Option[VariantCallingMetrics.Root],
          InsertSizeMetrics.Root,
-         AnalysisId)],
+         AnalysisId,
+         List[(RunId, MeanCoverageResult)])],
       rnaSeqMetrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
 
     val left = true
@@ -145,7 +147,8 @@ object AlignmentQC {
               mayVcfIntervalMetrics,
               mayVcfOverallMetrics,
               insertSizeMetrics,
-              analysisId) =>
+              analysisId,
+              _) =>
           import dups.metrics._
           import dups._
           import fastpMetrics.metrics._
@@ -182,6 +185,45 @@ object AlignmentQC {
 
       }
       .mkString("\n")
+
+    val fastCoveragePerRun = sampleMetrics.flatMap { sampleMetric =>
+      sampleMetric._8.map {
+        case (runId, meanCoverage) =>
+          (sampleMetric._1.project,
+           sampleMetric._1.sampleId,
+           runId,
+           sampleMetric._7,
+           meanCoverage)
+      }
+    }
+
+    val runLines =
+      fastCoveragePerRun
+        .sortBy(_._2.toString)
+        .sortBy(_._1.toString)
+        .sortBy(_._3.toString)
+        .map {
+          case (sampleId, project, runId, analysisId, fastCoverage) =>
+            Csv.line(
+              Seq(
+                project -> left,
+                sampleId -> left,
+                analysisId -> left,
+                runId -> left,
+                f"${fastCoverage.all}%13.1fx" -> right,
+                f"${fastCoverage.target}%13.1fx" -> right,
+                "wxs-perrun" -> right
+              ))
+        }
+
+    val runHeader = Csv.mkHeader(
+      List("Proj", "Sample", "Analysis", "Run"),
+      List(
+        "FastWgsCoverage" -> right,
+        "FastTargetCoverage" -> right,
+        "table" -> right
+      )
+    )
 
     val laneLines = laneMetrics
       .sortBy(_._1.project.toString)
@@ -324,8 +366,9 @@ object AlignmentQC {
     val rnaTable = rnaHeader + "\n" + rnaLines
     val laneTable = laneHeader + "\n" + laneLines
     val sampleTable = sampleHeader + "\n" + sampleLines
+    val runTable = runHeader + "\n" + runLines
 
-    laneTable + "\n" + sampleTable + "\n" + rnaTable
+    laneTable + "\n" + sampleTable + "\n" + runTable + "\n" + rnaTable
 
   }
   def makeHtmlTable(
@@ -338,7 +381,8 @@ object AlignmentQC {
          Option[VariantCallingMetrics.Root],
          Option[VariantCallingMetrics.Root],
          InsertSizeMetrics.Root,
-         AnalysisId)],
+         AnalysisId,
+         List[(RunId, MeanCoverageResult)])],
       rnaSeqMetrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
 
     val left = true
@@ -353,7 +397,8 @@ object AlignmentQC {
               mayVcfIntervalMetrics,
               mayVcfOverallMetrics,
               insertSizeMetrics,
-              analysisId) =>
+              analysisId,
+              _) =>
           import dups.metrics._
           import dups._
           import fastpMetrics.metrics._
@@ -390,6 +435,42 @@ object AlignmentQC {
 
       }
       .mkString("\n")
+
+    val fastCoveragePerRun = sampleMetrics.flatMap { sampleMetric =>
+      sampleMetric._8.map {
+        case (runId, meanCoverage) =>
+          (sampleMetric._1.project,
+           sampleMetric._1.sampleId,
+           runId,
+           sampleMetric._7,
+           meanCoverage)
+      }
+    }
+
+    val runLines =
+      fastCoveragePerRun
+        .sortBy(_._2.toString)
+        .sortBy(_._1.toString)
+        .sortBy(_._3.toString)
+        .map {
+          case (sampleId, project, runId, analysisId, fastCoverage) =>
+            Html.line(
+              Seq(project -> left,
+                  sampleId -> left,
+                  analysisId -> left,
+                  runId -> left,
+                  f"${fastCoverage.all}%13.1fx" -> right,
+                  f"${fastCoverage.target}%13.1fx" -> right,
+              ))
+        }
+
+    val runHeader = Html.mkHeader(
+      List("Proj", "Sample", "Analysis", "Run"),
+      List(
+        "FastWgsCoverage" -> right,
+        "FastTargetCoverage" -> right
+      )
+    )
 
     val laneLines = laneMetrics
       .sortBy(_._1.project.toString)
@@ -536,8 +617,12 @@ object AlignmentQC {
       if (sampleLines.isEmpty) ""
       else
         """<table style="border-collapse: collapse;">""" + sampleHeader + "\n<tbody>" + sampleLines + "</tbody></table>"
+    val runTable =
+      if (runLines.isEmpty) ""
+      else
+        """<table style="border-collapse: collapse;">""" + runHeader + "\n<tbody>" + runLines + "</tbody></table>"
 
-    """<!DOCTYPE html><head></head><body>""" + laneTable + sampleTable + rnaTable + "</body>"
+    """<!DOCTYPE html><head></head><body>""" + laneTable + sampleTable + runTable + rnaTable + "</body>"
 
   }
   def makeNarrowHtmlTable(
@@ -550,7 +635,8 @@ object AlignmentQC {
          Option[VariantCallingMetrics.Root],
          Option[VariantCallingMetrics.Root],
          InsertSizeMetrics.Root,
-         AnalysisId)],
+         AnalysisId,
+         List[(RunId, MeanCoverageResult)])],
       rnaSeqMetrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
 
     val left = true
@@ -681,12 +767,21 @@ object AlignmentQC {
 
       }
 
+    val fastCoveragePerRun = sampleMetrics.flatMap { sampleMetric =>
+      sampleMetric._8.map {
+        case (runId, meanCoverage) =>
+          ((sampleMetric._1.project, sampleMetric._1.sampleId, runId),
+           meanCoverage)
+      }
+    }.toMap
+
     val runLines = aggregatedLanesPerSamplePerRun.toSeq
       .sortBy(_._1._3.toString)
       .sortBy(_._1._2.toString)
       .sortBy(_._1._1.toString)
       .map {
         case ((project, sample, run), aggregatedLaneMetrics) =>
+          val fastCoverage = fastCoveragePerRun((project, sample, run))
           Html.line(
             Seq(
               project -> left,
@@ -694,6 +789,7 @@ object AlignmentQC {
               run -> left,
               f"${aggregatedLaneMetrics.totalMeanTargetCoverage}%13.1fx" -> right,
               f"${aggregatedLaneMetrics.totalMeanTargetCoverageIncludingDuplicates}%13.1fx" -> right,
+              f"${fastCoverage.all}%13.1fx" -> right,
               f"${aggregatedLaneMetrics.totalReads / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPfReads / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPercentPfReadsAligned * 100}%6.2f%%" -> right,
@@ -709,6 +805,7 @@ object AlignmentQC {
       List(
         "MEAN_TARGET_COVERAGE" -> right,
         "MeanTargetCoverageDupIncl" -> right,
+        "FastWgsCoverage" -> right,
         "TOTAL_READS" -> right,
         "PF_READS" -> right,
         "PCT_PF_READS_ALIGNED" -> right,
@@ -727,6 +824,7 @@ object AlignmentQC {
               mayVcfIntervalMetrics,
               mayVcfOverallMetrics,
               insertSizeMetrics,
+              _,
               _) =>
           import dups.metrics._
           import dups._
@@ -997,7 +1095,8 @@ object AlignmentQC {
                                            variantQCIntervalMetrics,
                                            variantQCOverallMetrics,
                                            insertSizeMetrics,
-                                           m.analysisId)
+                                           m.analysisId,
+                                           m.fastCoverages)
 
               (laneSpecificMetrics, sampleSpecificMetrics)
 

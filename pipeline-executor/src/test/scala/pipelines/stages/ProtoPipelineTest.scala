@@ -126,7 +126,7 @@ class ProtopipelineTestSuite
       )
 
       val old = SampleResult(
-        wes = List((wesResult, wesConfig)),
+        wes = List((wesResult, wesConfig, Nil)),
         rna = List(rna),
         demultiplexed = List(demux1),
         fastpReports = List(fastp),

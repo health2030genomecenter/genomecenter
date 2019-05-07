@@ -22,7 +22,9 @@ case class SingleSampleConfiguration(
         .flatMap(_.files) ++ variantCallingContigs.toSeq.flatMap(_.files): _*)
 
 case class SampleResult(
-    wes: Seq[(SingleSamplePipelineResult, SingleSampleConfiguration)],
+    wes: Seq[(SingleSamplePipelineResult,
+              SingleSampleConfiguration,
+              List[(RunId, MeanCoverageResult)])],
     rna: Seq[SingleSamplePipelineResultRNA],
     demultiplexed: Seq[PerSamplePerRunFastQ],
     fastpReports: Seq[FastpReport],
@@ -41,13 +43,13 @@ case class SampleResult(
   def extractWESQCFiles: Seq[SampleMetrics] =
     wes
       .flatMap {
-        case (sample, sampleConfig) =>
+        case (sample, sampleConfig, coverages) =>
           sample.mergedRuns.map { mergedRuns =>
-            (mergedRuns, sampleConfig)
+            (mergedRuns, sampleConfig, coverages)
           }
       }
       .map {
-        case (sample, sampleConfig) =>
+        case (sample, sampleConfig, coverages) =>
           val fastpReportsOfSample = fastpReports.find { fp =>
             fp.sampleId == sample.sampleId &&
             fp.project == sample.project
@@ -63,7 +65,8 @@ case class SampleResult(
             sample.gvcfQCOverall.map(_.summary),
             sample.project,
             sample.sampleId,
-            sample.alignmentQC.insertSizeMetrics
+            sample.alignmentQC.insertSizeMetrics,
+            coverages
           )
       }
 }
