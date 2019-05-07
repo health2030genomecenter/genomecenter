@@ -355,7 +355,8 @@ object DemultiplexingSummary {
     val indexSwapSection =
       if (indexSwapLines.nonEmpty) {
         indexSwapHeader + "\n" + indexSwapLines.mkString("\n") + "\n\n"
-      } else "\nNO UNEXPECTED KNOWN INDICES IN QUANTITY ABOVE 0.1%\n"
+      } else
+        "Index swaps:\nNO UNEXPECTED KNOWN INDICES IN QUANTITY ABOVE 0.1%\n"
 
     val barcodeHeader =
       "Unknown barcodes:\nLane   Barcode            Count           %"
@@ -378,7 +379,7 @@ object DemultiplexingSummary {
 
     s"RunId: ${root.runId}\n\n" + laneSummaryHeader + "\n" + laneSummaryLines
       .mkString("\n") + "\n\n" + sampleHeader + "\n" + sampleLines.mkString(
-      "\n") + "\n\n" + indexSwapSection + barcodeHeader + "\n" + barcodesLines
+      "\n") + "\n\n" + indexSwapSection + "\n" + barcodeHeader + "\n" + barcodesLines
       .mkString("\n")
 
   }
