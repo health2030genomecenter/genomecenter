@@ -169,7 +169,8 @@ object Demultiplexing {
                     globalIndexSet))
               SharedFile(
                 Source.single(ByteString(tableAsString.getBytes("UTF-8"))),
-                name = "stats.table")
+                name = sampleSheet.runId
+                  .getOrElse("UnknownRun") + ".demultiplexing.stats.txt")
             }
             mergedStatsEValue <- EValue.apply(mergedStats, "Stats.json")
           } yield mergedStatsEValue
