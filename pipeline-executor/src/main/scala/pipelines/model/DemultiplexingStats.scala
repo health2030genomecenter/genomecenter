@@ -370,11 +370,11 @@ object DemultiplexingSummary {
     }
 
     val sampleHeader =
-      "Samples:\nPrj                 SmplId        Lane   BCode             BCMismatch%     TotRds   Rd1_YieldQ30   Rd2_YieldQ30   Rd1_%Q30   Rd2_%Q30"
+      "Samples:\nPrj                 SmplId              Lane   BCode             BCMismatch%     TotRds   Rd1_YieldQ30   Rd2_YieldQ30   Rd1_%Q30   Rd2_%Q30"
 
     val sampleLines = root.sampleSummaries.map { s =>
       import s._
-      f"$project%-20s$sampleId%-14s$lane%-7s$indexSequence%-18s$indexMismatchRate%10.2f%%${totalReads / 1E6}%10.4fM${read1YieldQ30 / 1E6}%13.2fMb${read2YieldQ30 / 1E6}%13.2fMb$read1PctQ30%10.2f%%$read2PctQ30%10.2f%%"
+      f"$project%-20s$sampleId%-20s$lane%-7s$indexSequence%-18s$indexMismatchRate%10.2f%%${totalReads / 1E6}%10.4fM${read1YieldQ30 / 1E6}%13.2fMb${read2YieldQ30 / 1E6}%13.2fMb$read1PctQ30%10.2f%%$read2PctQ30%10.2f%%"
     }
 
     s"RunId: ${root.runId}\n\n" + laneSummaryHeader + "\n" + laneSummaryLines
