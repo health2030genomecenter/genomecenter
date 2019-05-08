@@ -112,13 +112,14 @@ object EndToEndHelpers {
     val progressServer = new ProgressServer(AS)
     basePath.mkdirs
     val pipelineState = new FilePipelineState(new File(basePath, "STATE"))
-    val queryComponent = new ConfigurationQueryHttpComponent(pipelineState)
+    val taskSystem = defaultTaskSystem(Some(config))
+    val queryComponent =
+      new ConfigurationQueryHttpComponent(pipelineState)(AS.dispatcher,
+                                                         taskSystem.components)
     val httpServer =
       new HttpServer(
         port = 0,
         Seq(commandSource.route, progressServer.route, queryComponent.route))
-
-    val taskSystem = defaultTaskSystem(Some(config))
 
     val pipelineApp = new PipelinesApplication(
       commandSource,
