@@ -73,6 +73,12 @@ case class WESConfiguration(
       bqsrKnownSites.toSeq.map((_: String) + ".tbi").toSet
 }
 
+case class TenXConfiguration(
+    analysisId: AnalysisId
+) extends AnalysisConfiguration {
+  def files = Set()
+}
+
 case class RNASeqConfiguration(
     analysisId: AnalysisId,
     referenceFasta: String,
@@ -284,6 +290,17 @@ object RunfolderReadyForProcessing {
   }
 }
 
+object TenXConfiguration {
+  implicit val encoder: Encoder[TenXConfiguration] =
+    deriveEncoder[TenXConfiguration]
+  implicit val decoder: Decoder[TenXConfiguration] =
+    deriveDecoder[TenXConfiguration]
+
+  def fromConfig(config: Config) = TenXConfiguration(
+    analysisId = AnalysisId(config.getString("analysisId"))
+  )
+
+}
 object RNASeqConfiguration {
   implicit val encoder: Encoder[RNASeqConfiguration] =
     deriveEncoder[RNASeqConfiguration]
@@ -474,7 +491,16 @@ object AnalysisConfiguration {
             .map(_.toString))
       else None
 
-    rna.getOrElse(wes.getOrElse(Left("expected 'rna' or 'wes' objects")))
+    val tenX =
+      if (config.hasPath("tenX"))
+        Some(
+          Try(TenXConfiguration.fromConfig(config.getConfig("tenX"))).toEither.left
+            .map(_.toString))
+      else None
+
+    rna.getOrElse(
+      wes.getOrElse(
+        tenX.getOrElse(Left("expected 'rna' or 'wes' or 'tenX' objects"))))
   }
 
 }

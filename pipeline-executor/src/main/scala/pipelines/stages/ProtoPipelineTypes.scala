@@ -26,6 +26,7 @@ case class SampleResult(
               SingleSampleConfiguration,
               List[(RunId, MeanCoverageResult)])],
     rna: Seq[SingleSamplePipelineResultRNA],
+    tenX: Seq[PerSampleFastQ],
     demultiplexed: Seq[PerSamplePerRunFastQ],
     fastpReports: Seq[FastpReport],
     runFolders: Seq[RunfolderReadyForProcessing],

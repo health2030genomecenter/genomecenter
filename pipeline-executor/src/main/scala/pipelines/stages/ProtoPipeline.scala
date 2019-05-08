@@ -7,6 +7,7 @@ import org.gc.pipelines.application.{
   RunfolderReadyForProcessing,
   WESConfiguration,
   RNASeqConfiguration,
+  TenXConfiguration,
   AnalysisAssignments,
   ProgressData
 }
@@ -398,6 +399,13 @@ class ProtoPipeline(progressServer: SendProgressData)(
             case conf: RNASeqConfiguration => conf
           }
 
+        val selected10XSeqConfigurations = analysisAssignments.assignments
+          .get(demultiplexedSample.project)
+          .getOrElse(Nil)
+          .collect {
+            case conf: TenXConfiguration => conf
+          }
+
         val perSampleResultsWES =
           traverseAll(selectedWESConfigurations) { conf =>
             logger.info(
@@ -451,10 +459,15 @@ class ProtoPipeline(progressServer: SendProgressData)(
           traverseAll(selectedRNASeqConfigurations)(
             rna(demultiplexedSample, _, readLengths))
 
+        val perSampleResults10X =
+          traverseAll(selected10XSeqConfigurations)(_ =>
+            tenX(demultiplexedSample))
+
         for {
 
           perSampleResultsWES <- perSampleResultsWES
           perSampleResultsRNA <- perSampleResultsRNA
+          perSampleResults10X <- perSampleResults10X
 
           fastpReport <- fastpReport
 
@@ -464,6 +477,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
             pastSampleResult.toSeq.flatMap(_.demultiplexed)
           val pastRunFolders = pastSampleResult.toSeq.flatMap(_.runFolders)
           val pastRNASeqResults = pastSampleResult.toSeq.flatMap(_.rna)
+          val past10XResults = pastSampleResult.toSeq.flatMap(_.tenX)
 
           progressServer.send(
             SampleProcessingFinished(demultiplexedSample.project,
@@ -474,6 +488,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
             SampleResult(
               wes = perSampleResultsWES,
               rna = pastRNASeqResults ++ perSampleResultsRNA,
+              tenX = past10XResults ++ perSampleResults10X,
               demultiplexed = pastDemultiplexed :+ demultiplexedSample,
               fastpReports = pastFastpReports :+ fastpReport,
               runFolders = pastRunFolders :+ r,
@@ -628,6 +643,21 @@ class ProtoPipeline(progressServer: SendProgressData)(
 
     } yield perSampleResultsRNA
 
+  private def tenX(sampleFor10XAnalysis: PerSamplePerRunFastQ)(
+      implicit tsc: TaskSystemComponents) = {
+
+    for {
+
+      concatenated <- inProject10XFolder(sampleFor10XAnalysis.project) {
+        implicit tsc =>
+          TenXStages.concatenateFastQ(sampleFor10XAnalysis.withoutRunId)(
+            ResourceConfig.minimal,
+            labels = ResourceConfig.projectLabel(sampleFor10XAnalysis.project))
+      }
+
+    } yield concatenated
+  }
+
   private def startFastpReports(perSampleFastQs: PerSamplePerRunFastQ)(
       implicit tsc: TaskSystemComponents): Future[FastpReport] =
     tsc.withFilePrefix(
@@ -646,6 +676,10 @@ class ProtoPipeline(progressServer: SendProgressData)(
   private def inAllQCFolder[T](f: TaskSystemComponents => T)(
       implicit tsc: TaskSystemComponents) =
     tsc.withFilePrefix(Seq("allQC"))(f)
+
+  private def inProject10XFolder[T](project: Project)(
+      f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
+    tsc.withFilePrefix(Seq("projects", project, "tenxfastqs"))(f)
 
   private def inProjectQCFolder[T](project: Project)(
       f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
