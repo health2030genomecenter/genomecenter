@@ -10,6 +10,17 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 
 object FastQHelpers {
 
+  def cat(files: Seq[File]): File = {
+    val buffer = Array.ofDim[Byte](65536)
+    fileutils.openFileOutputStream { os =>
+      files.foreach { f =>
+        fileutils.openFileInputStream(f) { is =>
+          org.gc.fqsplit.FqSplitHelpers.copy(is, os, buffer)
+        }
+      }
+    }._1
+  }
+
   def openOutputStream[T](fileName: File)(func: java.io.OutputStream => T): T =
     fileutils.useResource(
       new BlockCompressedOutputStream(fileName, 1, new IntelDeflaterFactory))(
