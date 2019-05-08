@@ -103,8 +103,11 @@ object CliHelpers {
       # if variant calls are not made, or are not kept then joint calls are not made
       # jointCalls = 
 
-      # optional minimum WGS coverage
-      # If present the pipeline will stop early if WGS coverage is not met 
+      # optional, if missing merged calls are NOT made
+      # mergeSingleCalls = 
+
+      # optional minimum coverage (WGS)
+      # If present the pipeline will stop early if coverage is not met 
       # minimumWGSCoverage =
 
       # optional minimum targeted coverage

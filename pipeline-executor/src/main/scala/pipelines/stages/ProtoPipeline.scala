@@ -224,7 +224,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
               case Left(error) =>
                 logger.error(
                   "Skip joint call due to configuration error: " + error)
-                Future.successful(None)
+                Future.successful((None, None))
               case Right(
                   (indexedReference,
                    dbSnpVcf,
@@ -243,86 +243,101 @@ class ProtoPipeline(progressServer: SendProgressData)(
                       .flatMap(_._1.gvcf.toSeq)
                       .toSet
 
-                  if (jointCall && jointCallInputVCFs.nonEmpty) {
-                    progressServer.send(
-                      ProgressData.JointCallsStarted(
-                        project,
-                        analysisId,
-                        samples.map(_.sampleId).toSet,
-                        samples.flatMap(_.runFolders.map(_.runId)).toSet))
-                    HaplotypeCaller
-                      .jointCall(
-                        JointCallInput(
-                          jointCallInputVCFs.toStable,
-                          indexedReference,
-                          dbSnpVcf,
-                          vqsrTrainingFiles,
-                          project + "." + analysisId,
-                          contigs
-                        ))(ResourceConfig.minimal)
-                      .map(Some(_))
-                      .andThen({
-                        case Success(Some(vcf)) =>
-                          for {
-                            vcfPath <- vcf.vcf.uri
-                          } progressServer.send(
-                            ProgressData.JointCallsAvailable(
-                              project,
-                              analysisId,
-                              samples.map(_.sampleId).toSet,
-                              samples.flatMap(_.runFolders.map(_.runId)).toSet,
-                              vcfPath.toString))
+                  val jointCalls =
+                    if (jointCall && jointCallInputVCFs.nonEmpty) {
+                      progressServer.send(
+                        ProgressData.JointCallsStarted(
+                          project,
+                          analysisId,
+                          samples.map(_.sampleId).toSet,
+                          samples.flatMap(_.runFolders.map(_.runId)).toSet))
+                      HaplotypeCaller
+                        .jointCall(
+                          JointCallInput(
+                            jointCallInputVCFs.toStable,
+                            indexedReference,
+                            dbSnpVcf,
+                            vqsrTrainingFiles,
+                            project + "." + analysisId,
+                            contigs
+                          ))(ResourceConfig.minimal)
+                        .map(Some(_))
+                        .andThen({
+                          case Success(Some(vcf)) =>
+                            for {
+                              vcfPath <- vcf.vcf.uri
+                            } progressServer.send(
+                              ProgressData.JointCallsAvailable(
+                                project,
+                                analysisId,
+                                samples.map(_.sampleId).toSet,
+                                samples
+                                  .flatMap(_.runFolders.map(_.runId))
+                                  .toSet,
+                                vcfPath.toString))
 
-                      })
-                  } else if (mergeSingleCalls && jointCallInputVCFs.nonEmpty) {
-                    progressServer.send(
-                      ProgressData.JointCallsStarted(
-                        project,
-                        analysisId,
-                        samples.map(_.sampleId).toSet,
-                        samples.flatMap(_.runFolders.map(_.runId)).toSet))
-                    HaplotypeCaller
-                      .mergeSingleCalls(
-                        MergeSingleCallsInput(
-                          jointCallInputVCFs.toStable,
-                          singleCallVCFs.toStable,
-                          indexedReference,
-                          dbSnpVcf,
-                          project + "." + analysisId,
-                          contigs
-                        ))(ResourceConfig.minimal)
-                      .map(Some(_))
-                      .andThen({
-                        case Success(Some(vcf)) =>
-                          for {
-                            vcfPath <- vcf.vcf.uri
-                          } progressServer.send(
-                            ProgressData.JointCallsAvailable(
-                              project,
-                              analysisId,
-                              samples.map(_.sampleId).toSet,
-                              samples.flatMap(_.runFolders.map(_.runId)).toSet,
-                              vcfPath.toString))
+                        })
+                    } else Future.successful(None)
 
-                      })
-                  } else Future.successful(None)
+                  val mergedCalls =
+                    if (mergeSingleCalls && jointCallInputVCFs.nonEmpty) {
+                      progressServer.send(
+                        ProgressData.JointCallsStarted(
+                          project,
+                          analysisId,
+                          samples.map(_.sampleId).toSet,
+                          samples.flatMap(_.runFolders.map(_.runId)).toSet))
+                      HaplotypeCaller
+                        .mergeSingleCalls(
+                          MergeSingleCallsInput(
+                            jointCallInputVCFs.toStable,
+                            singleCallVCFs.toStable,
+                            indexedReference,
+                            dbSnpVcf,
+                            project + "." + analysisId,
+                            contigs
+                          ))(ResourceConfig.minimal)
+                        .map(Some(_))
+                        .andThen({
+                          case Success(Some(vcf)) =>
+                            for {
+                              vcfPath <- vcf.vcf.uri
+                            } progressServer.send(
+                              ProgressData.JointCallsAvailable(
+                                project,
+                                analysisId,
+                                samples.map(_.sampleId).toSet,
+                                samples
+                                  .flatMap(_.runFolders.map(_.runId))
+                                  .toSet,
+                                vcfPath.toString))
+
+                        })
+                    } else Future.successful(None)
+
+                  for {
+                    jointCalls <- jointCalls
+                    mergedCalls <- mergedCalls
+                  } yield (jointCalls, mergedCalls)
                 }
             }
         }
-        .map(_.collect { case Some(calls) => calls })
 
     for {
       (qcTables, reads) <- startProjectQC
-      jointCallsVCF <- startJointCalls
+      jointAndMergedCalls <- startJointCalls
       deliverables <- inDeliverablesFolder { implicit tsc =>
-        val jointCallVcfFileSet = jointCallsVCF
-          .map(vcfWithIndex => project -> vcfWithIndex.vcf)
-          .toSet
+        val jointAndMergedCallVcfFileSet = jointAndMergedCalls.flatMap {
+          case (joint, merged) =>
+            joint.toSeq.map(vcfWithIndex => project -> vcfWithIndex.vcf) ++
+              merged.toSeq.map(vcfWithIndex => project -> vcfWithIndex.vcf)
+
+        }.toSet
 
         val files =
-          (jointCallVcfFileSet ++ Set(project -> qcTables.htmlTable,
-                                      project -> qcTables.rnaCsvTable,
-                                      project -> reads.plots)).toStable
+          (jointAndMergedCallVcfFileSet ++ Set(project -> qcTables.htmlTable,
+                                               project -> qcTables.rnaCsvTable,
+                                               project -> reads.plots)).toStable
 
         Delivery.collectDeliverables(
           CollectDeliverablesInput(samples.toSet.toStable, files))(
