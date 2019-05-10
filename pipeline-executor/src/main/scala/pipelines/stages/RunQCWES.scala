@@ -781,7 +781,8 @@ object AlignmentQC {
       .sortBy(_._1._1.toString)
       .map {
         case ((project, sample, run), aggregatedLaneMetrics) =>
-          val fastCoverage = fastCoveragePerRun((project, sample, run))
+          val fastCoverage =
+            fastCoveragePerRun.get((project, sample, run)).map(_.all)
           Html.line(
             Seq(
               project -> left,
@@ -789,7 +790,9 @@ object AlignmentQC {
               run -> left,
               f"${aggregatedLaneMetrics.totalMeanTargetCoverage}%13.1fx" -> right,
               f"${aggregatedLaneMetrics.totalMeanTargetCoverageIncludingDuplicates}%13.1fx" -> right,
-              f"${fastCoverage.all}%13.1fx" -> right,
+              fastCoverage
+                .map(all => f"${all}%13.1fx")
+                .getOrElse("NA") -> right,
               f"${aggregatedLaneMetrics.totalReads / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPfReads / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPercentPfReadsAligned * 100}%6.2f%%" -> right,
