@@ -828,6 +828,10 @@ object ProtoPipelineStages extends StrictLogging {
     * if R1 is the first member of the pair, R2 is the UMI, R3 is the second member of the pair
     * then (1,3) and if you want to process the umi then pass Some(2) to the umi param.
     * if R1 is the second member of the pair (for whatever reason) and R2 is the first then pass (2,1)
+    *
+    * @param isTenX if true the sample name is transformed and the part after the last _ is dropped
+    *                this is because the TenX#resolve produces a sample sheet where the original
+    *                sample id is concatenated with _{index}
     */
   def groupBySample(demultiplexed0: DemultiplexedReadData,
                     readAssignment: (Int, Int),
