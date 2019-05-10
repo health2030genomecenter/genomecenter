@@ -586,7 +586,8 @@ object Pipelinectl extends App {
             .text("print dot document for graphviz, if missing summary statistics are printed")
             .action((_, c) => c.copy(printDot = Some(true))),
           opt[String]("out-file")
-            .text("optional file path to write selected nodes. Used for debugging.")
+            .text(
+              "optional file path to write selected nodes. Used for debugging.")
             .action((v, c) => c.copy(outFile = Some(v))),
         )
     )
