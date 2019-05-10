@@ -562,7 +562,8 @@ object ProtoPipelineStages extends StrictLogging {
                       .groupBySample(demultiplexed.withoutUndetermined,
                                      demultiplexingConfig.readAssignment,
                                      demultiplexingConfig.umi,
-                                     r.runId)
+                                     r.runId,
+                                     demultiplexingConfig.isTenX)
 
                   } yield
                     (perSampleFastQs,
@@ -828,11 +829,23 @@ object ProtoPipelineStages extends StrictLogging {
     * then (1,3) and if you want to process the umi then pass Some(2) to the umi param.
     * if R1 is the second member of the pair (for whatever reason) and R2 is the first then pass (2,1)
     */
-  def groupBySample(demultiplexed: DemultiplexedReadData,
+  def groupBySample(demultiplexed0: DemultiplexedReadData,
                     readAssignment: (Int, Int),
                     umi: Option[Int],
-                    runId: RunId): Seq[PerSamplePerRunFastQ] =
-    demultiplexed.fastqs.toSeq
+                    runId: RunId,
+                    isTenX: Boolean): Seq[PerSamplePerRunFastQ] = {
+    val fastQsWithCorrectSampleNames =
+      if (!isTenX) demultiplexed0.fastqs.toSeq
+      else
+        demultiplexed0.fastqs.toSeq.map { fastqWithSampleMetadata =>
+          val originalSampleId = fastqWithSampleMetadata.sampleId
+            .split("_")
+            .dropRight(1)
+            .mkString("_")
+          fastqWithSampleMetadata.copy(sampleId = SampleId(originalSampleId))
+        }
+
+    fastQsWithCorrectSampleNames
       .groupBy { fq =>
         (fq.project, fq.sampleId)
       }
@@ -880,6 +893,7 @@ object ProtoPipelineStages extends StrictLogging {
             runId
           )
       }
+  }
 
   def selectReadType(fqs: Seq[FastQWithSampleMetadata], readType: ReadType) =
     fqs
