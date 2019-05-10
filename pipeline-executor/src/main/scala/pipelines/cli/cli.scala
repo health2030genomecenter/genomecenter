@@ -337,7 +337,8 @@ object Pipelinectl extends App {
       listProjects: Option[Boolean] = None,
       queryProgressOfAllProjects: Boolean = false,
       suppressCompletedTasks: Boolean = false,
-      queryFastQsOfFreeRuns: Boolean = false
+      queryFastQsOfFreeRuns: Boolean = false,
+      outFile: Option[String] = None
   )
 
   def printAddRunHelpAndExit() = {
@@ -566,24 +567,27 @@ object Pipelinectl extends App {
             .action((v, c) => c.copy(project = Some(v)))
             .required,
           opt[String]('s', "sample")
-            .text("sample id")
+            .text("sample id, if missing all samples of the project are used")
             .action((v, c) => c.copy(sampleId = Some(v))),
           opt[String]('a', "analysis")
-            .text("analysis id")
+            .text("analysis id, if missing all analyses are used")
             .action((v, c) => c.copy(analysisId = Some(v))),
           opt[String]('r', "run")
-            .text("run id")
+            .text("run id, if missing all runs are used")
             .action((v, c) => c.copy(runId = Some(v))),
           opt[String]('f', "file")
             .text("log file. This file is written by the pipeline daemon to the path specified in the 'tasks.tracker.logFile' configuration key.")
             .action((v, c) => c.copy(configPath = Some(v)))
             .required,
           opt[String]("subtree")
-            .text("root of subtree")
+            .text("ID of the root of subtree, if set will analyze a subtree")
             .action((v, c) => c.copy(subtree = Some(v))),
           opt[Unit]("dot")
-            .text("print dot document for graphviz")
-            .action((_, c) => c.copy(printDot = Some(true)))
+            .text("print dot document for graphviz, if missing summary statistics are printed")
+            .action((_, c) => c.copy(printDot = Some(true))),
+          opt[String]("out-file")
+            .text("optional file path to write selected nodes. Used for debugging.")
+            .action((v, c) => c.copy(outFile = Some(v))),
         )
     )
   }
@@ -650,7 +654,8 @@ object Pipelinectl extends App {
             config.analysisId.map(s => AnalysisId(s)),
             config.runId.map(s => RunId(s)),
             config.subtree,
-            config.printDot.getOrElse(false)
+            config.printDot.getOrElse(false),
+            config.outFile
           )
         case QueryAnalyses =>
           (config.project, config.analysisId) match {
