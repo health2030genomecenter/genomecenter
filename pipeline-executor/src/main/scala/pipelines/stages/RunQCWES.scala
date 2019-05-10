@@ -215,6 +215,7 @@ object AlignmentQC {
                 "wxs-perrun" -> right
               ))
         }
+        .mkString("\n")
 
     val runHeader = Csv.mkHeader(
       List("Proj", "Sample", "Analysis", "Run"),
@@ -463,6 +464,7 @@ object AlignmentQC {
                   f"${fastCoverage.target}%13.1fx" -> right,
               ))
         }
+        .mkString("\n")
 
     val runHeader = Html.mkHeader(
       List("Proj", "Sample", "Analysis", "Run"),
@@ -797,7 +799,7 @@ object AlignmentQC {
               f"${aggregatedLaneMetrics.totalPfReads / 1E6}%10.2fM" -> right,
               f"${aggregatedLaneMetrics.totalPercentPfReadsAligned * 100}%6.2f%%" -> right,
               f"${aggregatedLaneMetrics.totalPfUniqueReads / 1E6}%10.2fM" -> right,
-              f"${aggregatedLaneMetrics.totalPercentPfUniqueReadsAligned * 100}%6.2f%%" -> right,
+              f"${aggregatedLaneMetrics.totalPercentPfUniqueReadsAligned * 100}%6.2f%%" -> right
             ))
 
       }
