@@ -833,23 +833,12 @@ object ProtoPipelineStages extends StrictLogging {
     *                this is because the TenX#resolve produces a sample sheet where the original
     *                sample id is concatenated with _{index}
     */
-  def groupBySample(demultiplexed0: DemultiplexedReadData,
+  def groupBySample(demultiplexed: DemultiplexedReadData,
                     readAssignment: (Int, Int),
                     umi: Option[Int],
                     runId: RunId,
                     isTenX: Boolean): Seq[PerSamplePerRunFastQ] = {
-    val fastQsWithCorrectSampleNames =
-      if (!isTenX) demultiplexed0.fastqs.toSeq
-      else
-        demultiplexed0.fastqs.toSeq.map { fastqWithSampleMetadata =>
-          val originalSampleId = fastqWithSampleMetadata.sampleId
-            .split("_")
-            .dropRight(1)
-            .mkString("_")
-          fastqWithSampleMetadata.copy(sampleId = SampleId(originalSampleId))
-        }
-
-    fastQsWithCorrectSampleNames
+    val groupedBySamples = demultiplexed.fastqs.toSeq
       .groupBy { fq =>
         (fq.project, fq.sampleId)
       }
@@ -897,6 +886,27 @@ object ProtoPipelineStages extends StrictLogging {
             runId
           )
       }
+    if (!isTenX) groupedBySamples
+    else {
+      groupedBySamples
+        .map { perSamplePerRunFastQ =>
+          val sampleId = perSamplePerRunFastQ.sampleId
+          val originalSampleId = sampleId
+            .split("_")
+            .dropRight(1)
+            .mkString("_")
+          (originalSampleId, perSamplePerRunFastQ)
+        }
+        .groupBy(_._1)
+        .toSeq
+        .map {
+          case (originalSampleId, group) =>
+            group.head._2.copy(
+              sampleId = SampleId(originalSampleId),
+              lanes = group.flatMap(_._2.lanes.toSeq).toSet.toStable
+            )
+        }
+    }
   }
 
   def selectReadType(fqs: Seq[FastQWithSampleMetadata], readType: ReadType) =

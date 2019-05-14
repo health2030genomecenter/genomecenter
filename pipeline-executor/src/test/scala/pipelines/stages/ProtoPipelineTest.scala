@@ -128,11 +128,12 @@ class ProtopipelineTestSuite
       val old = SampleResult(
         wes = List((wesResult, wesConfig, Nil)),
         rna = List(rna),
+        tenX = Nil,
         demultiplexed = List(demux1),
         fastpReports = List(fastp),
         runFolders = List(runFolder),
         project = Project("project1"),
-        sampleId = SampleId("sampleId1")
+        sampleId = SampleId("sampleId1"),
       )
       import io.circe.syntax._
       import io.circe.parser._

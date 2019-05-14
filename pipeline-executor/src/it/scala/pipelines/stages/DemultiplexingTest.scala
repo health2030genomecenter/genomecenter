@@ -12,6 +12,8 @@ import org.gc.pipelines.model._
 import TestHelpers._
 import org.gc.pipelines.GenericTestHelpers._
 
+object Only extends Tag("only")
+
 class DemultiplexingTestSuite
     extends FunSuite
     with Matchers
@@ -89,44 +91,62 @@ class DemultiplexingTestSuite
     }
   }
 
-  test("Demultiplexing stage should demultiplex a 10X run") {
+  test("Demultiplexing stage should demultiplex a 10X run", Only) {
     new Fixture {
 
       Given("a runfolder")
       When("executing the Demultiplexing.allLanes task")
-      val result = withTaskSystem(testConfig) { implicit ts =>
-        implicit val ec = scala.concurrent.ExecutionContext.global
-        val originalSamplesheet =
-          SampleSheetFile(await(SharedFile(tenXsampleSheetFile, "sampleSheet")))
-        val resolvedSamplesheet = await(
-          ProtoPipelineStages.resolve10XIfNeeded(true, originalSamplesheet))
-        val future = Demultiplexing.allLanes(
-          DemultiplexingInput(
-            runFolderPath = tenXRunFolderPath,
-            sampleSheet = resolvedSamplesheet,
-            extraBcl2FastqCliArguments = Seq(
-              "--use-bases-mask",
-              "y26,i8,y98",
-              "--minimum-trimmed-read-length=8",
-              "--mask-short-adapter-reads=8",
-              "--ignore-missing-positions",
-              "--ignore-missing-controls",
-              "--ignore-missing-filter",
-              "--ignore-missing-bcls"
-            ),
-            globalIndexSet = None,
-            partitionByLane = None,
-            noPartition = Some(true),
-            partitionByTileCount = None
-          ))(ResourceRequest(1, 500))
-        import scala.concurrent.duration._
-        scala.concurrent.Await.result(future, atMost = 400000 seconds)
+      val (demultiplexed, concatenated) = withTaskSystem(testConfig) {
+        implicit ts =>
+          implicit val ec = scala.concurrent.ExecutionContext.global
+          val originalSamplesheet =
+            SampleSheetFile(
+              await(SharedFile(tenXsampleSheetFile, "sampleSheet")))
+          val resolvedSamplesheet = await(
+            ProtoPipelineStages.resolve10XIfNeeded(true, originalSamplesheet))
+          val future = Demultiplexing.allLanes(
+            DemultiplexingInput(
+              runFolderPath = tenXRunFolderPath,
+              sampleSheet = resolvedSamplesheet,
+              extraBcl2FastqCliArguments = Seq(
+                "--use-bases-mask",
+                "y26,i8,y98",
+                "--minimum-trimmed-read-length=8",
+                "--mask-short-adapter-reads=8",
+                "--ignore-missing-positions",
+                "--ignore-missing-controls",
+                "--ignore-missing-filter",
+                "--ignore-missing-bcls"
+              ),
+              globalIndexSet = None,
+              partitionByLane = None,
+              noPartition = Some(true),
+              partitionByTileCount = None
+            ))(ResourceRequest(1, 500))
+          import scala.concurrent.duration._
+          val demultiplexed =
+            scala.concurrent.Await.result(future, atMost = 400000 seconds)
 
-      }
+          val perSampleFastQs = ProtoPipelineStages
+            .groupBySample(demultiplexed.withoutUndetermined,
+                           (1, 2),
+                           None,
+                           RunId("whatever"),
+                           true)
+
+          val concatenated = scala.concurrent.Await.result(
+            TenXStages.concatenateFastQ(perSampleFastQs.head.withoutRunId)(
+              ResourceRequest(1, 500)),
+            atMost = 3000 seconds)
+
+          (demultiplexed, concatenated)
+      }.get
 
       And(
         "captured fastq files should be present for the demultiplexed samples")
-      result.get.fastqs.size shouldBe 10
+      demultiplexed.fastqs.size shouldBe 10
+      concatenated.lanes.size shouldBe 1
+      concatenated.lanes.toSeq.head.read1.file.byteSize.toInt shouldBe 2916
 
     }
   }
