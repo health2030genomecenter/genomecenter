@@ -19,7 +19,7 @@ object ResourceUsage {
 
     }
 
-  def selectSample(tree: Seq[QueryLog.Node],
+  def selectSample(tree: Seq[QueryLog.RawNode],
                    project: Project,
                    sampleId: Option[SampleId],
                    analysisId: Option[AnalysisId],
@@ -53,8 +53,6 @@ object ResourceUsage {
         case Some(s) => QueryLog.subtree(selected, s)
       }
 
-      // selected.foreach(println)
-
       val finished = ancestorsFinished(selected)
 
       finished
@@ -83,7 +81,7 @@ object ResourceUsage {
       timesComputed.filter(node => analysisRootTaskIds.contains(node.taskId))
 
     if (printDot) {
-      println(QueryLog.plotTimes(timesComputed, seconds = true))
+      println(QueryLog.plotTimes(timesComputed, seconds = false))
     } else {
       val table = analysisRoots
         .sortBy { node =>
