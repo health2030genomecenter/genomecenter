@@ -29,10 +29,21 @@ object TenX extends StrictLogging {
   def resolve(sampleSheet: SampleSheet.ParsedData): SampleSheet = {
     val samples = sampleSheet.poolingLayout
     val resolvedSamples = samples.flatMap { multiplex =>
-      val tenXIndexName = IndexId(multiplex.index1.toString)
-      val resolvedIndices = tenXBarcodes.get(tenXIndexName).toSeq.flatten
+      val tenXIndexNameCandidate1 = IndexId(multiplex.index1.toString)
+      val tenXIndexNameCandidate2 =
+        multiplex.index2.map(i => IndexId(i.toString))
+
+      val usedIndexName =
+        if (tenXBarcodes.contains(tenXIndexNameCandidate1))
+          Some(tenXIndexNameCandidate1)
+        else tenXIndexNameCandidate2
+
+      val resolvedIndices = usedIndexName
+        .flatMap(indexName => tenXBarcodes.get(indexName))
+        .toSeq
+        .flatten
       if (resolvedIndices.size != 4) {
-        logger.warn(s"Could not resolve 10X barcode name $tenXIndexName ")
+        logger.warn(s"Could not resolve 10X barcode name $usedIndexName ")
         Nil
       } else
         resolvedIndices.map {
