@@ -255,13 +255,15 @@ object DemultiplexingSummary {
 
       val indexSwaps = {
         val frequentUnknownBarcodes = top20UnknownBarcodes.filter(_._3 >= 0.001)
-        val indicesInFlowcell: Set[String] =
+        val indicesInThisSampleSheet: Set[String] =
           sampleSummaries.flatMap(_.indexSequence.split("\\+").toList).toSet
         val candidateIndexSwaps = frequentUnknownBarcodes.filter {
           case (idx: String, _, _) =>
             val splitted = idx.split("\\+")
-            splitted.exists(idx =>
-              indicesInFlowcell.contains(idx) || globalIndexSet.contains(idx))
+            val bothAreIndicesGlobally = splitted.forall(globalIndexSet)
+            val bothAreIndicesInThisSampleSheet =
+              splitted.forall(indicesInThisSampleSheet)
+            bothAreIndicesInThisSampleSheet || bothAreIndicesGlobally
         }
         candidateIndexSwaps.map {
           case (idx, count, fraction) =>
@@ -340,7 +342,7 @@ object DemultiplexingSummary {
     }
 
     val indexSwapHeader =
-      "!!!Index swaps!!!:\nLane   Barcode            Count            %          OtherLanes"
+      "!!!Unexpected indices:\nLane   Barcode            Count            %          OtherLanes"
     val indexSwapLines: Seq[String] = root.laneSummaries
       .map { l =>
         l.indexSwaps
@@ -356,7 +358,7 @@ object DemultiplexingSummary {
       if (indexSwapLines.nonEmpty) {
         indexSwapHeader + "\n" + indexSwapLines.mkString("\n") + "\n\n"
       } else
-        "Index swaps:\nNO UNEXPECTED KNOWN INDICES IN QUANTITY ABOVE 0.1%\n"
+        "Unexpected indices:\nNO UNEXPECTED KNOWN INDICES IN QUANTITY ABOVE 0.1%\n"
 
     val barcodeHeader =
       "Unknown barcodes:\nLane   Barcode            Count           %"

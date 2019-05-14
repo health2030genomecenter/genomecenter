@@ -759,6 +759,7 @@ object Pipelinectl extends App {
                 .collect {
                   case v: Demultiplexed => v
                 }
+                .distinct
 
               val asString = runEvents
                 .flatMap {
