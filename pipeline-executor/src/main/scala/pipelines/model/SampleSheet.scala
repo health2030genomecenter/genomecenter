@@ -102,10 +102,14 @@ object SampleSheet extends StrictLogging {
       val byLane = poolingLayout.groupBy(_.lane).toSeq.map(_._2)
       val byLaneErrors = byLane.flatMap { lane =>
         val duplicateIndices =
-          lane.groupBy(_.index1).toSeq.filter(_._2.size > 1).map(_._2).map {
-            mp =>
+          lane
+            .groupBy(v => (v.index1, v.index2))
+            .toSeq
+            .filter(_._2.size > 1)
+            .map(_._2)
+            .map { mp =>
               s"Duplicate index in lane $mp"
-          }
+            }
         val duplicateSample = lane
           .groupBy(l => (l.project, l.sampleId))
           .toSeq
