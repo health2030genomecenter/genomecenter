@@ -129,7 +129,7 @@ class ProtopipelineIntegrationTestSuite
         Then("Process again the same sample ")
         demultiplexedSamples
           .find(_.sampleId == processedSamples.head.get.sampleId)
-          .map { demultiplexedSample =>
+          .foreach { demultiplexedSample =>
             Await.result(pipeline.processSample(run,
                                                 analysisAssignment,
                                                 Some(processedSamples.head.get),
@@ -137,105 +137,7 @@ class ProtopipelineIntegrationTestSuite
                          atMost = 400000 seconds)
           }
 
-        Then(
-          "a run and lane specific folder should be created at the root of the storage")
-        // val demultiplexOutputFolder =
-        // new File(basePath.getAbsolutePath + s"/demultiplex/$runId/all/1")
-        // demultiplexOutputFolder.canRead shouldBe true
-
-        And("uncaptured output files from bcl2fastq should be present")
-        // val statsFolder =
-        // new File(demultiplexOutputFolder.getAbsolutePath + "/Stats")
-        // demultiplexOutputFolder.canRead shouldBe true
-        // val demultiplexStatFile =
-        // new File(statsFolder.getAbsolutePath + "/DemuxSummaryF1L1.txt")
-        // demultiplexStatFile.canRead shouldBe true
-        And("stderr file should be present")
-        // new File(demultiplexOutputFolder, "stderr").canRead shouldBe true
-
-        And("stats files should be merged")
-        // new File(
-        // basePath.getAbsolutePath + s"/demultiplex/$runId/all/$runId.Stats.json").canRead shouldBe true
-
-        And("human readable table should be generated")
-        // new File(
-        // basePath.getAbsolutePath + s"/demultiplex/$runId/all/$runId.stats.table").canRead shouldBe true
-
-        And("fastp report files are generated")
-        // new File(
-        // basePath.getAbsolutePath + s"/fastp/$runId/1/project1.GIB.whateverRunId.1.fastp.json").canRead shouldBe true
-        // new File(
-        // basePath.getAbsolutePath + s"/fastp/$runId/1/project1.GIB.whateverRunId.1.fastp.html").canRead shouldBe true
-
-        And("bwa alignment per lane of the first sample should not be present")
-        // val bwaFolder = new File(
-        //   basePath.getAbsolutePath + s"/projects/project1/whateverRunId/intermediate/")
-        And("stderr of alignment is present")
-        // new File(bwaFolder, "project1.GIB.whateverRunId.1.bam.stderr").canRead shouldBe true
-        And("bam file of alignment should be already deleted")
-        // new File(bwaFolder, "project1.GIB.whateverRunId.1.bam").canRead shouldBe false
-
-        And("merge and mark duplicate of the first sample should be present")
-        // val markduplicatesFolder =
-        //   new File(
-        //     basePath.getAbsolutePath + s"/projects/project1/whateverRunId/intermediate/")
-        // new File(
-        // markduplicatesFolder,
-        // "project1.GIB.whateverRunId.mdup.bam.stderr").canRead shouldBe true
-        // new File(
-        // markduplicatesFolder,
-        // "project1.GIB.whateverRunId.mdup.markDuplicateMetrics").canRead shouldBe true
-        And(
-          "merged and duplicated marked bam and bai file should be already deleted")
-        // new File(markduplicatesFolder, "project1.GIB.whateverRunId.mdup.bam").canRead shouldBe false
-        // new File(markduplicatesFolder, "project1.GIB.whateverRunId.mdup.bai").canRead shouldBe false
-
-        And("recalibrated bam files should be present")
-        // val bqsrApplyFolderForProject1 =
-        // new File(
-        // basePath.getAbsolutePath + s"/projects/project1/whateverRunId/")
-
-        // new File(
-        // bqsrApplyFolderForProject1,
-        // "project1.GIB.whateverRunId.mdup.sorted.bqsr.apply.stderr").canRead shouldBe true
-        // new File(
-        // bqsrApplyFolderForProject1,
-        // "project1.GIB.whateverRunId.mdup.sorted.bqsr.bai").canRead shouldBe true
-        // val project1RecalibratedBam =
-        // new File(bqsrApplyFolderForProject1,
-        //  "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam")
-        // project1RecalibratedBam.canRead shouldBe true
-        // val project1Timestamp = project1RecalibratedBam.lastModified
-
-        And("alignment summary metrics should be present")
-        // val qcFolder = new File(
-        // basePath.getAbsolutePath + s"/projects/project1/whateverRunId/QC")
-        // new File(
-        // qcFolder,
-        // "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam.alignment_summary_metrics").canRead shouldBe true
-
-        And("hybridization selection metrics should be present")
-        // new File(
-        //   qcFolder,
-        // "project1.GIB.whateverRunId.mdup.sorted.bqsr.bam.hsMetrics").canRead shouldBe true
-
-        And("project3 should not be demultiplexed")
-        // val project3Folder =
-        //   new File(basePath.getAbsolutePath + s"/projects/project3/")
-        // project3Folder.canRead shouldBe false
-
-        And("runQC file should be present")
-        // new File(basePath.getAbsolutePath + s"/runQC/$runId.wes.qc.table").canRead shouldBe true
-
-        When("executing the same runfolder again")
-
-        // val result2 = scala.concurrent.Await.result(pipeline.execute(run),
-        //                                             atMost = 400000 seconds)
-
-        Then("project3 should be demultiplexed")
-        // project3Folder.canRead shouldBe true
-        And("project1 alignment should not reexecute")
-      // project1RecalibratedBam.lastModified shouldBe project1Timestamp
+       
 
       }
 
@@ -262,7 +164,8 @@ class ProtopipelineIntegrationTestSuite
       minimumWGSCoverage = None,
       variantCallingContigs = None,
       singleSampleVqsr = None,
-      keepVcf = Some(true)
+      keepVcf = Some(true),
+      mergeSingleCalls = Some(true)
     )
 
     val rnaConfiguration = RNASeqConfiguration(

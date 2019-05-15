@@ -868,7 +868,8 @@ class PipelinesApplicationTest
         minimumTargetCoverage = Some(20.0),
         variantCallingContigs = None,
         singleSampleVqsr = None,
-        keepVcf = None
+        keepVcf = None,
+        mergeSingleCalls = None
       )
 
     val analysisAssignment = AnalysisAssignments(
