@@ -255,22 +255,28 @@ class ProgressServer(taskSystemActorSystem: ActorSystem)(
                 for {
                   data <- getData
                 } yield {
-                  val files = data.collect {
-                    case Demultiplexed(run, samples, _) =>
-                      val samplesOfProject = samples.filter {
-                        case (project0, _, _) => project0 == project
-                      }
+                  val events = data.collect {
+                    case ev: Demultiplexed => ev
+                  }
 
-                      samplesOfProject
-                        .flatMap {
-                          case (project, sample, fastqs) =>
-                            fastqs.map { fastq =>
-                              (run, project, sample, fastq)
-                            }
+                  val files =
+                    events.groupBy(_.run).toSeq.map(_._2.last).collect {
+                      case Demultiplexed(run, samples, _) =>
+                        val samplesOfProject = samples.filter {
+                          case (project0, _, _) => project0 == project
                         }
 
-                  }
+                        samplesOfProject
+                          .flatMap {
+                            case (project, sample, fastqs) =>
+                              fastqs.map { fastq =>
+                                (run, project, sample, fastq)
+                              }
+                          }
+
+                    }
                   files.flatten
+                    .sortBy(_._1.toString)
                     .sortBy(_._3.toString)
                     .map {
                       case (run, project, sample, fastq) =>
