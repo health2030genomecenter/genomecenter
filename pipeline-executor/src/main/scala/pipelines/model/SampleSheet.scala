@@ -10,12 +10,39 @@ case class SampleSheet(sampleSheetContent: String) {
 
 object SampleSheet extends StrictLogging {
 
+  val hiseq4000I5Indices: Set[String] = {
+    val s = scala.io.Source
+      .fromInputStream(
+        getClass.getResourceAsStream("/truseq_i5_indices_hiseq4000.txt"))
+    val r = s.getLines.filter(_.nonEmpty).toSet
+    s.close
+    r
+  }
+
+  def reverseComplement(s: String) =
+    s.toUpperCase.reverse
+      .map(_ match {
+        case 'A' => 'T'
+        case 'T' => 'A'
+        case 'G' => 'C'
+        case 'C' => 'G'
+      })
+      .mkString
+
   case class Multiplex(sampleId: SampleId,
                        sampleName: SampleName,
                        project: Project,
                        lane: Lane,
                        index1: Index,
-                       index2: Option[Index])
+                       index2: Option[Index]) {
+    def reverseComplementOfIndex2IsKnownTruSeqOnHiSeq4000 = index2.exists {
+      i2 =>
+        hiseq4000I5Indices.contains(reverseComplement(i2))
+    }
+    def index2IsKnownTruSeqOnHiSeq4000 = index2.exists { i2 =>
+      hiseq4000I5Indices.contains(i2)
+    }
+  }
 
   case class ParsedData(header: Map[String, Option[String]],
                         dataHeader: Seq[String],

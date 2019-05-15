@@ -168,6 +168,14 @@ case class RunfolderReadyForProcessing(
     demultiplexedSamples: Option[Seq[InputSampleAsFastQ]],
     runConfiguration: RunConfiguration) {
 
+  def sampleSheets =
+    runConfiguration.demultiplexingRuns.map(_.sampleSheet).toSeq.map {
+      sampleSheetFile =>
+        val sampleSheetContents =
+          fileutils.openSource(sampleSheetFile)(_.mkString)
+        (SampleSheet(sampleSheetContents).parsed, sampleSheetFile)
+    }
+
   def projects = {
     val projectsInSampleSheet =
       runConfiguration.demultiplexingRuns.map(_.sampleSheet).toSeq.flatMap {

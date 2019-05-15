@@ -927,6 +927,44 @@ object Pipelinectl extends App {
           }
 
           println(
+            "Verify index2 (i5) against known TruSeq unique dual and combinatorial dual indices? Type H for HiSeq4000, N for NovaSeq, anything else to skip this check.")
+          scala.io.Source.stdin.take(1).mkString match {
+            case "N" =>
+              parsedRunfolder.sampleSheets
+                .map {
+                  case (sampleSheet, sampleSheetFile) =>
+                    val potentialWrongI5s = sampleSheet.poolingLayout
+                      .filter(_.index2IsKnownTruSeqOnHiSeq4000)
+                    (sampleSheet, sampleSheetFile, potentialWrongI5s)
+                }
+                .filter { case (_, _, wrongs) => wrongs.nonEmpty }
+                .foreach {
+                  case (_, file, wrongs) =>
+                    val num = wrongs.size
+                    println(
+                      s"$num entries in $file have an I5 index matching the HiSeq4000 form of a TruSeq index.")
+                }
+            case "H" =>
+              parsedRunfolder.sampleSheets
+                .map {
+                  case (sampleSheet, sampleSheetFile) =>
+                    val potentialWrongI5s = sampleSheet.poolingLayout
+                      .filter(
+                        _.reverseComplementOfIndex2IsKnownTruSeqOnHiSeq4000)
+                    (sampleSheet, sampleSheetFile, potentialWrongI5s)
+                }
+                .filter { case (_, _, wrongs) => wrongs.nonEmpty }
+                .foreach {
+                  case (_, file, wrongs) =>
+                    val num = wrongs.size
+                    println(
+                      s"$num entries in $file have an I5 index matching the NovaSeq form of a TruSeq index.")
+                }
+            case _ =>
+              println("I5 index check skipped.")
+          }
+
+          println(
             "Please confirm to continue with adding the run (type exactly Y)")
           if (scala.io.Source.stdin.take(1).mkString != "Y") {
             System.exit(0)
