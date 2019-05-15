@@ -480,6 +480,8 @@
       }
     }
   ],
+  "tenX" : [
+  ],
   "demultiplexed" : [
     {
       "lanes" : [
