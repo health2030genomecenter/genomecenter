@@ -289,8 +289,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
                 .mapConcat {
                   case (run, samples) =>
                     samples.map(s => (run, s)).toList
-                } ~> sampleProcessing ~> Flow[SampleResult]
-                .map(ProcessedSample(_)) ~> merge.in(1)
+                } ~> sampleProcessing ~> Flow[(Option[SampleResult],
+                                               DemultiplexedSample)]
+                .map(ProcessedSample.tupled) ~> merge.in(1)
 
               merge.out ~> accountWorkDone.in
 
@@ -349,10 +350,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           logger.info(s"Demultiplexed 0 samples from ${run.runId}.")
           state.removeFromUnfinishedDemultiplexing(run.runId)
 
-        case (state, ProcessedSample(processedSample)) =>
+        case (state, ProcessedSample(processedSample, demultiplexedSample)) =>
           logger.info(
-            s"Processed sample ${pipeline.getKeysOfSampleResult(processedSample)}")
-          state.finish(processedSample)
+            s"Processed sample ${pipeline.getKeysOfDemultiplexedSample(demultiplexedSample)}")
+          state.finish(processedSample, demultiplexedSample)
 
         case (state, Raw(runsWithAnalyses)) =>
           logger.info(
@@ -479,8 +480,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       }
       .mergeSubstreams
 
-  def sampleProcessing
-    : Flow[(RunWithAnalyses, DemultiplexedSample), SampleResult, _] = {
+  def sampleProcessing: Flow[(RunWithAnalyses, DemultiplexedSample),
+                             (Option[SampleResult], DemultiplexedSample),
+                             _] = {
 
     val maxTotalAccumulatedSamples = 1000000
 
@@ -514,7 +516,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           value
       }
       .scanAsync(List
-        .empty[(SampleResult, RunWithAnalyses, DemultiplexedSample)]) {
+        .empty[(Option[SampleResult], RunWithAnalyses, DemultiplexedSample)]) {
         case (pastResultsOfThisSample,
               (currentRunConfiguration, currentDemultiplexedSample)) =>
           val (runsBeforeThis, runsAfterInclusive) =
@@ -541,7 +543,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
               for {
                 pastIntermediateResults <- pastIntermediateResults
 
-                lastSampleResult = pastIntermediateResults.lastOption.map {
+                lastSampleResult = pastIntermediateResults.lastOption.flatMap {
                   case (sampleResult, _, _) => sampleResult
                 }
 
@@ -552,13 +554,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
                   lastSampleResult,
                   currentDemultiplexedSample)
               } yield
-                newSampleResult match {
-                  case None => pastIntermediateResults
-                  case Some(newSampleResult) =>
-                    pastIntermediateResults :+ ((newSampleResult,
-                                                 currentRunConfiguration,
-                                                 currentDemultiplexedSample))
-                }
+                pastIntermediateResults :+ ((newSampleResult,
+                                             currentRunConfiguration,
+                                             currentDemultiplexedSample))
 
           }
 
@@ -566,7 +564,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .async
       .mergeSubstreams
       .filter(_.nonEmpty)
-      .map(_.last._1)
+      .map { scans =>
+        val (result, _, demultiplexedSample) = scans.last
+        (result, demultiplexedSample)
+      }
 
   }
 
@@ -599,7 +600,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   case class Demultiplexed(run: RunWithAnalyses,
                            demultiplexed: Seq[DemultiplexedSample])
       extends Stage
-  case class ProcessedSample(sampleResult: SampleResult) extends Stage
+  case class ProcessedSample(sampleResult: Option[SampleResult],
+                             demultiplexedSample: DemultiplexedSample)
+      extends Stage
 
   object StateOfUnfinishedSamples {
     def empty = StateOfUnfinishedSamples(Nil, Set(), Set(), Seq(), None, Nil)
@@ -705,13 +708,16 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
            sendToDemultiplexing = Nil)
     }
 
-    def finish(processedSample: SampleResult): StateOfUnfinishedSamples = {
-      val keysOfFinishedSample = getKeysOfSampleResult(processedSample)
+    def finish(
+        processedSample: Option[SampleResult],
+        demultiplexedSample: DemultiplexedSample): StateOfUnfinishedSamples = {
+      val keysOfFinishedSample = getKeysOfDemultiplexedSample(
+        demultiplexedSample)
       logger.debug(
         s"Accunting the completion of sample processing of $keysOfFinishedSample.")
       copy(
         unfinished = unfinished.filterNot(_ == keysOfFinishedSample),
-        finished = finished :+ processedSample,
+        finished = finished ++ processedSample.toSeq,
         unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds
           .filterNot(_ == keysOfFinishedSample._3),
         sendToSampleProcessing = None,
