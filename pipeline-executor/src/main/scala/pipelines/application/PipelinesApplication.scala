@@ -515,6 +515,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             s"SampleProcessor received sample (after groupby) ${runFolder.runId} $keys")
           value
       }
+      // The following buffer separately buffers each sample
+      // thus the groupBy is pulled unless the next sample would go into a
+      // bucket with an already full buffer
+      .buffer(size = 100, OverflowStrategy.backpressure)
       .scanAsync(List
         .empty[(Option[SampleResult], RunWithAnalyses, DemultiplexedSample)]) {
         case (pastResultsOfThisSample,
@@ -561,7 +565,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           }
 
       }
-      .async
       .mergeSubstreams
       .filter(_.nonEmpty)
       .map { scans =>
