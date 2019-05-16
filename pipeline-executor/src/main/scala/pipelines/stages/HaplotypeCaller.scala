@@ -846,7 +846,7 @@ object HaplotypeCaller {
               val tmpStdErr = Files.createTempFile(".stderr")
               val vcfOutput = Files.createTempFile(".vcf.gz").getAbsolutePath
 
-              val maxHeap = s"-Xmx${resourceAllocated.memory}m"
+              val maxHeap = s"-Xmx${(resourceAllocated.memory * 0.8).toInt}m"
 
               val bashScript = s"""\\
          java $maxHeap ${JVM.g1} ${GATK.javaArguments(compressionLevel = 5)} \\
