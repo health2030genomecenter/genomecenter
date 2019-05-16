@@ -114,7 +114,7 @@ case class FastQ(file: SharedFile, numberOfReads: Long, readLength: Option[Int])
 case class Bam(file: SharedFile) extends ResultWithSharedFiles(file)
 
 case class CoordinateSortedBam(bam: SharedFile, bai: SharedFile)
-    extends WithSharedFiles(bam) {
+    extends WithSharedFiles(bam, bai) {
   def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
       _ <- bai.file
