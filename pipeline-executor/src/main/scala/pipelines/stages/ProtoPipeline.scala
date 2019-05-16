@@ -358,146 +358,153 @@ class ProtoPipeline(progressServer: SendProgressData)(
                     demultiplexedSample: PerSamplePerRunFastQ)(
       implicit tsc: TaskSystemComponents): Future[Option[SampleResult]] = {
 
-    val lastRun =
-      r.runConfiguration.isLastRunOfSample(demultiplexedSample.project,
-                                           demultiplexedSample.sampleId)
+    if (demultiplexedSample.lanes.toSeq.isEmpty) {
+      logger.info(s"Skipping because no fastq in $demultiplexedSample.")
+      Future.successful(None)
+    } else {
 
-    def modifyConfigurationForLastRun(conf: WESConfiguration) =
-      if (lastRun)
-        conf.ignoreMinimumCoverage
-      else conf
+      val lastRun =
+        r.runConfiguration.isLastRunOfSample(demultiplexedSample.project,
+                                             demultiplexedSample.sampleId)
 
-    progressServer.send(
-      SampleProcessingStarted(demultiplexedSample.project,
-                              demultiplexedSample.sampleId,
-                              r.runId))
+      def modifyConfigurationForLastRun(conf: WESConfiguration) =
+        if (lastRun)
+          conf.ignoreMinimumCoverage
+        else conf
 
-    ProtoPipelineStages.parseReadLengthFromRunInfo(r) match {
-      case Left(error) =>
-        logger.error(s"$error")
-        progressServer.send(
-          SampleProcessingFailed(demultiplexedSample.project,
-                                 demultiplexedSample.sampleId,
-                                 r.runId))
-        Future.successful(None)
-      case Right(readLengths) =>
-        logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
+      progressServer.send(
+        SampleProcessingStarted(demultiplexedSample.project,
+                                demultiplexedSample.sampleId,
+                                r.runId))
 
-        val fastpReport = startFastpReports(demultiplexedSample)
-
-        val selectedWESConfigurations = analysisAssignments.assignments
-          .get(demultiplexedSample.project)
-          .getOrElse(Nil)
-          .collect {
-            case conf: WESConfiguration => modifyConfigurationForLastRun(conf)
-          }
-
-        val selectedRNASeqConfigurations = analysisAssignments.assignments
-          .get(demultiplexedSample.project)
-          .getOrElse(Nil)
-          .collect {
-            case conf: RNASeqConfiguration => conf
-          }
-
-        val selected10XSeqConfigurations = analysisAssignments.assignments
-          .get(demultiplexedSample.project)
-          .getOrElse(Nil)
-          .collect {
-            case conf: TenXConfiguration => conf
-          }
-
-        val perSampleResultsWES =
-          traverseAll(selectedWESConfigurations) { conf =>
-            logger.info(
-              demultiplexedSample.runId + " " + demultiplexedSample.project + " " + demultiplexedSample.sampleId + " past result: " + pastSampleResult
-                .map(_.runFolders.map(_.runId)))
-
-            val pastResultsMatchingAnalysisId
-              : Option[(SingleSamplePipelineResult,
-                        SingleSampleConfiguration,
-                        List[(RunId, MeanCoverageResult)])] = pastSampleResult
-              .flatMap(_.wes
-                .find {
-                  case (_, wesConfigurationOfPastSample, _) =>
-                    val matchingAnalysisId = wesConfigurationOfPastSample.analysisId == conf.analysisId
-                    val matchingMigratedOldAnalysisId = wesConfigurationOfPastSample.analysisId == "" && conf.analysisId == "hg19"
-
-                    logger.debug(
-                      "matchingAnalysisId: " + matchingAnalysisId + " matchingMigratedOldAnalysisId: " + matchingMigratedOldAnalysisId + " " + demultiplexedSample + " " + conf)
-
-                    matchingAnalysisId || matchingMigratedOldAnalysisId
-                })
-
-            val pastAlignedLanes =
-              pastResultsMatchingAnalysisId.toSeq.flatMap {
-                case (wesResultOfPastSample, _, _) =>
-                  wesResultOfPastSample.alignedLanes.toSeq
-              }
-
-            val pastPerRunCoverages = pastResultsMatchingAnalysisId
-              .map { case (_, _, coverages) => coverages }
-              .getOrElse(Nil)
-
-            wes(
-              demultiplexedSample,
-              conf,
-              pastAlignedLanes.toSet.toStable
-            ).map {
-              case (result, config) =>
-                (result,
-                 config,
-                 (demultiplexedSample.runId, result.coverage) :: pastPerRunCoverages)
-            }
-          }
-
-        val perSampleResultsRNA = if (readLengths.isEmpty) {
-          logger.warn(
-            "Empty read lengths. RNASeq analysis on 3rd party fastqs not implemented. A rough read length estimate is needed by STAR.")
-          Future.successful(Nil)
-
-        } else
-          traverseAll(selectedRNASeqConfigurations)(
-            rna(demultiplexedSample, _, readLengths))
-
-        val perSampleResults10X =
-          traverseAll(selected10XSeqConfigurations)(_ =>
-            tenX(demultiplexedSample))
-
-        for {
-
-          perSampleResultsWES <- perSampleResultsWES
-          perSampleResultsRNA <- perSampleResultsRNA
-          perSampleResults10X <- perSampleResults10X
-
-          fastpReport <- fastpReport
-
-        } yield {
-          val pastFastpReports = pastSampleResult.toSeq.flatMap(_.fastpReports)
-          val pastDemultiplexed =
-            pastSampleResult.toSeq.flatMap(_.demultiplexed)
-          val pastRunFolders = pastSampleResult.toSeq.flatMap(_.runFolders)
-          val pastRNASeqResults = pastSampleResult.toSeq.flatMap(_.rna)
-          val past10XResults = pastSampleResult.toSeq.flatMap(_.tenX)
-
+      ProtoPipelineStages.parseReadLengthFromRunInfo(r) match {
+        case Left(error) =>
+          logger.error(s"$error")
           progressServer.send(
-            SampleProcessingFinished(demultiplexedSample.project,
-                                     demultiplexedSample.sampleId,
-                                     demultiplexedSample.runId))
+            SampleProcessingFailed(demultiplexedSample.project,
+                                   demultiplexedSample.sampleId,
+                                   r.runId))
+          Future.successful(None)
+        case Right(readLengths) =>
+          logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
 
-          Some(
-            SampleResult(
-              wes = perSampleResultsWES,
-              rna = pastRNASeqResults ++ perSampleResultsRNA,
-              tenX = past10XResults ++ perSampleResults10X,
-              demultiplexed = pastDemultiplexed :+ demultiplexedSample,
-              fastpReports = pastFastpReports :+ fastpReport,
-              runFolders = pastRunFolders :+ r,
-              sampleId = demultiplexedSample.sampleId,
-              project = demultiplexedSample.project
+          val fastpReport = startFastpReports(demultiplexedSample)
+
+          val selectedWESConfigurations = analysisAssignments.assignments
+            .get(demultiplexedSample.project)
+            .getOrElse(Nil)
+            .collect {
+              case conf: WESConfiguration => modifyConfigurationForLastRun(conf)
+            }
+
+          val selectedRNASeqConfigurations = analysisAssignments.assignments
+            .get(demultiplexedSample.project)
+            .getOrElse(Nil)
+            .collect {
+              case conf: RNASeqConfiguration => conf
+            }
+
+          val selected10XSeqConfigurations = analysisAssignments.assignments
+            .get(demultiplexedSample.project)
+            .getOrElse(Nil)
+            .collect {
+              case conf: TenXConfiguration => conf
+            }
+
+          val perSampleResultsWES =
+            traverseAll(selectedWESConfigurations) { conf =>
+              logger.info(
+                demultiplexedSample.runId + " " + demultiplexedSample.project + " " + demultiplexedSample.sampleId + " past result: " + pastSampleResult
+                  .map(_.runFolders.map(_.runId)))
+
+              val pastResultsMatchingAnalysisId
+                : Option[(SingleSamplePipelineResult,
+                          SingleSampleConfiguration,
+                          List[(RunId, MeanCoverageResult)])] = pastSampleResult
+                .flatMap(_.wes
+                  .find {
+                    case (_, wesConfigurationOfPastSample, _) =>
+                      val matchingAnalysisId = wesConfigurationOfPastSample.analysisId == conf.analysisId
+                      val matchingMigratedOldAnalysisId = wesConfigurationOfPastSample.analysisId == "" && conf.analysisId == "hg19"
+
+                      logger.debug(
+                        "matchingAnalysisId: " + matchingAnalysisId + " matchingMigratedOldAnalysisId: " + matchingMigratedOldAnalysisId + " " + demultiplexedSample + " " + conf)
+
+                      matchingAnalysisId || matchingMigratedOldAnalysisId
+                  })
+
+              val pastAlignedLanes =
+                pastResultsMatchingAnalysisId.toSeq.flatMap {
+                  case (wesResultOfPastSample, _, _) =>
+                    wesResultOfPastSample.alignedLanes.toSeq
+                }
+
+              val pastPerRunCoverages = pastResultsMatchingAnalysisId
+                .map { case (_, _, coverages) => coverages }
+                .getOrElse(Nil)
+
+              wes(
+                demultiplexedSample,
+                conf,
+                pastAlignedLanes.toSet.toStable
+              ).map {
+                case (result, config) =>
+                  (result,
+                   config,
+                   (demultiplexedSample.runId, result.coverage) :: pastPerRunCoverages)
+              }
+            }
+
+          val perSampleResultsRNA = if (readLengths.isEmpty) {
+            logger.warn(
+              "Empty read lengths. RNASeq analysis on 3rd party fastqs not implemented. A rough read length estimate is needed by STAR.")
+            Future.successful(Nil)
+
+          } else
+            traverseAll(selectedRNASeqConfigurations)(
+              rna(demultiplexedSample, _, readLengths))
+
+          val perSampleResults10X =
+            traverseAll(selected10XSeqConfigurations)(_ =>
+              tenX(demultiplexedSample))
+
+          for {
+
+            perSampleResultsWES <- perSampleResultsWES
+            perSampleResultsRNA <- perSampleResultsRNA
+            perSampleResults10X <- perSampleResults10X
+
+            fastpReport <- fastpReport
+
+          } yield {
+            val pastFastpReports =
+              pastSampleResult.toSeq.flatMap(_.fastpReports)
+            val pastDemultiplexed =
+              pastSampleResult.toSeq.flatMap(_.demultiplexed)
+            val pastRunFolders = pastSampleResult.toSeq.flatMap(_.runFolders)
+            val pastRNASeqResults = pastSampleResult.toSeq.flatMap(_.rna)
+            val past10XResults = pastSampleResult.toSeq.flatMap(_.tenX)
+
+            progressServer.send(
+              SampleProcessingFinished(demultiplexedSample.project,
+                                       demultiplexedSample.sampleId,
+                                       demultiplexedSample.runId))
+
+            Some(
+              SampleResult(
+                wes = perSampleResultsWES,
+                rna = pastRNASeqResults ++ perSampleResultsRNA,
+                tenX = past10XResults ++ perSampleResults10X,
+                demultiplexed = pastDemultiplexed :+ demultiplexedSample,
+                fastpReports = pastFastpReports :+ fastpReport,
+                runFolders = pastRunFolders :+ r,
+                sampleId = demultiplexedSample.sampleId,
+                project = demultiplexedSample.project
+              )
             )
-          )
-        }
+          }
 
+      }
     }
   }
 
