@@ -134,7 +134,9 @@ case class SingleSamplePipelineResultRNA(
     analysisId: AnalysisId,
     star: StarResult,
     quantification: QTLToolsQuantificationResult
-) extends WithSharedFiles(star.files ++ quantification.files: _*)
+) extends WithMutableSharedFiles(
+      mutables = star.files ++ quantification.files,
+      immutables = Nil)
 
 case class PerSamplePipelineResultRNASeq(
     samples: StableSet[SingleSamplePipelineResultRNA])

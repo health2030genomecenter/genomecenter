@@ -21,7 +21,9 @@ case class QTLToolsQuantificationResult(
     stats: SharedFile,
     exonRpkms: SharedFile,
     geneRpkms: SharedFile
-) extends WithSharedFiles(exonCounts, geneCounts, stats, exonRpkms, geneRpkms)
+) extends WithMutableSharedFiles(
+      mutables = List(exonCounts, geneCounts, stats, exonRpkms, geneRpkms),
+      immutables = Nil)
 
 object QTLToolsQuantification {
 

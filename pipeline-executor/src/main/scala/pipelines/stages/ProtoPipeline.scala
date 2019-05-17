@@ -516,9 +516,17 @@ class ProtoPipeline(progressServer: SendProgressData)(
               "Empty read lengths. RNASeq analysis on 3rd party fastqs not implemented. A rough read length estimate is needed by STAR.")
             Future.successful(Nil)
 
-          } else
+          } else {
+            val currentDemultiplexedFastQWithPreviousFastQs =
+              demultiplexedSample.copy(
+                lanes =
+                  (demultiplexedSample.lanes.toSeq ++ pastSampleResult.toSeq
+                    .flatMap(_.demultiplexed.flatMap(_.lanes.toSeq))).toSet.toStable
+              )
             traverseAll(selectedRNASeqConfigurations)(
-              rna(demultiplexedSample, _, readLengths))
+              rna(currentDemultiplexedFastQWithPreviousFastQs, _, readLengths)
+            )
+          }
 
           val perSampleResults10X =
             traverseAll(selected10XSeqConfigurations)(_ =>

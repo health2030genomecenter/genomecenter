@@ -1,7 +1,7 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.model._
-import org.gc.pipelines.util.{Exec, JVM, StableSet}
+import org.gc.pipelines.util.{Exec, StableSet}
 import org.gc.pipelines.util.StableSet.syntax
 
 import io.circe.{Decoder, Encoder}
@@ -12,7 +12,7 @@ import tasks.circesupport._
 import fileutils.TempFile
 import scala.concurrent.{Future, ExecutionContext}
 import java.io.File
-import Executables.{star261aExecutable, star261cExecutable, picardJar}
+import Executables.{star261aExecutable, star261cExecutable}
 
 sealed trait StarVersion {
   def executable: String
@@ -49,7 +49,8 @@ case class StarResult(
     finalLog: SharedFile,
     runId: RunId,
     bam: BamWithSampleMetadata
-) extends WithSharedFiles(bam.files :+ finalLog: _*)
+) extends WithMutableSharedFiles(mutables = bam.files :+ finalLog,
+                                   immutables = Nil)
 
 case class StarIndexedReferenceFasta(fasta: SharedFile,
                                      indexFiles: StableSet[SharedFile])
@@ -143,23 +144,23 @@ object StarAlignment {
           tmpStarFolder.delete
           tmpStarFolder.mkdir
 
-          val tmpStdOut = TempFile.createTempFile(".stdout")
           val tmpStdErr = TempFile.createTempFile(".stderr")
 
-          val lanes = fastqs.map(_.lane).toSeq.sortBy(_.toInt)
-
-          val readGroupName = project + "." + sampleId + "." + runId + "." + lanes
-            .mkString("_")
           val uniqueSampleName = project + "." + sampleId
 
-          val platformUnit = runId + "." + lanes.mkString("_")
           val sequencingCenter = "Health2030GenomeCenter"
           val runDate: String = java.time.Instant.now.toString
 
-          val tmpDir =
-            s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
-
           val fastqsSeq = fastqs.toSeq
+
+          val readGroupsString = fastqsSeq
+            .map { fq =>
+              val platformUnit = fq.runId + "." + fq.lane
+              val id = uniqueSampleName + "." + platformUnit
+              s"ID:$id LB:$uniqueSampleName CN:$sequencingCenter PL:illumina PU:$platformUnit SM:$uniqueSampleName DT:$runDate"
+
+            }
+            .mkString(" , ")
 
           def fetchFiles(f: Seq[SharedFile]) = Future.traverse(f)(_.file)
 
@@ -189,35 +190,20 @@ object StarAlignment {
         --sjdbOverhang ${readLength - 1} \\
         --quantMode GeneCounts \\
         --twopassMode Basic \\
-      \\
-      2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2) | \\
-     \\
-     java ${JVM.serial} -Xmx3G $tmpDir -Dpicard.useLegacyParser=false -jar $picardJar AddOrReplaceReadGroups \\
-       --OUTPUT ${tmpCleanBam.getAbsolutePath} \\
-       --SORT_ORDER null \\
-       --MAX_RECORDS_IN_RAM 0 \\
-       --INPUT /dev/stdin \\
-       --RGLB $uniqueSampleName \\
-       --RGPL illumina \\
-       --RGPU $platformUnit \\
-       --RGSM uniqueSampleName \\
-       --RGCN $sequencingCenter \\
-       --RGDT $runDate \\
-        > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
+        –-outSAMattrRGline $readGroupsString \\
+      2> ${tmpStdErr.getAbsolutePath} \\
+      > ${tmpCleanBam.getAbsolutePath} 
       """
 
               Exec.bashAudit(logDiscriminator = "star.pipes." + sampleId,
                              onError = Exec.ThrowIfNonZero)(bashScript)
 
-              val nameStub = readGroupName + "." + starVersion
+              val nameStub = uniqueSampleName + "." + starVersion
 
               val expectedLog = new File(tmpStarFolder, "Log.out")
               val expectedFinalLog = new File(tmpStarFolder, "Log.final.out")
 
               for {
-                _ <- SharedFile(tmpStdOut,
-                                name = nameStub + ".star.bam.stdout",
-                                deleteFile = true)
                 _ <- SharedFile(tmpStdErr,
                                 name = nameStub + ".star.bam.stderr",
                                 deleteFile = true)
