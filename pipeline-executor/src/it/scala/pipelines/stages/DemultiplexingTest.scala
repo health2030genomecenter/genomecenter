@@ -60,7 +60,8 @@ class DemultiplexingTestSuite
             globalIndexSet = None,
             partitionByLane = None,
             noPartition = None,
-            partitionByTileCount = None
+            partitionByTileCount = None,
+            createIndexFastqInReadType = None
           ))(ResourceRequest(1, 500))
         import scala.concurrent.duration._
         scala.concurrent.Await.result(future, atMost = 400000 seconds)
@@ -121,7 +122,8 @@ class DemultiplexingTestSuite
               globalIndexSet = None,
               partitionByLane = None,
               noPartition = Some(true),
-              partitionByTileCount = None
+              partitionByTileCount = None,
+              createIndexFastqInReadType = Some(ReadType(0))
             ))(ResourceRequest(1, 500))
           import scala.concurrent.duration._
           val demultiplexed =
@@ -130,7 +132,7 @@ class DemultiplexingTestSuite
           val perSampleFastQs = ProtoPipelineStages
             .groupBySample(demultiplexed.withoutUndetermined,
                            (1, 2),
-                           None,
+                           Some(0),
                            RunId("whatever"),
                            true)
 
@@ -144,7 +146,7 @@ class DemultiplexingTestSuite
 
       And(
         "captured fastq files should be present for the demultiplexed samples")
-      demultiplexed.fastqs.size shouldBe 10
+      demultiplexed.fastqs.size shouldBe 15
       concatenated.lanes.size shouldBe 1
       concatenated.lanes.toSeq.head.read1.file.byteSize.toInt shouldBe 2916
 

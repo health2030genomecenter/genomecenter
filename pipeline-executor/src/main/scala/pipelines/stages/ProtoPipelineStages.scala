@@ -534,6 +534,10 @@ object ProtoPipelineStages extends StrictLogging {
               inDemultiplexingFolder(r.runId,
                                      demultiplexingConfig.demultiplexingId) {
                 implicit tsc =>
+                  val tenXIndexReadNumber = 0
+                  val tenXUmiAssignment =
+                    if (demultiplexingConfig.isTenX) Some(tenXIndexReadNumber)
+                    else None
                   for {
                     globalIndexSet <- ProtoPipelineStages.fetchGlobalIndexSet(
                       r.runConfiguration)
@@ -551,7 +555,11 @@ object ProtoPipelineStages extends StrictLogging {
                         partitionByLane = demultiplexingConfig.partitionByLane,
                         noPartition = demultiplexingConfig.tenX,
                         partitionByTileCount =
-                          demultiplexingConfig.partitionByTileCount
+                          demultiplexingConfig.partitionByTileCount,
+                        createIndexFastqInReadType =
+                          if (demultiplexingConfig.isTenX)
+                            Some(ReadType(tenXIndexReadNumber))
+                          else None
                       ))(ResourceConfig.minimal,
                          labels = ResourceConfig.projectLabel(
                            parsedSampleSheet.projects: _*))
@@ -559,11 +567,13 @@ object ProtoPipelineStages extends StrictLogging {
                     stats <- demultiplexed.stats.get
 
                     perSampleFastQs = ProtoPipelineStages
-                      .groupBySample(demultiplexed.withoutUndetermined,
-                                     demultiplexingConfig.readAssignment,
-                                     demultiplexingConfig.umi,
-                                     r.runId,
-                                     demultiplexingConfig.isTenX)
+                      .groupBySample(
+                        demultiplexed.withoutUndetermined,
+                        demultiplexingConfig.readAssignment,
+                        demultiplexingConfig.umi.orElse(tenXUmiAssignment),
+                        r.runId,
+                        demultiplexingConfig.isTenX
+                      )
 
                   } yield
                     (perSampleFastQs,

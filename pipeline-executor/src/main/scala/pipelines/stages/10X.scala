@@ -11,6 +11,7 @@ import tasks.circesupport._
 import scala.concurrent.Future
 
 object TenXStages {
+  // Assumes that the index read is in the umi field of the FastQ class
   val concatenateFastQ =
     AsyncTask[PerSampleFastQ, PerSampleFastQ]("__10x-concatenate-fastq", 1) {
       case PerSampleFastQ(lanes, project, sample) =>
@@ -27,8 +28,12 @@ object TenXStages {
                 read2Files <- Future.traverse(
                   group.toSeq.sortBy(_.read2.file.name).map(_.read2.file))(
                   _.file)
+                indexFiles <- Future.traverse(
+                  group.toSeq.sortBy(_.umi.get.file.name).map(_.umi.get.file))(
+                  _.file)
                 cat1 = FastQHelpers.cat(read1Files)
                 cat2 = FastQHelpers.cat(read2Files)
+                catIndex = FastQHelpers.cat(indexFiles)
 
                 cat1SF <- SharedFile(cat1,
                                      s"${sample}_S1_L00${lane}_R1_001.fastq.gz",
@@ -36,6 +41,10 @@ object TenXStages {
                 cat2SF <- SharedFile(cat2,
                                      s"${sample}_S1_L00${lane}_R2_001.fastq.gz",
                                      deleteFile = true)
+                catIndexSF <- SharedFile(
+                  catIndex,
+                  s"${sample}_S1_L00${lane}_I2_001.fastq.gz",
+                  deleteFile = true)
 
               } yield
                 FastQPerLane(
@@ -49,7 +58,11 @@ object TenXStages {
                     FastQ(cat2SF,
                           group.toSeq.map(_.read2.numberOfReads).sum,
                           group.toSeq.headOption.flatMap(_.read2.readLength)),
-                  umi = None,
+                  umi = Some(
+                    FastQ(
+                      catIndexSF,
+                      group.toSeq.map(_.umi.get.numberOfReads).sum,
+                      group.toSeq.headOption.flatMap(_.umi.get.readLength))),
                   partition = PartitionId(0)
                 )
           }

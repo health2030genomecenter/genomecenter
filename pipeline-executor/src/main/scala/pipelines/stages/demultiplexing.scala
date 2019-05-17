@@ -26,7 +26,8 @@ case class DemultiplexingInput(
     globalIndexSet: Option[SharedFile],
     partitionByLane: Option[Boolean],
     noPartition: Option[Boolean],
-    partitionByTileCount: Option[Int]
+    partitionByTileCount: Option[Int],
+    createIndexFastqInReadType: Option[ReadType]
 ) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*) {
   def readLengths: Map[ReadType, Int] =
     DemultiplexingInput.parseReadLengthFromBcl2FastqArguments(
@@ -182,7 +183,7 @@ object Demultiplexing {
     }
 
   val fastqFileNameRegex =
-    "^([a-zA-Z0-9_\\-\\/]+/)?([a-zA-Z0-9_-]+)_S([0-9]+)_L([0-9]*)_R([0-9])_001.fastq.gz$".r
+    "^([a-zA-Z0-9_\\-\\/]+/)?([a-zA-Z0-9_-]+)_S([0-9]+)_L([0-9]*)_([RI])([0-9])_001.fastq.gz$".r
 
   val perLane =
     AsyncTask[DemultiplexSingleLaneInput, DemultiplexedReadData](
@@ -195,7 +196,8 @@ object Demultiplexing {
                                         _,
                                         _,
                                         _,
-                                        _),
+                                        _,
+                                        createIndexFastqInReadType),
           tilesToProcess,
           partitionIndex
           ) =>
@@ -208,6 +210,8 @@ object Demultiplexing {
                                                       "/bin/bcl2fastq_v220",
                                                     fileName = "bcl2fastq_v220")
 
+          val createIndexFastqInUmi = createIndexFastqInReadType.isDefined
+
           def extractMetadataFromFilename(fastq: SharedFile,
                                           sampleSheet: SampleSheet.ParsedData,
                                           stats: DemultiplexingStats.Root) =
@@ -216,6 +220,7 @@ object Demultiplexing {
                                       _sampleName,
                                       sampleNumberInSampleSheet1Based,
                                       lane,
+                                      readOrIndex,
                                       read) =>
                 if (sampleNumberInSampleSheet1Based.toInt > 0) {
                   val sampleSheetEntries =
@@ -251,8 +256,15 @@ object Demultiplexing {
                       _.SampleId == sampleSheetSampleId)
                   } yield sampleStats.NumberReads
 
-                  val readType = ReadType(read.toInt)
-
+                  
+                  val readType =
+                  if (readOrIndex == "R") ReadType(read.toInt)
+                  else createIndexFastqInReadType.getOrElse(ReadType(0))
+                  
+                  val readLength =
+                  if (readOrIndex == "R") Some(dmInput.readLengths(readType))
+                  else None
+                  
                   Some(
                     FastQWithSampleMetadata(
                       sampleSheetProject,
@@ -260,9 +272,7 @@ object Demultiplexing {
                       parsedLane,
                       readType,
                       PartitionId(partitionIndex),
-                      FastQ(fastq,
-                            numberOfReads.get,
-                            Some(dmInput.readLengths(readType)))
+                      FastQ(fastq, numberOfReads.get, readLength)
                     ))
                 } else {
                   val numberOfReads = for {
@@ -313,6 +323,11 @@ object Demultiplexing {
                 val stdout = new File(outputFolder, "stdout").getAbsolutePath
                 val stderr = new File(outputFolder, "stderr").getAbsolutePath
 
+                val createIndexArgument =
+                  if (createIndexFastqInUmi)
+                    List("--create-fastq-for-index-reads")
+                  else Nil
+
                 val bashCommand = {
                   val commandLine = Seq(
                     executable.getAbsolutePath,
@@ -324,7 +339,7 @@ object Demultiplexing {
                     sampleSheetFile.getAbsolutePath,
                     "--processing-threads",
                     processingThreads.toString
-                  ) ++ tilesArgumentList ++ extraArguments
+                  ) ++ tilesArgumentList ++ extraArguments ++ createIndexArgument
 
                   val escaped = commandLine.mkString("'", "' '", "'")
                   s""" $escaped 1> $stdout 2> $stderr """
