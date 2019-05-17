@@ -210,8 +210,8 @@ object AlignmentQC {
                 sampleId -> left,
                 analysisId -> left,
                 runId -> left,
-                f"${fastCoverage.all}%13.1fx" -> right,
-                f"${fastCoverage.target}%13.1fx" -> right,
+                fastCoverage.all.toString -> right,
+                fastCoverage.all.toString -> right,
                 "wxs-perrun" -> right
               ))
         }
@@ -339,12 +339,12 @@ object AlignmentQC {
               sampleId -> left,
               runId -> left,
               analysisId -> left,
-              f"${numberOfReads / 1E6}%10.2fM" -> right,
-              f"$meanReadLength%13.2f" -> right,
-              f"${uniquelyMappedReads / 1E6}%10.2fM" -> right,
-              f"${uniquelyMappedPercentage * 100}%6.2f%%" -> right,
-              f"${multiplyMappedReads / 1E6}%10.2fM" -> right,
-              f"${multiplyMappedReadsPercentage * 100}%6.2f%%" -> right,
+              s"${numberOfReads}" -> right,
+              s"$meanReadLength" -> right,
+              s"${uniquelyMappedReads}" -> right,
+              s"${uniquelyMappedPercentage}" -> right,
+              s"${multiplyMappedReads}" -> right,
+              s"${multiplyMappedReadsPercentage}" -> right,
               "rna" -> right
             ))
 
