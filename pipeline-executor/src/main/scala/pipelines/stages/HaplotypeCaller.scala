@@ -803,7 +803,7 @@ object HaplotypeCaller {
             ${GATK.skipGcs} \\
             --intervals $interval \\
             $sitesOnlyInterval \\
-            --interval-set-rule INTERSECTION \\
+            --interval-set-rule UNION \\
             -V gendb://${genomeDbWorkfolder.getAbsolutePath} \\
         > >(tee -a ${tmpStdOut.getAbsolutePath}) 2> >(tee -a ${tmpStdErr.getAbsolutePath} >&2)
       """)
