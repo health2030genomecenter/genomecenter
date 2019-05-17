@@ -256,15 +256,14 @@ object Demultiplexing {
                       _.SampleId == sampleSheetSampleId)
                   } yield sampleStats.NumberReads
 
-                  
                   val readType =
-                  if (readOrIndex == "R") ReadType(read.toInt)
-                  else createIndexFastqInReadType.getOrElse(ReadType(0))
-                  
+                    if (readOrIndex == "R") ReadType(read.toInt)
+                    else createIndexFastqInReadType.getOrElse(ReadType(0))
+
                   val readLength =
-                  if (readOrIndex == "R") Some(dmInput.readLengths(readType))
-                  else None
-                  
+                    if (readOrIndex == "R") Some(dmInput.readLengths(readType))
+                    else None
+
                   Some(
                     FastQWithSampleMetadata(
                       sampleSheetProject,
