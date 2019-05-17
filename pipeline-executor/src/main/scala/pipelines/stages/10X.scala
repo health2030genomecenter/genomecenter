@@ -13,7 +13,7 @@ import scala.concurrent.Future
 object TenXStages {
   // Assumes that the index read is in the umi field of the FastQ class
   val concatenateFastQ =
-    AsyncTask[PerSampleFastQ, PerSampleFastQ]("__10x-concatenate-fastq", 1) {
+    AsyncTask[PerSampleFastQ, PerSampleFastQ]("__10x-concatenate-fastq", 2) {
       case PerSampleFastQ(lanes, project, sample) =>
         implicit computationEnvironment =>
           val perLane =
@@ -43,7 +43,7 @@ object TenXStages {
                                      deleteFile = true)
                 catIndexSF <- SharedFile(
                   catIndex,
-                  s"${sample}_S1_L00${lane}_I2_001.fastq.gz",
+                  s"${sample}_S1_L00${lane}_I1_001.fastq.gz",
                   deleteFile = true)
 
               } yield
