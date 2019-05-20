@@ -43,10 +43,10 @@ object Delivery {
   }
 
   def extractFastqList(
-      fastqs: Set[PerSamplePerRunFastQ]): Map[Project, Seq[SharedFile]] =
+      fastqs: Set[PerSampleFastQ]): Map[Project, Seq[SharedFile]] =
     fastqs.toSeq
       .map {
-        case PerSamplePerRunFastQ(lanes, project, _, _) =>
+        case PerSampleFastQ(lanes, project, _) =>
           val fastqs = lanes.toSeq
             .flatMap(lane => List(lane.read1, lane.read2) ++ lane.umi.toList)
             .map(_.file)
@@ -114,7 +114,10 @@ object Delivery {
 
           val collectedFastqs: Map[Project, Seq[SharedFile]] =
             inAll(samples.toSeq)(sample =>
-              extractFastqList(sample.demultiplexed.toSet))
+              extractFastqList(sample.demultiplexed.map(_.withoutRunId).toSet))
+
+          val collected10XMergedFastqs: Map[Project, Seq[SharedFile]] =
+            inAll(samples.toSeq)(sample => extractFastqList(sample.tenX.toSet))
 
           val wesBamAndVcfs: Map[Project, Seq[SharedFile]] =
             inAll(samples.toSeq)(sample =>
@@ -140,6 +143,7 @@ object Delivery {
                  wesBamAndVcfs,
                  collectedFastp,
                  collectedFastqs,
+                 collected10XMergedFastqs,
                  collectedOtherFiles,
                  collectedRnaSeqQuantification)
               .reduce(tasks.util
