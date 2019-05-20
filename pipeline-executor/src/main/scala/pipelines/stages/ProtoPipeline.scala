@@ -231,95 +231,100 @@ class ProtoPipeline(progressServer: SendProgressData)(
                    vqsrTrainingFiles,
                    jointCall,
                    contigs,
-                   mergeSingleCalls)) =>
-                inProjectJointCallFolder(project, analysisId) { implicit tsc =>
-                  def jointCallInputVCFs =
-                    wesResults
-                      .flatMap(_._1.haplotypeCallerReferenceCalls.toSeq)
-                      .toSet
+                   mergeSingleCalls)) => {
+                def jointCallInputVCFs =
+                  wesResults
+                    .flatMap(_._1.haplotypeCallerReferenceCalls.toSeq)
+                    .toSet
 
-                  def singleCallVCFs =
-                    wesResults
-                      .flatMap(_._1.gvcf.toSeq)
-                      .toSet
+                def singleCallVCFs =
+                  wesResults
+                    .flatMap(_._1.gvcf.toSeq)
+                    .toSet
 
-                  val jointCalls =
-                    if (jointCall && jointCallInputVCFs.nonEmpty) {
-                      progressServer.send(
-                        ProgressData.JointCallsStarted(
-                          project,
-                          analysisId,
-                          samples.map(_.sampleId).toSet,
-                          samples.flatMap(_.runFolders.map(_.runId)).toSet))
-                      HaplotypeCaller
-                        .jointCall(
-                          JointCallInput(
-                            jointCallInputVCFs.toStable,
-                            indexedReference,
-                            dbSnpVcf,
-                            vqsrTrainingFiles,
-                            project + "." + analysisId,
-                            contigs
-                          ))(ResourceConfig.minimal)
-                        .map(Some(_))
-                        .andThen({
-                          case Success(Some(vcf)) =>
-                            for {
-                              vcfPath <- vcf.vcf.uri
-                            } progressServer.send(
-                              ProgressData.JointCallsAvailable(
-                                project,
-                                analysisId,
-                                samples.map(_.sampleId).toSet,
-                                samples
-                                  .flatMap(_.runFolders.map(_.runId))
-                                  .toSet,
-                                vcfPath.toString))
+                val jointCalls =
+                  if (jointCall && jointCallInputVCFs.nonEmpty) {
+                    progressServer.send(
+                      ProgressData.JointCallsStarted(
+                        project,
+                        analysisId,
+                        samples.map(_.sampleId).toSet,
+                        samples.flatMap(_.runFolders.map(_.runId)).toSet))
+                    inProjectJointCallFolder(project, analysisId) {
+                      implicit tsc =>
+                        HaplotypeCaller
+                          .jointCall(
+                            JointCallInput(
+                              jointCallInputVCFs.toStable,
+                              indexedReference,
+                              dbSnpVcf,
+                              vqsrTrainingFiles,
+                              project + "." + analysisId,
+                              contigs
+                            ))(ResourceConfig.minimal)
+                          .map(Some(_))
+                          .andThen({
+                            case Success(Some(vcf)) =>
+                              for {
+                                vcfPath <- vcf.vcf.uri
+                              } progressServer.send(
+                                ProgressData.JointCallsAvailable(
+                                  project,
+                                  analysisId,
+                                  samples.map(_.sampleId).toSet,
+                                  samples
+                                    .flatMap(_.runFolders.map(_.runId))
+                                    .toSet,
+                                  vcfPath.toString))
 
-                        })
-                    } else Future.successful(None)
+                          })
+                    }
+                  } else Future.successful(None)
 
-                  val mergedCalls =
-                    if (mergeSingleCalls && jointCallInputVCFs.nonEmpty) {
-                      progressServer.send(
-                        ProgressData.JointCallsStarted(
-                          project,
-                          analysisId,
-                          samples.map(_.sampleId).toSet,
-                          samples.flatMap(_.runFolders.map(_.runId)).toSet))
-                      HaplotypeCaller
-                        .mergeSingleCalls(
-                          MergeSingleCallsInput(
-                            jointCallInputVCFs.toStable,
-                            singleCallVCFs.toStable,
-                            indexedReference,
-                            dbSnpVcf,
-                            project + "." + analysisId,
-                            contigs
-                          ))(ResourceConfig.minimal)
-                        .map(Some(_))
-                        .andThen({
-                          case Success(Some(vcf)) =>
-                            for {
-                              vcfPath <- vcf.vcf.uri
-                            } progressServer.send(
-                              ProgressData.JointCallsAvailable(
-                                project,
-                                analysisId,
-                                samples.map(_.sampleId).toSet,
-                                samples
-                                  .flatMap(_.runFolders.map(_.runId))
-                                  .toSet,
-                                vcfPath.toString))
+                val mergedCalls =
+                  if (mergeSingleCalls && jointCallInputVCFs.nonEmpty) {
+                    progressServer.send(
+                      ProgressData.JointCallsStarted(
+                        project,
+                        analysisId,
+                        samples.map(_.sampleId).toSet,
+                        samples.flatMap(_.runFolders.map(_.runId)).toSet))
+                    inProjectMergedSingleCallFolder(project, analysisId) {
+                      implicit tsc =>
+                        HaplotypeCaller
+                          .mergeSingleCalls(
+                            MergeSingleCallsInput(
+                              jointCallInputVCFs.toStable,
+                              singleCallVCFs.toStable,
+                              indexedReference,
+                              dbSnpVcf,
+                              project + "." + analysisId,
+                              contigs
+                            ))(ResourceConfig.minimal)
+                          .map(Some(_))
+                          .andThen({
+                            case Success(Some(vcf)) =>
+                              for {
+                                vcfPath <- vcf.vcf.uri
+                              } progressServer.send(
+                                ProgressData.JointCallsAvailable(
+                                  project,
+                                  analysisId,
+                                  samples.map(_.sampleId).toSet,
+                                  samples
+                                    .flatMap(_.runFolders.map(_.runId))
+                                    .toSet,
+                                  vcfPath.toString))
 
-                        })
-                    } else Future.successful(None)
+                          })
+                    }
+                  } else Future.successful(None)
 
-                  for {
-                    jointCalls <- jointCalls
-                    mergedCalls <- mergedCalls
-                  } yield (jointCalls, mergedCalls)
-                }
+                for {
+                  jointCalls <- jointCalls
+                  mergedCalls <- mergedCalls
+                } yield (jointCalls, mergedCalls)
+              }
             }
         }
 
@@ -760,6 +765,12 @@ class ProtoPipeline(progressServer: SendProgressData)(
                                           analysisId: AnalysisId)(
       f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
     tsc.withFilePrefix(Seq("projects", project, "joint-calls", analysisId))(f)
+
+  private def inProjectMergedSingleCallFolder[T](project: Project,
+                                                 analysisId: AnalysisId)(
+      f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
+    tsc.withFilePrefix(
+      Seq("projects", project, "merged-single-calls", analysisId))(f)
 
   private def inDeliverablesFolder[T](f: TaskSystemComponents => T)(
       implicit tsc: TaskSystemComponents) =
