@@ -190,7 +190,7 @@ object StarAlignment {
         --sjdbOverhang ${readLength - 1} \\
         --quantMode GeneCounts \\
         --twopassMode Basic \\
-        –-outSAMattrRGline $readGroupsString \\
+        --outSAMattrRGline $readGroupsString \\
       2> ${tmpStdErr.getAbsolutePath} \\
       > ${tmpCleanBam.getAbsolutePath} 
       """
