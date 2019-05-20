@@ -24,7 +24,6 @@ object RunQCRNA {
             Seq(
               project,
               sampleId,
-              runId,
               analysisId,
               numberOfReads.toString,
               meanReadLength.toString,
@@ -40,7 +39,6 @@ object RunQCRNA {
     val header = mkHeader(
       List("Proj",
            "Sample",
-           "Run",
            "AnalysisId",
            "TotalReads",
            "MeanReadLength",

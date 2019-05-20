@@ -369,12 +369,11 @@ object ProtoPipelineStages extends StrictLogging {
             else readLengthsFromFastQs.max
           }
 
-          def inProjectFolder[T] =
+          def inSampleFolder[T] =
             appendToFilePrefix[T](
               Seq("projects",
                   demultiplexed.project,
                   demultiplexed.sampleId,
-                  demultiplexed.runIdTag,
                   analysisId).filter(_.nonEmpty))
 
           def inReferenceFolder[T] =
@@ -390,7 +389,7 @@ object ProtoPipelineStages extends StrictLogging {
                   ResourceConfig.createStarIndex)
             }
 
-            processedSample <- inProjectFolder {
+            processedSample <- inSampleFolder {
               implicit computationEnvironment =>
                 for {
                   starResult <- StarAlignment.alignSample(
@@ -398,7 +397,6 @@ object ProtoPipelineStages extends StrictLogging {
                       fastqs = demultiplexed.lanes,
                       project = demultiplexed.project,
                       sampleId = demultiplexed.sampleId,
-                      runId = demultiplexed.lanes.toSeq.head.runId,
                       reference = indexedFasta,
                       gtf = geneModelGtf.file,
                       readLength = maxReadLength,

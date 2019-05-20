@@ -79,7 +79,7 @@ object Delivery {
 
   def extractBamListFromRnaSeqResults(rnaSeqResults: Set[StarResult]) =
     rnaSeqResults.toSeq
-      .map { case StarResult(_, _, bam) => (bam.project, bam.bam.file) }
+      .map { case StarResult(_, bam) => (bam.project, bam.bam.file) }
       .groupBy { case (project, _) => project }
       .map {
         case (project, pairs) =>

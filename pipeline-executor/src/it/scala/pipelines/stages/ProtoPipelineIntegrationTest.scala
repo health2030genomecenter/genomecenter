@@ -137,8 +137,6 @@ class ProtopipelineIntegrationTestSuite
                          atMost = 400000 seconds)
           }
 
-       
-
       }
 
     }

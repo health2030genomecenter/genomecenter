@@ -37,7 +37,6 @@ case class StarAlignmentInput(
     fastqs: StableSet[FastQPerLane],
     project: Project,
     sampleId: SampleId,
-    runId: RunId,
     reference: StarIndexedReferenceFasta,
     gtf: SharedFile,
     readLength: Int,
@@ -47,7 +46,6 @@ case class StarAlignmentInput(
 
 case class StarResult(
     finalLog: SharedFile,
-    runId: RunId,
     bam: BamWithSampleMetadata
 ) extends WithMutableSharedFiles(mutables = bam.files :+ finalLog,
                                    immutables = Nil)
@@ -130,7 +128,6 @@ object StarAlignment {
       case StarAlignmentInput(fastqs,
                               project,
                               sampleId,
-                              runId,
                               reference,
                               gtf,
                               readLength,
@@ -219,7 +216,6 @@ object StarAlignment {
                                   deleteFile = true)
               } yield
                 StarResult(finalLogFile,
-                           runId,
                            BamWithSampleMetadata(project, sampleId, Bam(bam)))
             }
           } yield result

@@ -81,7 +81,6 @@ class ProtopipelineTestSuite
         analysisId = AnalysisId("aid"),
         star = StarResult(
           finalLog = sf,
-          runId = RunId("runid"),
           bam = BamWithSampleMetadata(project = Project("p1"),
                                       sampleId = SampleId("s1"),
                                       bam = Bam(sf))

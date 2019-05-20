@@ -337,7 +337,6 @@ object AlignmentQC {
             Seq(
               project -> left,
               sampleId -> left,
-              runId -> left,
               analysisId -> left,
               s"${numberOfReads}" -> right,
               s"$meanReadLength" -> right,
@@ -352,7 +351,7 @@ object AlignmentQC {
       .mkString("\n")
 
     val rnaHeader = Csv.mkHeader(
-      List("Proj", "Sample", "Run", "AnalysisId"),
+      List("Proj", "Sample", "AnalysisId"),
       List(
         "TotalReads" -> right,
         "MeanReadLength" -> right,
@@ -582,7 +581,6 @@ object AlignmentQC {
             Seq(
               project -> left,
               sampleId -> left,
-              runId -> left,
               analysisId -> left,
               f"${numberOfReads / 1E6}%10.2fM" -> right,
               f"$meanReadLength%13.2f" -> right,
@@ -596,7 +594,7 @@ object AlignmentQC {
       .mkString("\n")
 
     val rnaHeader = Html.mkHeader(
-      List("Proj", "Sample", "Run", "AnalysisId"),
+      List("Proj", "Sample", "AnalysisId"),
       List(
         "TotalReads" -> right,
         "MeanReadLength" -> right,
@@ -972,7 +970,6 @@ object AlignmentQC {
             Seq(
               project -> left,
               sampleId -> left,
-              runId -> left,
               f"${numberOfReads / 1E6}%10.2fM" -> right,
               f"$meanReadLength%13.2f" -> right,
               f"${uniquelyMappedReads / 1E6}%10.2fM" -> right,
@@ -985,7 +982,7 @@ object AlignmentQC {
       .mkString("\n")
 
     val rnaHeader = Html.mkHeader(
-      List("Proj", "Sample", "Run"),
+      List("Proj", "Sample"),
       List(
         "TotalReads" -> right,
         "MeanReadLength" -> right,
@@ -1114,16 +1111,14 @@ object AlignmentQC {
 
           val parsedRNAResults = Future.traverse(rnaAnalyses.toSeq) {
             case (analysisId,
-                  StarResult(log,
-                             run,
-                             BamWithSampleMetadata(project, sample, _))) =>
+                  StarResult(log, BamWithSampleMetadata(project, sample, _))) =>
               implicit val mat =
                 computationEnvironment.components.actorMaterializer
               log.source
                 .runFold(ByteString.empty)(_ ++ _)
                 .map(_.utf8String)
                 .map { content =>
-                  (analysisId, StarMetrics.Root(content, project, sample, run))
+                  (analysisId, StarMetrics.Root(content, project, sample))
                 }
           }
 

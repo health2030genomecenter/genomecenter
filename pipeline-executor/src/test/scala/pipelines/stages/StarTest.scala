@@ -57,7 +57,6 @@ class StarAlignmentTestSuite
               )),
             project = project,
             sampleId = sampleId,
-            runId = runId,
             reference = indexedFasta,
             gtf = await(SharedFile(gtfFile, "gtf")),
             readLength = 151,
@@ -74,8 +73,7 @@ class StarAlignmentTestSuite
         val metrics =
           StarMetrics.Root(fileutils.openSource(finalLog)(_.mkString),
                            project,
-                           sampleId,
-                           runId)
+                           sampleId)
         println(metrics.metrics)
         metrics.metrics.meanReadLength shouldBe 302d
         metrics.metrics.numberOfReads shouldBe 5000
