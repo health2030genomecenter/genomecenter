@@ -447,8 +447,6 @@ class ProtoPipeline(progressServer: SendProgressData)(
                                    r.runId))
           Future.successful(None)
         case Right(readLengths) =>
-          logger.info(s"${r.runId} read lengths: ${readLengths.mkString(", ")}")
-
           val fastpReport = startFastpReports(demultiplexedSample)
 
           val selectedWESConfigurations = analysisAssignments.assignments
@@ -471,6 +469,11 @@ class ProtoPipeline(progressServer: SendProgressData)(
             .collect {
               case conf: TenXConfiguration => conf
             }
+
+          logger.info(
+            s"Processing sample ${demultiplexedSample.sampleId} from last run ${demultiplexedSample.runId} in analyses: WES: ${selectedWESConfigurations
+              .map(_.analysisId)}, RNA: ${selectedRNASeqConfigurations.map(
+              _.analysisId)}, 10X: ${selected10XSeqConfigurations.map(_.analysisId)}")
 
           val perSampleResultsWES =
             traverseAll(selectedWESConfigurations) { conf =>
