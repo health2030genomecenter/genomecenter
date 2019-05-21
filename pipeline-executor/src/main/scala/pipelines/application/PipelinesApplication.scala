@@ -11,6 +11,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import org.gc.pipelines.util.ActorSource
 import org.gc.pipelines.util.AkkaStreamComponents.{deduplicate}
 import org.gc.pipelines.model.{Project, SampleId, RunId}
+import akka.stream.ActorMaterializer
 
 case class RunFinished(runId: RunId, success: Boolean)
 case class ProjectFinished[T](project: Project,
@@ -219,7 +220,10 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .via(validateCommandAndPersistEvents)
 
   implicit val taskSystemComponents = taskSystem.components
-  implicit val materializer = taskSystemComponents.actorMaterializer
+  implicit val materializer = {
+    implicit val as = actorSystem
+    ActorMaterializer()
+  }
 
   /* This is a side effecting expression (the .run at the end) which constructs and
    * runs the stream processing engine (see akka stream)
