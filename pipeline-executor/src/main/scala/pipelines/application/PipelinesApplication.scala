@@ -427,7 +427,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       }
       .groupBy(maxSubstreams = 100000, { case (runId, _) => runId })
       .via(deduplicate)
-      .mergeSubstreams
       .scan(Map.empty[RunId, Seq[SampleResult]]) {
         case (map, (runId, samples)) =>
           map.updated(runId, samples)
@@ -447,6 +446,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             ()
         }
       }
+      .mergeSubstreams
       .to(Sink.ignore)
 
   def processCompletedProjects =
