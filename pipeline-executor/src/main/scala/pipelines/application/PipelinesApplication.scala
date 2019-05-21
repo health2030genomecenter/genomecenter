@@ -464,7 +464,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       // If there is a newer element, then we want to drop the previously buffered elements
       // because we care for the latest
       .buffer(1, OverflowStrategy.dropHead)
-      .mapAsync(1000) {
+      .mapAsync(1) {
         case (_, samples) =>
           PipelinesApplication.processSamplesOfCompletedProject(pipeline,
                                                                 samples)
