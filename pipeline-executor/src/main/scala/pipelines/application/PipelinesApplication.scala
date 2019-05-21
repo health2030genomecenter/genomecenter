@@ -9,6 +9,7 @@ import akka.actor.ActorSystem
 import scala.concurrent.{ExecutionContext, Future}
 
 import org.gc.pipelines.util.ActorSource
+import org.gc.pipelines.util.traverseAll
 import org.gc.pipelines.util.AkkaStreamComponents.{deduplicate}
 import org.gc.pipelines.model.{Project, SampleId, RunId}
 import akka.stream.ActorMaterializer
@@ -231,6 +232,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    * The rest of the fields in this class are definitions for stages in this graph.
    */
   (previousRuns ++ futureRuns)
+    .filter(_.nonEmpty)
     .via(accountAndProcess)
     .via(processCompletedRunsAndProjects)
     .via(watchTermination)
@@ -299,9 +301,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
               merge.out ~> accountWorkDone.in
 
-              accountWorkDone.out2 ~> demultiplex ~> Flow[DM].map {
-                case (run, demultiplexedSamples) =>
-                  Demultiplexed(run, demultiplexedSamples)
+              accountWorkDone.out2 ~> demultiplex ~> Flow[Seq[DM]].map {
+                demultiplexedRuns =>
+                  Demultiplexed(demultiplexedRuns)
               } ~> merge.in(0)
 
               FlowShape(mapToRaw.in, accountWorkDone.out1)
@@ -312,23 +314,27 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     blacklist.contains((project, sampleId))
   }
 
-  def demultiplex
-    : Flow[RunWithAnalyses, (RunWithAnalyses, Seq[DemultiplexedSample]), _] =
-    Flow[RunWithAnalyses]
-      .mapAsync(1000) { runWithAnalyses =>
-        val run = runWithAnalyses.run
-        logger.debug(s"Call pipelines demultiplex method for run ${run.runId}")
-        for {
-          samples <- pipeline.demultiplex(run).recover {
-            case error =>
-              logger.error(s"$pipeline failed on ${run.runId}", error)
-              Nil
+  def demultiplex: Flow[Seq[RunWithAnalyses],
+                        Seq[(RunWithAnalyses, Seq[DemultiplexedSample])],
+                        _] =
+    Flow[Seq[RunWithAnalyses]]
+      .mapAsync(1) { runsWithAnalyses =>
+        traverseAll(runsWithAnalyses) { runWithAnalyses =>
+          val run = runWithAnalyses.run
+          logger.debug(
+            s"Call pipelines demultiplex method for run ${run.runId}")
+          for {
+            samples <- pipeline.demultiplex(run).recover {
+              case error =>
+                logger.error(s"$pipeline failed on ${run.runId}", error)
+                Nil
+            }
+          } yield {
+            val samplesPassingBlacklist = samples.filterNot(isOnBlacklist)
+            logger.info(
+              s"Demultiplexing of ${run.runId} with ${samplesPassingBlacklist.size} (${samples.size} before blacklist) done.")
+            runWithAnalyses -> samplesPassingBlacklist
           }
-        } yield {
-          val samplesPassingBlacklist = samples.filterNot(isOnBlacklist)
-          logger.info(
-            s"Demultiplexing of ${run.runId} with ${samplesPassingBlacklist.size} (${samples.size} before blacklist) done.")
-          runWithAnalyses -> samplesPassingBlacklist
         }
       }
 
@@ -336,23 +342,31 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     : Graph[FanOutShape3[Stage,
                          (RunWithAnalyses, Seq[DemultiplexedSample]),
                          Completeds,
-                         RunWithAnalyses],
+                         Seq[RunWithAnalyses]],
             NotUsed] = {
 
     val state = Flow[Stage]
       .scan(StateOfUnfinishedSamples.empty) {
-        case (state, Demultiplexed(runWithAnalyses, demultiplexedSamples))
-            if demultiplexedSamples.nonEmpty =>
-          val sampleIds = demultiplexedSamples.map(ds => getSampleId(ds))
-          logger.info(
-            s"Got demultiplexed ${sampleIds.size} samples from ${runWithAnalyses.run.runId} (${sampleIds
-              .mkString(", ")})")
-          state.addNewDemultiplexedSamples(
-            (runWithAnalyses, demultiplexedSamples))
+        case (state, Demultiplexed(demultiplexedRuns)) =>
+          val clearedState = state.copy(
+            sendToDemultiplexing = Nil,
+            sendToSampleProcessing = Nil
+          )
+          demultiplexedRuns.foldLeft(clearedState) {
+            case (state, (runWithAnalyses, demultiplexedSamples))
+                if demultiplexedSamples.nonEmpty =>
+              val sampleIds = demultiplexedSamples.map(ds => getSampleId(ds))
+              logger.info(
+                s"Got demultiplexed ${sampleIds.size} samples from ${runWithAnalyses.run.runId} (${sampleIds
+                  .mkString(", ")})")
+              state.addNewDemultiplexedSamples(
+                (runWithAnalyses, demultiplexedSamples))
 
-        case (state, Demultiplexed(run, _)) =>
-          logger.info(s"Demultiplexed 0 samples from ${run.runId}.")
-          state.removeFromUnfinishedDemultiplexing(run.runId)
+            case (state, (run, _)) =>
+              logger.info(s"Demultiplexed 0 samples from ${run.runId}.")
+              state.removeFromUnfinishedDemultiplexing(run.runId)
+
+          }
 
         case (state, ProcessedSample(processedSample, demultiplexedSample)) =>
           logger.info(
@@ -378,8 +392,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         val sendToSampleProcessing = builder.add(
           Flow[StateOfUnfinishedSamples]
             .map(_.sendToSampleProcessing)
-            .filter(_.nonEmpty)
-            .map(_.get)
+            .mapConcat(_.toList)
         )
 
         val sendToDemultiplexing = builder.add(
@@ -391,7 +404,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
                 s"Sending ${runFolders.map(_.runId)} to demultiplexing.")
               runFolders
             }
-            .mapConcat(_.toList)
+            .filter(_.nonEmpty)
         )
 
         stateScan.out ~> broadcast.in
@@ -491,14 +504,14 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     val maxTotalAccumulatedSamples = 1000000
 
     Flow[(RunWithAnalyses, DemultiplexedSample)]
-      .scan((Set.empty[SampleId],
+      .scan((Set.empty[(Project, SampleId)],
              Option.empty[(RunWithAnalyses, DemultiplexedSample)])) {
         case ((samplesSoFar, _), elem) =>
           val demultiplexedSample = elem._2
-          val sampleId = (getKeysOfDemultiplexedSample(demultiplexedSample)._2)
-
-          logger.debug(s"Samples so far: ${samplesSoFar.size + 1}")
-          (samplesSoFar + sampleId, Some(elem))
+          val sampleId = (getSampleId(demultiplexedSample))
+          val withNewSample = samplesSoFar + sampleId
+          logger.debug(s"Samples so far: ${withNewSample.size}")
+          (withNewSample, Some(elem))
       }
       .filter(_._2.isDefined)
       .map(_._2.get)
@@ -604,15 +617,15 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
   sealed trait Stage
   case class Raw(runs: Seq[RunWithAnalyses]) extends Stage
-  case class Demultiplexed(run: RunWithAnalyses,
-                           demultiplexed: Seq[DemultiplexedSample])
+  case class Demultiplexed(
+      demultiplexedRuns: Seq[(RunWithAnalyses, Seq[DemultiplexedSample])])
       extends Stage
   case class ProcessedSample(sampleResult: Option[SampleResult],
                              demultiplexedSample: DemultiplexedSample)
       extends Stage
 
   object StateOfUnfinishedSamples {
-    def empty = StateOfUnfinishedSamples(Nil, Set(), Set(), Seq(), None, Nil)
+    def empty = StateOfUnfinishedSamples(Nil, Set(), Set(), Seq(), Nil, Nil)
   }
 
   case class StateOfUnfinishedSamples(
@@ -620,8 +633,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       unfinishedDemultiplexingOfRunIds: Set[RunId],
       unfinished: Set[(Project, SampleId, RunId)],
       finished: Seq[SampleResult],
-      sendToSampleProcessing: Option[
-        (RunWithAnalyses, Seq[DemultiplexedSample])],
+      sendToSampleProcessing: Seq[(RunWithAnalyses, Seq[DemultiplexedSample])],
       sendToDemultiplexing: Seq[RunWithAnalyses])
       extends StrictLogging {
 
@@ -672,9 +684,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       val runRemovedFromUnfinishedDemultiplexing = copy(
         runFoldersOnHold = runFoldersOnHold
           .filterNot(_.runId == runId),
-        unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds - runId,
-        sendToSampleProcessing = None,
-        sendToDemultiplexing = Nil
+        unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds - runId
       )
       val onHold = runFoldersOnHold.filter(_.runId == runId)
       logger.info(
@@ -690,7 +700,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     }
 
     def addNewRuns(runs: Seq[RunWithAnalyses]) = {
-      val zero = copy(sendToSampleProcessing = None, sendToDemultiplexing = Nil)
+      val zero = copy(sendToSampleProcessing = Nil, sendToDemultiplexing = Nil)
       runs.foldLeft(zero) {
         case (state, run) =>
           if (state.unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
@@ -711,8 +721,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       val keys = samples._2.map(getKeysOfDemultiplexedSample)
       logger.debug(s"Add new demultiplexed samples: $keys.")
       copy(unfinished = unfinished ++ keys,
-           sendToSampleProcessing = Some(samples),
-           sendToDemultiplexing = Nil)
+           sendToSampleProcessing = sendToSampleProcessing :+ samples)
     }
 
     def finish(
@@ -727,7 +736,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         finished = finished ++ processedSample.toSeq,
         unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds
           .filterNot(_ == keysOfFinishedSample._3),
-        sendToSampleProcessing = None,
+        sendToSampleProcessing = Nil,
         sendToDemultiplexing = Nil
       ).releaseRunsOnHold
     }
