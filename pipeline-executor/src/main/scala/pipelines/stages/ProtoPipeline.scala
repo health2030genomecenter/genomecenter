@@ -470,10 +470,9 @@ class ProtoPipeline(progressServer: SendProgressData)(
               case conf: TenXConfiguration => conf
             }
 
-          logger.info(
-            s"Processing sample ${demultiplexedSample.sampleId} from last run ${demultiplexedSample.runId} in analyses: WES: ${selectedWESConfigurations
-              .map(_.analysisId)}, RNA: ${selectedRNASeqConfigurations.map(
-              _.analysisId)}, 10X: ${selected10XSeqConfigurations.map(_.analysisId)}")
+          logger.info(s"Processing sample ${demultiplexedSample.project} ${demultiplexedSample.sampleId} from last run ${demultiplexedSample.runId} in analyses: WES: ${selectedWESConfigurations
+            .map(_.analysisId)}, RNA: ${selectedRNASeqConfigurations.map(
+            _.analysisId)}, 10X: ${selected10XSeqConfigurations.map(_.analysisId)}")
 
           val perSampleResultsWES =
             traverseAll(selectedWESConfigurations) { conf =>
@@ -521,7 +520,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
 
           val perSampleResultsRNA = if (readLengths.isEmpty) {
             logger.warn(
-              "Empty read lengths. RNASeq analysis on 3rd party fastqs not implemented. A rough read length estimate is needed by STAR.")
+              s"Empty read lengths ${demultiplexedSample.project} ${demultiplexedSample.sampleId} ${demultiplexedSample.runId}. RNASeq analysis on 3rd party fastqs not implemented. A rough read length estimate is needed by STAR.")
             Future.successful(Nil)
 
           } else {
