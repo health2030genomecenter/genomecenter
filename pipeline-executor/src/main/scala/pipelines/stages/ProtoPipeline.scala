@@ -726,7 +726,8 @@ class ProtoPipeline(progressServer: SendProgressData)(
 
     for {
 
-      concatenated <- inProject10XFolder(sampleFor10XAnalysis.project) {
+      concatenated <- inProject10XFolder(sampleFor10XAnalysis.project,
+                                         sampleFor10XAnalysis.runId) {
         implicit tsc =>
           TenXStages.concatenateFastQ(sampleFor10XAnalysis.withoutRunId)(
             ResourceConfig.minimal,
@@ -755,9 +756,9 @@ class ProtoPipeline(progressServer: SendProgressData)(
       implicit tsc: TaskSystemComponents) =
     tsc.withFilePrefix(Seq("allQC"))(f)
 
-  private def inProject10XFolder[T](project: Project)(
+  private def inProject10XFolder[T](project: Project, runId: RunId)(
       f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
-    tsc.withFilePrefix(Seq("projects", project, "tenxfastqs"))(f)
+    tsc.withFilePrefix(Seq("projects", project, "tenxfastqs", runId))(f)
 
   private def inProjectQCFolder[T](project: Project)(
       f: TaskSystemComponents => T)(implicit tsc: TaskSystemComponents) =
