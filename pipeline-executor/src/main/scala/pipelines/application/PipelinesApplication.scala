@@ -203,7 +203,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .fromFuture(pipelineState.pastRuns)
       .map { runs =>
         runs.foreach { run =>
-          logger.info(s"Recovered past runs ${run.runId}")
+          logger.info(s"Recovered past run ${run.runId}")
         }
         runs
       }
@@ -230,6 +230,28 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    * runs the stream processing engine (see akka stream)
    *
    * The rest of the fields in this class are definitions for stages in this graph.
+   *
+   * This linear flow consists of 4 parts:
+   *
+   * 1. The source of batches of runs.
+   *    Runs added in a previous invocation of the pipeline are recovered from
+   *    the persisted PipelineState and form a single batch
+   *    Upcoming future runs each form a single batch
+   *
+   * 2. The sample processing and accounting stage.
+   *    This is a complicated stage which ensures that all runs ever seen are
+   *    demultiplexed and all samples of a project ever seen are processed.
+   *    Once all samples of a run is processed or all samples or a project is
+   *    processed this stage emits a signal downstream.
+   *
+   * 3. The run and project completion stage
+   *    This stage creates run-wide and project-wide summary statistics, tables,
+   *    delivery lists, and if needed does additional processing (e.g. joint calls)
+   *
+   * 4. The sink
+   *    At this point the elements in the stream are ignored. Results are communicated
+   *    in side channels to the outside world (i.e. the filesystem and the
+   *    http interface)
    */
   (previousRuns ++ futureRuns)
     .filter(_.nonEmpty)
@@ -241,7 +263,38 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
   case class Completeds(runs: CompletedRun, projects: CompletedProject)
 
-  /*
+  /* Accounting and processing stage
+   *
+   * This stage receives batches of runs, demultiplexes them, processes the samples,
+   * and once all samples of a project and/or a run is processed signals the
+   * project/run completion downstream.
+   *
+   * Major parts of this stage;
+   * 1. sample processor flow
+   *    This flow receives demultiplexed samples and processes them according to the
+   *    configurations registered in the pipeline.
+   *    The sample processing flow ensures that at any given moment maximum one
+   *    instance of the sample processing tasks are running for a given sample.
+   *    This flow demultiplexes processing using a bounded groupBy stream operator.
+   *
+   *
+   * 2. demultiplexing flow
+   *    This flow receives batches of runs and demultiplexes them in batches.
+   *
+   *
+   * 3. Accounting flow
+   *    Both the sample processor flow and the demultiplexing flow receive their
+   *    input from the accounting stage and also send back their output to the
+   *    accounting flow (via a merge operation). This is needed such that the
+   *    accounting flow knows which samples or runs are still have to be processed
+   *    and when can it emit the project/run completion signals.
+   *    The accouting flow also ensures that at any given time maximum one instance
+   *    of the same run is being processed: if the same run is received multiple
+   *    times it holds back the processing.
+   *    This flow bears a state and is implemented as a scan and a broadcast.
+   *
+   *
+   *
    *
    *                             IN [RunfolderReadForProcessing]
    *                             |
@@ -501,6 +554,11 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
                              (Option[SampleResult], DemultiplexedSample),
                              _] = {
 
+    /* Once the number of all time samples surpasses this number
+     * the flow will throw an exception and stop.
+     * This number may be increased up to Int.MaxValue-10 at the expense of some
+     * heap
+     */
     val maxTotalAccumulatedSamples = 1000000
 
     Flow[(RunWithAnalyses, DemultiplexedSample)]
@@ -628,11 +686,41 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     def empty = StateOfUnfinishedSamples(Nil, Set(), Set(), Seq(), Nil, Nil)
   }
 
+  /* State held in the accounting flow
+   *
+   * This is the state that is scanned over the incoming elemens of the accounting
+   * flow.
+   *
+   * Some members are to hold state, while some members serve as emission fields
+   * whose content is sent downstream. To understand this consider that this class is
+   * used in a scan operator followed by a broadcast.
+   *
+   * State members:
+   * These members are marked as private because they are only accessed or changed via
+   * helper methods.
+   *
+   * - runFoldersOnHold: run folders received at any moment when the same run folder is
+   *   still being processed are queued up here. They are sent to demultiplexing once the
+   *   first instance if completed
+   * - unfinishedDemultiplexingOfRunIds: set of runids which are being demultiplexed at the moment
+   * - unfinished: set of sample which are being processed at the moment
+   * - finished: accumulates sample results of finished samples of incomplete projects.
+   *   Project completion will use this data.
+   *
+   *
+   * Emission members:
+   * The whole StateOfUnfinishedSamples is broadcasted (copied) to the demultiplexing
+   * and sample processing flows, which project to the corresponding fields.
+   * - sendToSampleProcessing
+   * - sendToDemultiplexing
+   * - completedRun: this is a def not a val, but serves similar purposes
+   * - completedProject: this is a def not a val, but serves similar purposes
+   */
   case class StateOfUnfinishedSamples(
-      runFoldersOnHold: Seq[RunWithAnalyses],
-      unfinishedDemultiplexingOfRunIds: Set[RunId],
-      unfinished: Set[(Project, SampleId, RunId)],
-      finished: Seq[SampleResult],
+      private val runFoldersOnHold: Seq[RunWithAnalyses],
+      private val unfinishedDemultiplexingOfRunIds: Set[RunId],
+      private val unfinished: Set[(Project, SampleId, RunId)],
+      private val finished: Seq[SampleResult],
       sendToSampleProcessing: Seq[(RunWithAnalyses, Seq[DemultiplexedSample])],
       sendToDemultiplexing: Seq[RunWithAnalyses])
       extends StrictLogging {
