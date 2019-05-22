@@ -1,13 +1,13 @@
 package org.gc.pipelines.stages
 
 import org.gc.pipelines.util.{Exec, Files}
-import org.gc.pipelines.util
 
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import tasks._
 import tasks.circesupport._
 import java.io.File
+import Executables.qtlToolsExecutable
 
 case class QTLToolsQuantificationInput(
     bam: CoordinateSortedBam,
@@ -35,8 +35,6 @@ object QTLToolsQuantification {
                                        gtf,
                                        additionalCommandLineArguments) =>
         implicit computationEnvironment =>
-          val qtltoolsExecutable = extractQTLToolsExecutable()
-
           val tmpStdOut = Files.createTempFile(".stdout")
           val tmpStdErr = Files.createTempFile(".stderr")
 
@@ -49,7 +47,7 @@ object QTLToolsQuantification {
             result <- {
 
               val bashScript = s"""\\
-     $qtltoolsExecutable quan2 \\
+     $qtlToolsExecutable quan2 \\
         --gtf ${localGtf.getAbsolutePath}\\
         --bam ${localBam.getAbsolutePath}\\
         --rpkm \\
@@ -99,18 +97,6 @@ object QTLToolsQuantification {
           resultF
 
     }
-
-  private def extractQTLToolsExecutable(): String = {
-    val resourceName =
-      if (util.isMac) "/bin/QTLtools_9954dd57b36671a3_mac"
-      else if (util.isLinux) "/bin/QTLtools_9954dd57b36671a3_linux"
-      else
-        throw new RuntimeException(
-          "Unknown OS: " + System.getProperty("os.name"))
-    fileutils.TempFile
-      .getExecutableFromJar(resourceName, "QTLtools_9954dd57b36671a3")
-      .getAbsolutePath
-  }
 
 }
 
