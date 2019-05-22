@@ -129,7 +129,8 @@ object Delivery {
 
           val collectedRnaSeqQuantification: Map[Project, Seq[SharedFile]] =
             inAll(samples.toSeq)(sample =>
-              Map(sample.project -> sample.rna.flatMap(_.quantification.files)))
+              Map(sample.project -> sample.rna.flatMap(r =>
+                r.quantification.mutableFiles ++ r.quantification.files)))
 
           val collectedFastp: Map[Project, Seq[SharedFile]] =
             inAll(samples.toSeq)(sample =>
