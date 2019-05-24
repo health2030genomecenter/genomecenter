@@ -1020,7 +1020,7 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult, Unit] {
       implicit tsc: TaskSystemComponents): Future[Option[FakeSampleResult]] =
     Future {
       println(s"Pretend processing of $demultiplexedSample")
-      Thread.sleep(2000)
+      Thread.sleep(5000)
 
       // keep track of how many times the same (run,project,sample) is processed
       synchronized {

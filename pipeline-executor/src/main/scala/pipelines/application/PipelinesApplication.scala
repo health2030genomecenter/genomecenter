@@ -261,7 +261,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     .to(Sink.ignore)
     .run
 
-  case class Completeds(runs: CompletedRun, projects: CompletedProject)
+  case class Completeds(runs: Option[CompletedRun],
+                        projects: Option[CompletedProject])
 
   /* Accounting and processing stage
    *
@@ -403,7 +404,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         case (state, Demultiplexed(demultiplexedRuns)) =>
           val clearedState = state.copy(
             sendToDemultiplexing = Nil,
-            sendToSampleProcessing = Nil
+            sendToSampleProcessing = Nil,
+            sendToCompleteds = None
           )
           demultiplexedRuns.foldLeft(clearedState) {
             case (state, (runWithAnalyses, demultiplexedSamples))
@@ -439,8 +441,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         val broadcast =
           builder.add(Broadcast[StateOfUnfinishedSamples](3))
 
-        val completeds = builder.add(Flow[StateOfUnfinishedSamples].map(state =>
-          Completeds(state.completedRun, state.completedProject)))
+        val completeds = builder.add(
+          Flow[StateOfUnfinishedSamples]
+            .map(state => state.sendToCompleteds)
+            .filter(_.isDefined)
+            .map(_.get)
+            .via(deduplicate))
 
         val sendToSampleProcessing = builder.add(
           Flow[StateOfUnfinishedSamples]
@@ -452,12 +458,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           Flow[StateOfUnfinishedSamples]
             .map(_.sendToDemultiplexing)
             .via(deduplicate)
+            .filter(_.nonEmpty)
             .map { runFolders =>
               logger.info(
                 s"Sending ${runFolders.map(_.runId)} to demultiplexing.")
               runFolders
             }
-            .filter(_.nonEmpty)
         )
 
         stateScan.out ~> broadcast.in
@@ -480,13 +486,17 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .map { case Completeds(runs, projects) => (runs, projects) }
       .alsoTo(processCompletedRuns)
       .map { case (_, completedProject) => completedProject }
+      .filter(_.isDefined)
+      .map(_.get)
       .via(processCompletedProjects)
 
   import scala.concurrent.duration._
 
   def processCompletedRuns =
-    Flow[(CompletedRun, CompletedProject)]
+    Flow[(Option[CompletedRun], Option[CompletedProject])]
       .map { case (completedRun, _) => completedRun }
+      .filter(_.isDefined)
+      .map(_.get)
       .filter(_.samples.nonEmpty)
       .map {
         case CompletedRun(samples) =>
@@ -683,7 +693,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       extends Stage
 
   object StateOfUnfinishedSamples {
-    def empty = StateOfUnfinishedSamples(Nil, Set(), Set(), Seq(), Nil, Nil)
+    def empty =
+      StateOfUnfinishedSamples(Nil, Set(), Set(), Seq(), Nil, Nil, None)
   }
 
   /* State held in the accounting flow
@@ -713,8 +724,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    * and sample processing flows, which project to the corresponding fields.
    * - sendToSampleProcessing
    * - sendToDemultiplexing
-   * - completedRun: this is a def not a val, but serves similar purposes
-   * - completedProject: this is a def not a val, but serves similar purposes
+   * - sendToCompleteds
    */
   case class StateOfUnfinishedSamples(
       private val runFoldersOnHold: Seq[RunWithAnalyses],
@@ -722,51 +732,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       private val unfinished: Set[(Project, SampleId, RunId)],
       private val finished: Seq[SampleResult],
       sendToSampleProcessing: Seq[(RunWithAnalyses, Seq[DemultiplexedSample])],
-      sendToDemultiplexing: Seq[RunWithAnalyses])
+      sendToDemultiplexing: Seq[RunWithAnalyses],
+      sendToCompleteds: Option[Completeds])
       extends StrictLogging {
-
-    private def removeSamplesOfCompletedRuns = {
-      val finishedSamples = completedRun.samples.toSet
-      val cleared =
-        finished.filterNot(sample => finishedSamples.contains(sample))
-      copy(finished = cleared)
-    }
-
-    private def releaseRunsOnHold = {
-      val releasableRunIds = runFoldersOnHold
-        .filter { run =>
-          val runId = run.runId
-          val completedRunIds =
-            this.completedRun.samples
-              .map(sampleResult => getKeysOfSampleResult(sampleResult)._3)
-              .toSet
-          completedRunIds.contains(runId)
-        }
-        .map(_.runId)
-        .toSet
-
-      val uniqueRunsOnHold = runFoldersOnHold.zipWithIndex
-        .groupBy { case (runFolder, _) => runFolder.runId }
-        .toSeq
-        .map { case (_, group) => group.sortBy(_._2).map(_._1).last }
-
-      val (sendToDemultiplexing, newRunFoldersOnHold) =
-        uniqueRunsOnHold.partition(runFolder =>
-          releasableRunIds.contains(runFolder.runId))
-
-      val runIdsToDemultiplex = uniqueRunsOnHold.map(_.runId).toSet
-
-      copy(
-        sendToDemultiplexing = sendToDemultiplexing,
-        runFoldersOnHold = newRunFoldersOnHold,
-        unfinishedDemultiplexingOfRunIds =
-          unfinishedDemultiplexingOfRunIds ++ uniqueRunsOnHold
-            .map(_.runId),
-        finished = finished.filterNot(sampleResult =>
-          runIdsToDemultiplex.contains(getKeysOfSampleResult(sampleResult)._3))
-      )
-
-    }
 
     def removeFromUnfinishedDemultiplexing(runId: RunId) = {
       val runRemovedFromUnfinishedDemultiplexing = copy(
@@ -788,7 +756,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     }
 
     def addNewRuns(runs: Seq[RunWithAnalyses]) = {
-      val zero = copy(sendToSampleProcessing = Nil, sendToDemultiplexing = Nil)
+      val zero = copy(sendToSampleProcessing = Nil,
+                      sendToDemultiplexing = Nil,
+                      sendToCompleteds = None)
       runs.foldLeft(zero) {
         case (state, run) =>
           if (state.unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
@@ -796,7 +766,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             state.copy(runFoldersOnHold = state.runFoldersOnHold :+ run)
           } else {
             logger.debug(s"Append to demultiplexables: ${run.runId}.")
-            state.removeSamplesOfCompletedRuns.copy(
+            state.copy(
               unfinishedDemultiplexingOfRunIds = state.unfinishedDemultiplexingOfRunIds + run.runId,
               sendToDemultiplexing = state.sendToDemultiplexing :+ run)
           }
@@ -815,42 +785,82 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     def finish(
         processedSample: Option[SampleResult],
         demultiplexedSample: DemultiplexedSample): StateOfUnfinishedSamples = {
-      val keysOfFinishedSample = getKeysOfDemultiplexedSample(
-        demultiplexedSample)
-      logger.debug(
-        s"Accunting the completion of sample processing of $keysOfFinishedSample.")
-      copy(
-        unfinished = unfinished.filterNot(_ == keysOfFinishedSample),
-        finished = finished ++ processedSample.toSeq,
-        unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds
-          .filterNot(_ == keysOfFinishedSample._3),
-        sendToSampleProcessing = Nil,
-        sendToDemultiplexing = Nil
-      ).releaseRunsOnHold
-    }
+      val keysOfFinishedSample @ (project, _, runId) =
+        getKeysOfDemultiplexedSample(demultiplexedSample)
 
-    private def completed[T](extractKey: ((Project, SampleId, RunId)) => T) =
-      finished.lastOption match {
-        case None => Nil
-        case Some(lastFinished) =>
-          val keysOfUnfinishedSamples: Set[T] = unfinished.map(extractKey)
-          val keyOfLastFinishedSample: T = extractKey(
-            getKeysOfSampleResult(lastFinished))
-          val existRemaining =
-            keysOfUnfinishedSamples.contains(keyOfLastFinishedSample)
-          logger.debug(
-            s"Finished processing ${getKeysOfSampleResult(lastFinished)} . Remaining runs or projects with unfinished samples: $keysOfUnfinishedSamples")
-          if (!existRemaining)
-            finished.filter { sampleResult =>
-              extractKey(getKeysOfSampleResult(sampleResult)) == keyOfLastFinishedSample
-            } else Nil
+      val remainingUnfinishedSamples =
+        unfinished.filterNot(_ == keysOfFinishedSample)
+      val runIdsOfRemainingUnfinished = remainingUnfinishedSamples.map(_._3)
+      val projectsOfRemainingUnfinished = remainingUnfinishedSamples.map(_._1)
+
+      val runIdIsComplete = !runIdsOfRemainingUnfinished.contains(runId)
+      val projectIsComplete = !projectsOfRemainingUnfinished.contains(project)
+
+      val allFinishedSamples = finished ++ processedSample.toSeq
+
+      val samplesOfCompletedRunId =
+        if (runIdIsComplete) Some(CompletedRun(allFinishedSamples.filter {
+          sampleResult =>
+            val runIdOfSampleResult = getKeysOfSampleResult(sampleResult)._3
+            runIdOfSampleResult == runId
+        }))
+        else None
+
+      val samplesOfCompletedProject =
+        if (projectIsComplete) Some(CompletedProject(allFinishedSamples.filter {
+          sampleResult =>
+            val projectOfSampleResult = getKeysOfSampleResult(sampleResult)._1
+            projectOfSampleResult == project
+        }))
+        else None
+
+      val releasableRunWithAnalyses =
+        if (!runIdIsComplete) None
+        else
+          runFoldersOnHold
+            .find { runOnHold =>
+              val runIdOnHold = runOnHold.runId
+              (runIdOnHold: RunId) == (runId: RunId)
+            }
+
+      val remainingRunsOnHold = releasableRunWithAnalyses match {
+        case None => runFoldersOnHold
+        case Some(released) =>
+          runFoldersOnHold.filterNot(onHold => onHold == released)
       }
 
-    def completedRun: CompletedRun =
-      CompletedRun(completed(_._3))
+      val finishedSamplesWithInCompleteRunOrProject =
+        allFinishedSamples.filter { sampleResult =>
+          val (project, _, runId) = getKeysOfSampleResult(sampleResult)
+          val runIsIncomplete = runIdsOfRemainingUnfinished.contains(runId)
+          val projectIsIncomplete =
+            projectsOfRemainingUnfinished.contains(project)
+          val runWasOnHoldIsBeingReleased =
+            releasableRunWithAnalyses.map(_.runId).contains(runId)
 
-    def completedProject: CompletedProject =
-      CompletedProject(completed(_._1))
+          runIsIncomplete || runWasOnHoldIsBeingReleased || projectIsIncomplete
+        }
+
+      val newUnfinishedDemultiplexing = unfinishedDemultiplexingOfRunIds
+        .filterNot(_ == keysOfFinishedSample._3) ++ releasableRunWithAnalyses
+        .map(_.runId)
+        .toSeq
+
+      logger.debug(
+        s"Accounting the completion of sample processing of $keysOfFinishedSample. Run complete: $runIdIsComplete. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Remaining finished samples: ${finishedSamplesWithInCompleteRunOrProject.size}. Unfinished demultiplex: $newUnfinishedDemultiplexing. Runfolders on hold: $remainingRunsOnHold. Released to demux: $releasableRunWithAnalyses")
+
+      StateOfUnfinishedSamples(
+        unfinished = remainingUnfinishedSamples,
+        finished = finishedSamplesWithInCompleteRunOrProject,
+        unfinishedDemultiplexingOfRunIds = newUnfinishedDemultiplexing,
+        runFoldersOnHold = remainingRunsOnHold,
+        sendToSampleProcessing = Nil,
+        sendToDemultiplexing = releasableRunWithAnalyses.toSeq,
+        sendToCompleteds =
+          Some(Completeds(samplesOfCompletedRunId, samplesOfCompletedProject))
+      )
+    }
+
   }
 
 }
