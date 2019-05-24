@@ -264,6 +264,7 @@ class PipelinesApplicationTest
       .filter(_.sampleId == "sample1")
       .toSet shouldBe Set.empty
     taskSystem.shutdown
+    Await.result(AS.terminate, 5 seconds)
 
   }
   test(
@@ -324,6 +325,7 @@ class PipelinesApplicationTest
                        "fake0_0fake1_0fake2_0")
     )
     taskSystem.shutdown
+    Await.result(AS.terminate, 5 seconds)
 
   }
 
@@ -384,7 +386,7 @@ class PipelinesApplicationTest
                        "fake_1")
     )
     taskSystem.shutdown
-
+    Await.result(AS.terminate, 5 seconds)
   }
 
   test("pipelines application should not demultiplex the same run prematurely") {
@@ -424,7 +426,8 @@ class PipelinesApplicationTest
           .runWith(Sink.last),
         atMost = 40 seconds
       ))
-
+    Await.result(AS.terminate, 5 seconds)
+    taskSystem.shutdown
   }
 
   test(
@@ -507,7 +510,7 @@ class PipelinesApplicationTest
       max = 10 seconds,
     )
     taskSystem.shutdown
-
+    Await.result(AS.terminate, 5 seconds)
   }
 
   test("pipelines application should replace old runs - pattern 1 2 3 2") {
@@ -582,7 +585,7 @@ class PipelinesApplicationTest
                        "fake1_0fake2_1fake3_1")
     )
     taskSystem.shutdown
-
+    Await.result(AS.terminate, 5 seconds)
   }
 
   test("pipelines application should replace old runs -- pattern 1 1 2") {
@@ -631,7 +634,7 @@ class PipelinesApplicationTest
       atMost = 60 seconds
     )
     taskSystem.shutdown
-
+    Await.result(AS.terminate, 5 seconds)
   }
 
   test("pipelines application should recover old runs -- pattern 1 1 2") {
@@ -682,7 +685,7 @@ class PipelinesApplicationTest
       atMost = 60 seconds
     )
     taskSystem.shutdown
-
+    Await.result(AS.terminate, 5 seconds)
   }
   test("pipelines application should recover old runs -- pattern 1, 2, 3, 2") {
     implicit val AS = ActorSystem()
@@ -732,7 +735,7 @@ class PipelinesApplicationTest
       atMost = 60 seconds
     )
     taskSystem.shutdown
-
+    Await.result(AS.terminate, 5 seconds)
   }
 
   test("pipelines application should replace old runs even in case of failure ") {
@@ -789,7 +792,7 @@ class PipelinesApplicationTest
                        "fake-1_0")
     )
     taskSystem.shutdown
-
+    Await.result(AS.terminate, 5 seconds)
   }
 
   test("pipelines application should survive a failing pipeline") {
@@ -820,6 +823,8 @@ class PipelinesApplicationTest
         case RunFinished(_, success) => success
       }
       .count(identity) shouldBe 0
+    taskSystem.shutdown()
+    Await.result(AS.terminate, 5 seconds)
   }
 
   def samplesFinishedAll(waitFor: Set[FakeSampleResult])(
