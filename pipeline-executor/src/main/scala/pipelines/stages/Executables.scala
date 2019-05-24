@@ -125,13 +125,13 @@ object Executables {
 
   val qtlToolsExecutable: String = {
     val resourceName =
-      if (util.isMac) "/bin/QTLtools_9954dd57b36671a3_mac"
-      else if (util.isLinux) "/bin/QTLtools_9954dd57b36671a3_linux"
+      if (util.isMac) "/bin/QTLtools-v1.1-37-gecf7b84_mac"
+      else if (util.isLinux) "/bin/QTLtools-v1.1-37-gecf7b84_linux"
       else
         throw new RuntimeException(
           "Unknown OS: " + System.getProperty("os.name"))
     fileutils.TempFile
-      .getExecutableFromJar(resourceName, "QTLtools_9954dd57b36671a3")
+      .getExecutableFromJar(resourceName, "QTLtools-v1.1-37-gecf7b84")
       .getAbsolutePath
   }
 }
