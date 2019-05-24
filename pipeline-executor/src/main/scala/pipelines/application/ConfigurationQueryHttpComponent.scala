@@ -5,21 +5,34 @@ import scala.concurrent.ExecutionContext
 import org.gc.pipelines.model._
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import tasks.TaskSystemComponents
+import java.io.File
+import akka.stream.scaladsl.{Source, StreamConverters}
+import akka.util.ByteString
+import com.typesafe.scalalogging.StrictLogging
 
 class ConfigurationQueryHttpComponent(state: PipelineState)(
     implicit ec: ExecutionContext,
     tsc: TaskSystemComponents)
-    extends HttpComponent {
+    extends HttpComponent
+    with StrictLogging {
 
   def byRun(r: RunId) =
     state.pastRuns.map(_.filter(_.run.runId == r).map(_.run))
 
   val fileSystemRoot = tsc.tasksConfig.storageURI.getPath
 
-  def findFastqFiles(runId: RunId): List[String] = {
-    import better.files._
+  def findFastqFiles(runId: RunId): Source[String, _] = {
+
+    def walk(directory: File): Source[java.nio.file.Path, _] =
+      if (java.nio.file.Files.isDirectory(directory.toPath)) {
+        val factory = () => java.nio.file.Files.walk(directory.toPath)
+        StreamConverters.fromJavaStream(factory)
+      } else Source.empty
+
     val root = new java.io.File(fileSystemRoot + "/demultiplexing/" + runId)
-    root.toScala.glob("*.fastq.gz").map(_.toJava.getAbsolutePath).toList
+    walk(root)
+      .filter(_.getFileName.endsWith("fastq.gz"))
+      .map(_.toFile.getAbsolutePath)
   }
 
   val route =
@@ -78,26 +91,51 @@ class ConfigurationQueryHttpComponent(state: PipelineState)(
           path("free-runs") {
             parameters("fastq".?) { withFastQ =>
               complete {
-                for {
+                val responseDataF = for {
                   assignments <- state.analyses
                   runs <- state.pastRuns
                 } yield {
                   val projectsWithAssignments =
                     assignments.assignments.filter(_._2.nonEmpty).keySet
-                  runs
-                    .filter {
-                      case RunWithAnalyses(run, _) =>
-                        (projectsWithAssignments & run.projects.toSet).isEmpty
-                    }
-                    .map {
-                      case RunWithAnalyses(run, _) =>
-                        val fqList =
-                          if (withFastQ.nonEmpty) findFastqFiles(run.runId)
-                          else Nil
-                        (run.runId, fqList)
-                    }
+
+                  val runIds =
+                    runs
+                      .filter {
+                        case RunWithAnalyses(run, _) =>
+                          (projectsWithAssignments & run.projects.toSet).isEmpty
+                      }
+                      .map {
+                        case RunWithAnalyses(run, _) =>
+                          run.runId
+                      }
+
+                  val sourceOfResponseData: Source[ByteString, _] = {
+                    import io.circe.syntax._
+                    import io.circe.generic.auto._
+                    val sourceOfEithers =
+                      if (withFastQ.isDefined)
+                        Source(runIds).flatMapConcat(runId =>
+                          findFastqFiles(runId).map(path =>
+                            Right((runId, path))))
+                      else Source.apply(runIds).map(Left(_))
+                    sourceOfEithers.map(_.asJson.noSpaces).map(ByteString(_))
+                  }
+
+                  sourceOfResponseData.watchTermination() {
+                    case (mat, future) =>
+                      future.onComplete {
+                        case result =>
+                          result.failed.foreach { e =>
+                            logger.error("Unexpected exception ", e)
+                          }
+                      }
+                      mat
+                  }
                 }
 
+                akka.http.scaladsl.model.HttpEntity(
+                  akka.http.scaladsl.model.ContentTypes.`application/octet-stream`,
+                  Source.fromFutureSource(responseDataF))
               }
             }
           }

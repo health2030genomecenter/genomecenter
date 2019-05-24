@@ -200,7 +200,6 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
               }
             ]
         """
-        println(runConfiguration2)
         postString("/v2/runs", runConfiguration2).status.intValue shouldBe 200
 
         Then("The sample's processing should finish immediately")
@@ -209,6 +208,38 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
             sample.sample shouldBe "sample1"
         }
         getProgress("/v2/runs") shouldBe "runid1\nrunid2\n"
+
+        When("A third run with new project is registered")
+        And("A configuration with an already demultiplexed set of fastq files")
+        val runConfiguration3 = s"""
+            runId = runid3
+            demultiplexing = []
+            fastqs = [
+              {
+                project = project_unknown
+                sampleId = sample1
+                lanes = [
+                  {
+                    lane = 1
+                    read1 = $read1
+                    read2 = $read2
+                  }
+                ]
+              }
+            ]
+        """
+        postString("/v2/runs", runConfiguration3).status.intValue shouldBe 200
+
+        And("The project's processing should finish")
+        probe.fishForSpecificMessage(timeout) {
+          case projectFinished: ProjectFinished[_]
+              if projectFinished.project == "project_unknown" =>
+        }
+        getProgress("/v2/runs") shouldBe "runid1\nrunid2\nrunid3\n"
+
+        getProgress("/v2/free-runs") shouldBe """{"Left":{"value":"runid3"}}"""
+
+        getProgress("/v2/free-runs?fastq=true") shouldBe ""
 
       }
     }

@@ -86,7 +86,7 @@ object EndToEndHelpers {
           HttpRequest(
             uri = s"http://127.0.0.1:${binding.localAddress.getPort}$endpoint",
             method = HttpMethods.GET))
-        .flatMap(_.entity.toStrict(5 seconds))).data.utf8String
+        .flatMap(_.entity.toStrict(60 seconds))).data.utf8String
   }
 
   def createProbe(implicit app: TestApplication[_, _, _]) = {
