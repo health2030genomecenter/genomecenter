@@ -26,38 +26,29 @@ case class BQSRInput(bam: StableSet[Bam],
                      project: Project,
                      sampleId: SampleId,
                      analysisId: AnalysisId)
-    extends WithSharedFiles(
-      bam.toSeq.flatMap(_.files) ++ reference.files ++ knownSites.toSeq.flatMap(
-        _.files): _*)
+
 case class TrainBQSRInput(bam: CoordinateSortedBam,
                           reference: IndexedReferenceFasta,
                           knownSites: StableSet[VCF])
-    extends WithSharedFiles(
-      bam.files ++ reference.files ++ knownSites.toSeq.flatMap(_.files): _*)
 
 case class TrainBQSRInputScatteredPiece(bam: CoordinateSortedBam,
                                         reference: IndexedReferenceFasta,
                                         knownSites: StableSet[VCF],
                                         interval: String)
-    extends WithSharedFiles(
-      bam.files ++ reference.files ++ knownSites.toSeq.flatMap(_.files): _*)
 
 case class ApplyBQSRInput(bam: CoordinateSortedBam,
                           reference: IndexedReferenceFasta,
                           bqsrTable: BQSRTable)
-    extends WithSharedFiles(bam.files ++ reference.files ++ bqsrTable.files: _*)
 
 case class ApplyBQSRInputScatteredPiece(bam: CoordinateSortedBam,
                                         reference: IndexedReferenceFasta,
                                         bqsrTable: BQSRTable,
                                         interval: String)
-    extends WithSharedFiles(bam.files ++ reference.files ++ bqsrTable.files: _*)
 
 case class BQSRResult(coordinateSortedBam: CoordinateSortedBam,
                       duplicateMetric: DuplicationQCResult)
-    extends WithMutableSharedFiles(
-      mutables = coordinateSortedBam.files ++ duplicateMetric.files,
-      immutables = Nil)
+    extends WithSharedFiles(
+      mutables = List(coordinateSortedBam, duplicateMetric))
 
 object BaseQualityScoreRecalibration {
 

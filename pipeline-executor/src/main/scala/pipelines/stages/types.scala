@@ -9,7 +9,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import org.gc.pipelines.util.StableSet
 import akka.util.ByteString
 
-case class SampleSheetFile(file: SharedFile) extends WithSharedFiles {
+case class SampleSheetFile(file: SharedFile) {
   def parse(implicit tsc: TaskSystemComponents, ec: ExecutionContext) = {
     implicit val mat = tsc.actorMaterializer
     file.source
@@ -19,11 +19,10 @@ case class SampleSheetFile(file: SharedFile) extends WithSharedFiles {
   }
 }
 
-case class ReferenceFasta(file: SharedFile) extends WithSharedFiles(file)
+case class ReferenceFasta(file: SharedFile)
 
 case class IndexedReferenceFasta(fasta: SharedFile,
-                                 indexFiles: StableSet[SharedFile])
-    extends WithSharedFiles(fasta +: indexFiles.toSeq: _*) {
+                                 indexFiles: StableSet[SharedFile]) {
   def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
       _ <- Future.traverse(indexFiles.toSeq)(_.file)
@@ -39,17 +38,13 @@ case class FastQWithSampleMetadata(project: Project,
                                    readType: ReadType,
                                    partition: PartitionId,
                                    fastq: FastQ)
-    extends WithSharedFiles(fastq.file)
 
 case class PerSamplePerRunFastQ(
     lanes: StableSet[FastQPerLane],
     project: Project,
     sampleId: SampleId,
     runId: RunId
-) extends WithSharedFiles(
-      lanes
-        .flatMap(fq => List(fq.read1.file, fq.read2.file))
-        .toSeq: _*) {
+) {
   def withoutRunId = PerSampleFastQ(lanes, project, sampleId)
 }
 
@@ -57,10 +52,7 @@ case class PerSampleFastQ(
     lanes: StableSet[FastQPerLane],
     project: Project,
     sampleId: SampleId,
-) extends WithSharedFiles(
-      lanes
-        .flatMap(fq => List(fq.read1.file, fq.read2.file))
-        .toSeq: _*) {
+) {
 
   def ++(that: PerSampleFastQ) = {
     require(this.project == that.project)
@@ -83,38 +75,34 @@ case class FastQPerLaneWithMetadata(
     lane: FastQPerLane,
     project: Project,
     sampleId: SampleId,
-) extends WithSharedFiles(lane.read1.file, lane.read2.file)
+)
 
 case class BamWithSampleMetadataPerLane(project: Project,
                                         sampleId: SampleId,
                                         runId: RunId,
                                         lane: Lane,
                                         bam: Bam)
-    extends WithSharedFiles(bam.file)
 
 case class BamsWithSampleMetadata(project: Project,
                                   sampleId: SampleId,
                                   bams: StableSet[Bam])
-    extends ResultWithSharedFiles(bams.map(_.file).toSeq: _*)
 
 case class BamWithSampleMetadata(project: Project, sampleId: SampleId, bam: Bam)
-    extends WithSharedFiles(bam.files: _*)
 
 case class CoordinateSortedBamWithSampleMetadata(project: Project,
                                                  sampleId: SampleId,
                                                  runId: RunId,
                                                  bam: CoordinateSortedBam)
-    extends WithSharedFiles(bam.files: _*)
 
-case class FastQ(file: SharedFile, numberOfReads: Long, readLength: Option[Int])
-    extends ResultWithSharedFiles(file) {
+case class FastQ(file: SharedFile,
+                 numberOfReads: Long,
+                 readLength: Option[Int]) {
   def withoutReadLength = copy(readLength = None)
 }
 
-case class Bam(file: SharedFile) extends ResultWithSharedFiles(file)
+case class Bam(file: SharedFile)
 
-case class CoordinateSortedBam(bam: SharedFile, bai: SharedFile)
-    extends WithSharedFiles(bam, bai) {
+case class CoordinateSortedBam(bam: SharedFile, bai: SharedFile) {
   def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
       _ <- bai.file
@@ -132,8 +120,7 @@ case class FastQPerLane(runId: RunId,
     copy(read1 = read1.withoutReadLength, read2 = read2.withoutReadLength)
 }
 
-case class VCF(vcf: SharedFile, index: Option[SharedFile])
-    extends WithSharedFiles(vcf +: index.toList: _*) {
+case class VCF(vcf: SharedFile, index: Option[SharedFile]) {
   def localFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
       _ <- Future.traverse(index.toList)(_.file)
@@ -141,11 +128,11 @@ case class VCF(vcf: SharedFile, index: Option[SharedFile])
     } yield vcf
 }
 
-case class BQSRTable(file: SharedFile) extends WithSharedFiles(file)
+case class BQSRTable(file: SharedFile)
 
-case class BedFile(file: SharedFile) extends WithSharedFiles(file)
+case class BedFile(file: SharedFile)
 
-case class ContigsFile(file: SharedFile) extends WithSharedFiles(file) {
+case class ContigsFile(file: SharedFile) {
   def readContigs(implicit tsc: TaskSystemComponents,
                   ec: ExecutionContext): Future[Set[String]] = {
     implicit val mat = tsc.actorMaterializer
@@ -155,7 +142,7 @@ case class ContigsFile(file: SharedFile) extends WithSharedFiles(file) {
   }
 }
 
-case class GTFFile(file: SharedFile) extends WithSharedFiles(file)
+case class GTFFile(file: SharedFile)
 
 case class PerSamplePerLanePerReadMetrics(
     seq: Seq[(Project, SampleId, RunId, Lane, ReadType, org.gc.readqc.Metrics)])
@@ -166,8 +153,7 @@ case class VQSRTrainingFiles(
     hapmap: VCF,
     oneKgOmni: VCF,
     dbSnp138: VCF
-) extends WithSharedFiles(
-      millsAnd1Kg.files ++ oneKgHighConfidenceSnps.files ++ hapmap.files ++ oneKgOmni.files ++ dbSnp138.files: _*)
+)
 //
 // Codecs from here on
 //

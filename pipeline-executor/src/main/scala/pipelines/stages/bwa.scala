@@ -41,37 +41,26 @@ case class PerLaneBWAAlignmentInput(
     reference: IndexedReferenceFasta,
     umi: Option[FastQ],
     interval: Option[IntervalTriplet]
-) extends WithSharedFiles(
-      Seq(read1.file, read2.file, reference.fasta) ++ umi.toList
-        .map(_.file): _*)
+)
 
 case class SplitFastQsInput(fastqs: StableSet[FastQPerLane],
                             maxReadsPerFastQ: Long)
-    extends WithSharedFiles(
-      fastqs.toSeq
-        .flatMap(fq =>
-          List(fq.read1.file, fq.read2.file) ++ fq.umi.toSeq.map(_.file)): _*
-    )
+
 case class SplitIntervalsResult(
     intervals: StableSet[(FastQ, Seq[VirtualPointerInterval])])
-    extends WithSharedFiles(intervals.toSeq.flatMap(_._1.files): _*)
 
 case class PerSampleBWAAlignmentInput(
     fastqs: StableSet[FastQPerLane],
     project: Project,
     sampleId: SampleId,
     reference: IndexedReferenceFasta
-) extends WithSharedFiles(
-      (fastqs
-        .flatMap(fq => List(fq.read1.file, fq.read2.file))
-        .toSeq :+ reference.fasta): _*)
+)
 
 case class PerSampleBWAAlignmentResult(
     alignedLanes: StableSet[BamWithSampleMetadataPerLane]
-) extends WithSharedFiles(alignedLanes.toSeq.flatMap(_.files): _*)
+)
 
 case class DuplicationQCResult(markDuplicateMetrics: SharedFile)
-    extends WithSharedFiles(markDuplicateMetrics)
 
 /* This file is not extending WithSharedFiles
  *
@@ -81,10 +70,9 @@ case class DuplicationQCResult(markDuplicateMetrics: SharedFile)
 case class MarkDuplicateResult(
     bam: BamWithSampleMetadata,
     duplicateMetric: DuplicationQCResult
-) extends WithSharedFiles(bam.files ++ duplicateMetric.files: _*)
+)
 
 case class ComputeSplitIntervalInput(fq: FastQ, maxReads: Long)
-    extends WithSharedFiles(fq.files: _*)
 
 case class IntervalTriplet(read1: VirtualPointerInterval,
                            read2: VirtualPointerInterval,

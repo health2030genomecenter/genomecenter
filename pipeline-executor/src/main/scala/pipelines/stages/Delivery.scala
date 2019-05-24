@@ -17,11 +17,9 @@ import org.gc.pipelines.util.ResourceConfig
 case class CollectDeliverablesInput(
     samples: StableSet[SampleResult],
     other: StableSet[(Project, SharedFile)]
-) extends WithSharedFiles(
-      samples.toSeq.flatMap(_.files) ++ other.toSeq.map(_._2): _*)
+)
 
 case class DeliverableList(lists: Seq[(Project, SharedFile, ProgressData)])
-    extends WithSharedFiles(lists.map(_._2): _*)
 
 object Delivery {
 
@@ -130,7 +128,7 @@ object Delivery {
           val collectedRnaSeqQuantification: Map[Project, Seq[SharedFile]] =
             inAll(samples.toSeq)(sample =>
               Map(sample.project -> sample.rna.flatMap(r =>
-                r.quantification.mutableFiles ++ r.quantification.files)))
+                tasks.HasSharedFiles.allFiles(r.quantification))))
 
           val collectedFastp: Map[Project, Seq[SharedFile]] =
             inAll(samples.toSeq)(sample =>

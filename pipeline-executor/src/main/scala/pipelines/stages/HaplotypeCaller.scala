@@ -25,32 +25,27 @@ case class HaplotypeCallerInput(
     bam: CoordinateSortedBam,
     indexedReference: IndexedReferenceFasta,
     contigs: Option[ContigsFile],
-) extends WithSharedFiles(bam.files ++ indexedReference.files: _*)
+)
 
 case class VariantCallingMetricsResult(
     details: SharedFile,
     summary: SharedFile
-) extends WithSharedFiles(details, summary)
+)
 
 case class MergeVCFInput(vcfs: Seq[VCF], gatheredFileName: String)
-    extends WithSharedFiles(
-      vcfs.flatMap(_.files): _*
-    )
 
 case class HaplotypeCallerOnIntervalInput(
     bam: CoordinateSortedBam,
     indexedReference: IndexedReferenceFasta,
     interval: String
-) extends WithSharedFiles(bam.files ++ indexedReference.files: _*)
+)
 
 case class CollectVariantCallingMetricsInput(
     reference: IndexedReferenceFasta,
     targetVcf: VCF,
     dbSnpVcf: VCF,
     evaluationIntervals: Option[BedFile]
-) extends WithSharedFiles(
-      reference.files ++ targetVcf.files ++ dbSnpVcf.files ++ evaluationIntervals.toSeq
-        .flatMap(_.files): _*)
+)
 
 case class GenotypeGVCFsOnIntervalInput(targetVcfs: StableSet[VCF],
                                         reference: IndexedReferenceFasta,
@@ -58,9 +53,6 @@ case class GenotypeGVCFsOnIntervalInput(targetVcfs: StableSet[VCF],
                                         interval: String,
                                         name: String,
                                         atSitesOnly: Option[StableSet[VCF]])
-    extends WithSharedFiles(
-      targetVcfs.toSeq
-        .flatMap(_.files) ++ reference.files ++ dbSnpVcf.files: _*)
 
 case class GenotypeGVCFsInput(targetVcfs: StableSet[VCF],
                               reference: IndexedReferenceFasta,
@@ -69,16 +61,10 @@ case class GenotypeGVCFsInput(targetVcfs: StableSet[VCF],
                               vqsrTrainingFiles: Option[VQSRTrainingFiles],
                               contigsFile: Option[ContigsFile],
                               atSitesOnly: Option[StableSet[VCF]])
-    extends WithSharedFiles(
-      targetVcfs.toSeq
-        .flatMap(_.files) ++ reference.files ++ dbSnpVcf.files: _*)
 
 case class GenotypesOnInterval(genotypes: VCF, sites: VCF)
-    extends WithSharedFiles(genotypes.files ++ sites.files: _*)
 
 case class GenotypeGVCFsResult(sites: VCF, genotypesScattered: Seq[VCF])
-    extends WithSharedFiles(
-      sites.files ++ genotypesScattered.flatMap(_.files): _*)
 
 case class TrainSnpVQSRInput(
     vcf: VCF,
@@ -86,21 +72,19 @@ case class TrainSnpVQSRInput(
     omni: VCF,
     oneKg: VCF,
     knownSites: VCF,
-) extends WithSharedFiles(
-      vcf.files ++ hapmap.files ++ omni.files ++ oneKg.files ++ knownSites.files: _*)
+)
 
 case class TrainIndelVQSRInput(
     vcf: VCF,
     millsAnd1Kg: VCF,
     knownSites: VCF,
-) extends WithSharedFiles(
-      vcf.files ++ millsAnd1Kg.files ++ knownSites.files: _*)
+)
 
 case class TrainVQSRResult(
     recal: SharedFile,
     recalIdx: SharedFile,
     tranches: SharedFile
-) extends WithSharedFiles(recal, recalIdx, tranches) {
+) {
   def localRecalFile(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
       _ <- recalIdx.file
@@ -112,7 +96,7 @@ case class ApplyVQSRInput(
     vcf: VCF,
     snp: TrainVQSRResult,
     indel: TrainVQSRResult
-) extends WithSharedFiles(vcf.files ++ snp.files ++ indel.files: _*)
+)
 
 case class JointCallInput(
     haplotypeCallerReferenceCalls: StableSet[VCF],
@@ -121,8 +105,7 @@ case class JointCallInput(
     vqsrTrainingFiles: Option[VQSRTrainingFiles],
     outputFileName: String,
     contigsFile: Option[ContigsFile]
-) extends WithSharedFiles(
-      haplotypeCallerReferenceCalls.toSeq.flatMap(_.files): _*)
+)
 case class MergeSingleCallsInput(
     haplotypeCallerReferenceCalls: StableSet[VCF],
     nonRefSites: StableSet[VCF],
@@ -130,8 +113,7 @@ case class MergeSingleCallsInput(
     dbSnpVcf: VCF,
     outputFileName: String,
     contigsFile: Option[ContigsFile]
-) extends WithSharedFiles(
-      haplotypeCallerReferenceCalls.toSeq.flatMap(_.files): _*)
+)
 
 case class SingleSampleVariantDiscoveryInput(
     bam: CoordinateSortedBam,
@@ -143,25 +125,19 @@ case class SingleSampleVariantDiscoveryInput(
     variantEvaluationIntervals: BedFile,
     vqsrTrainingFiles: Option[VQSRTrainingFiles],
     keepVcf: Boolean)
-    extends WithSharedFiles(
-      bam.files ++ indexedReference.files ++ contigsFile.toSeq
-        .flatMap(_.files) ++ dbSnpVcf.files ++ variantEvaluationIntervals.files ++ vqsrTrainingFiles.toSeq
-        .flatMap(_.files): _*)
 
 case class SingleSampleVariantDiscoveryResult(
     haplotypeCallerReferenceCalls: Option[VCF],
     genotypedVcf: Option[VCF],
     gvcfQCInterval: VariantCallingMetricsResult,
     gvcfQCOverall: VariantCallingMetricsResult)
-    extends WithMutableSharedFiles(
-      mutables = haplotypeCallerReferenceCalls.toSeq
-        .flatMap(_.files) ++ genotypedVcf.toSeq
-        .flatMap(_.files) ++ gvcfQCInterval.files ++ gvcfQCOverall.files,
-      immutables = Nil
+    extends WithSharedFiles(
+      mutables = haplotypeCallerReferenceCalls.toSeq ++ genotypedVcf.toSeq ++ List(
+        gvcfQCInterval,
+        gvcfQCOverall)
     )
 
 case class CombineGenotypesInput(vcfs: StableSet[VCF], outputFileName: String)
-    extends WithSharedFiles(vcfs.toSeq.flatMap(_.files): _*)
 
 object HaplotypeCaller {
 

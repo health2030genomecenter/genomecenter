@@ -41,18 +41,15 @@ case class StarAlignmentInput(
     gtf: SharedFile,
     readLength: Int,
     starVersion: StarVersion
-) extends WithSharedFiles(fastqs.toSeq.flatMap(l =>
-      List(l.read1.file, l.read2.file)) ++ Seq(reference.fasta, gtf): _*)
+)
 
 case class StarResult(
     finalLog: SharedFile,
     bam: BamWithSampleMetadata
-) extends WithMutableSharedFiles(mutables = bam.files :+ finalLog,
-                                   immutables = Nil)
+) extends WithSharedFiles(mutables = List(bam, finalLog))
 
 case class StarIndexedReferenceFasta(fasta: SharedFile,
-                                     indexFiles: StableSet[SharedFile])
-    extends WithSharedFiles(fasta) {
+                                     indexFiles: StableSet[SharedFile]) {
   def genomeFolder(implicit tsc: TaskSystemComponents, ec: ExecutionContext) =
     for {
       indexFiles <- Future.traverse(indexFiles.toSeq)(_.file)
@@ -62,7 +59,7 @@ case class StarIndexedReferenceFasta(fasta: SharedFile,
 case class StarIndexInput(
     reference: ReferenceFasta,
     starVersion: StarVersion
-) extends WithSharedFiles(reference.files: _*)
+)
 
 object StarAlignment {
 

@@ -17,9 +17,7 @@ case class SingleSampleConfiguration(
     vqsrTrainingFiles: Option[VQSRTrainingFiles],
     wesConfiguration: WESConfiguration,
     variantCallingContigs: Option[ContigsFile]
-) extends WithSharedFiles(
-      dbSnpVcf.files ++ vqsrTrainingFiles.toSeq
-        .flatMap(_.files) ++ variantCallingContigs.toSeq.flatMap(_.files): _*)
+)
 
 case class SampleResult(
     wes: Seq[(SingleSamplePipelineResult,
@@ -32,13 +30,7 @@ case class SampleResult(
     runFolders: Seq[RunfolderReadyForProcessing],
     project: Project,
     sampleId: SampleId
-) extends WithSharedFiles(
-      wes.toSeq.flatMap(_._1.files) ++
-        wes.toSeq.flatMap(_._2.files) ++
-        rna.toSeq.flatMap(_.files) ++
-        demultiplexed.flatMap(_.files) ++
-        fastpReports.flatMap(_.files): _*
-    ) {
+) {
   def lastRunId = runFolders.last.runId
 
   def extractWESQCFiles: Seq[SampleMetrics] =
@@ -81,8 +73,7 @@ case class SingleSamplePipelineInputRNASeq(
     qtlToolsArguments: Seq[String],
     quantificationGtf: GTFFile,
     starVersion: StarVersion
-) extends WithSharedFiles(
-      demultiplexed.files ++ reference.files ++ gtf.files: _*)
+)
 
 case class SingleSamplePipelineInput(
     analysisId: AnalysisId,
@@ -99,9 +90,6 @@ case class SingleSamplePipelineInput(
     contigsFile: Option[ContigsFile],
     vqsrTrainingFiles: Option[VQSRTrainingFiles],
     keepVcf: Option[Boolean])
-    extends WithSharedFiles(demultiplexed.files ++ reference.files ++ knownSites
-      .flatMap(_.files) ++ selectionTargetIntervals.files ++ alignedLanes.toSeq
-      .flatMap(_.files): _*)
 
 case class PerSampleMergedWESResult(
     bam: CoordinateSortedBam,
@@ -116,31 +104,24 @@ case class PerSampleMergedWESResult(
     gvcfQCInterval: Option[VariantCallingMetricsResult],
     gvcfQCOverall: Option[VariantCallingMetricsResult],
     referenceFasta: IndexedReferenceFasta)
-    extends WithSharedFiles(
-      bam.files ++ alignmentQC.files ++ duplicationQC.files ++ targetSelectionQC.files ++ wgsQC.files ++ haplotypeCallerReferenceCalls.toSeq
-        .flatMap(_.files) ++ gvcf.toSeq
-        .flatMap(_.files) ++ referenceFasta.files ++ gvcfQCOverall.toSeq
-        .flatMap(_.files) ++ gvcfQCInterval.toSeq
-        .flatMap(_.files): _*)
 
 case class SingleSamplePipelineResult(
     alignedLanes: StableSet[BamWithSampleMetadataPerLane],
     mergedRuns: Option[PerSampleMergedWESResult],
     coverage: MeanCoverageResult
 ) // mergedRuns is unchecked to allow overwriting
-    extends WithSharedFiles(alignedLanes.toSeq.flatMap(_.files): _*)
+    extends WithSharedFiles(mutables = mergedRuns.toSeq)
 
 case class SingleSamplePipelineResultRNA(
     analysisId: AnalysisId,
     star: StarResult,
     quantification: QTLToolsQuantificationResult
-) extends WithMutableSharedFiles(
-      mutables = star.files ++ quantification.files,
-      immutables = Nil)
+) extends WithSharedFiles(
+      mutables = List(star, quantification)
+    )
 
 case class PerSamplePipelineResultRNASeq(
     samples: StableSet[SingleSamplePipelineResultRNA])
-    extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object SingleSamplePipelineInput {
   implicit val encoder: Encoder[SingleSamplePipelineInput] =

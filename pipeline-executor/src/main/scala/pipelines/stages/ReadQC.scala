@@ -23,17 +23,14 @@ import akka.util.ByteString
 import Executables.readQCJar
 
 case class ReadQCPerUnitInput(fastqs: StableSet[FastQ])
-    extends WithSharedFiles(fastqs.toSeq.flatMap(_.files): _*)
 
 case class ReadQCMetrics(metrics: readqc.Metrics)
 
 case class ReadQCResult(metrics: EValue[PerSamplePerLanePerReadMetrics],
                         plots: SharedFile,
                         gcFractionTable: SharedFile)
-    extends WithSharedFiles(plots)
 
 case class ReadQCInput(samples: StableSet[PerSampleFastQ], title: String)
-    extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 object ReadQC {
 

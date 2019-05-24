@@ -14,12 +14,11 @@ case class BamCoverageInput(
     bases: List[CountMappedBasesResult],
     reference: IndexedReferenceFasta,
     selectionTargetIntervals: BedFile
-) extends WithSharedFiles(
-      reference.files ++ selectionTargetIntervals.files: _*)
+)
 case class CountMappedBasesInput(
     bam: Bam,
     selectionTargetIntervals: BedFile
-) extends WithSharedFiles(bam.files ++ selectionTargetIntervals.files: _*)
+)
 
 case class CountMappedBasesResult(all: Long, target: Long)
 case class MeanCoverageResult(all: Double, target: Double) {

@@ -806,7 +806,7 @@ object ProtoPipelineStages extends StrictLogging {
       implicit tsc: TaskSystemComponents,
       ec: ExecutionContext) = {
     val files =
-      runConfiguration.bqsrKnownSites
+      runConfiguration.bqsrKnownSites.toSeq
 
     val fileListWithIndices = files.map { vcfFile =>
       (new File(vcfFile), new File(vcfFile + ".tbi"))

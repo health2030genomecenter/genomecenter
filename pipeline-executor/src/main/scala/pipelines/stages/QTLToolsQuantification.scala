@@ -13,7 +13,7 @@ case class QTLToolsQuantificationInput(
     bam: CoordinateSortedBam,
     gtf: GTFFile,
     additionalCommandLineArguments: Seq[String]
-) extends WithSharedFiles(bam.files ++ List(gtf.file): _*)
+)
 
 case class QTLToolsQuantificationResult(
     exonCounts: SharedFile,
@@ -21,9 +21,8 @@ case class QTLToolsQuantificationResult(
     stats: SharedFile,
     exonRpkms: SharedFile,
     geneRpkms: SharedFile
-) extends WithMutableSharedFiles(
-      mutables = List(exonCounts, geneCounts, stats, exonRpkms, geneRpkms),
-      immutables = Nil)
+) extends WithSharedFiles(
+      mutables = List(exonCounts, geneCounts, stats, exonRpkms, geneRpkms))
 
 object QTLToolsQuantification {
 

@@ -28,7 +28,7 @@ case class DemultiplexingInput(
     noPartition: Option[Boolean],
     partitionByTileCount: Option[Int],
     createIndexFastqInReadType: Option[ReadType]
-) extends WithSharedFiles(sampleSheet.files ++ globalIndexSet.toSeq: _*) {
+) {
   def readLengths: Map[ReadType, Int] =
     DemultiplexingInput.parseReadLengthFromBcl2FastqArguments(
       extraBcl2FastqCliArguments)
@@ -37,12 +37,9 @@ case class DemultiplexingInput(
 case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
                                       tiles: StableSet[String],
                                       partitionIndex: Int)
-    extends WithSharedFiles(run.files: _*)
 
 case class DemultiplexedReadData(fastqs: StableSet[FastQWithSampleMetadata],
-                                 stats: EValue[DemultiplexingStats.Root])
-    extends ResultWithSharedFiles(
-      fastqs.toSeq.map(_.fastq.file) ++ stats.files: _*) {
+                                 stats: EValue[DemultiplexingStats.Root]) {
   def withoutUndetermined =
     DemultiplexedReadData(
       fastqs.filterNot(_.sampleId == SampleId("Undetermined")),

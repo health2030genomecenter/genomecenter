@@ -14,7 +14,6 @@ case class FastpReport(html: SharedFile,
                        project: Project,
                        sampleId: SampleId,
                        runId: RunId)
-    extends WithSharedFiles(html, json)
 
 object Fastp {
 

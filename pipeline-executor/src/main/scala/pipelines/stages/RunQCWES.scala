@@ -18,24 +18,19 @@ import Executables.{picardJar, fakeRscript}
 
 case class AlignmentQCInput(bam: CoordinateSortedBam,
                             reference: IndexedReferenceFasta)
-    extends WithSharedFiles((bam.files ++ reference.files): _*)
 
 case class CollectWholeGenomeMetricsInput(bam: CoordinateSortedBam,
                                           reference: IndexedReferenceFasta)
-    extends WithSharedFiles((bam.files ++ reference.files): _*)
 
 case class SelectionQCInput(bam: CoordinateSortedBam,
                             reference: IndexedReferenceFasta,
                             selectionTargetIntervals: BedFile)
-    extends WithSharedFiles(
-      (bam.files ++ reference.files ++ selectionTargetIntervals.files): _*)
 
 case class SelectionQCResult(hsMetrics: SharedFile)
-    extends WithMutableSharedFiles(mutables = List(hsMetrics), immutables = Nil)
+    extends WithSharedFiles(mutables = List(hsMetrics))
 
 case class CollectWholeGenomeMetricsResult(wgsMetrics: SharedFile)
-    extends WithMutableSharedFiles(mutables = List(wgsMetrics),
-                                   immutables = Nil)
+    extends WithSharedFiles(mutables = List(wgsMetrics))
 
 case class AlignmentQCResult(
     alignmentSummary: SharedFile,
@@ -45,14 +40,14 @@ case class AlignmentQCResult(
     preAdapterDetail: SharedFile,
     preAdapterSummary: SharedFile,
     insertSizeMetrics: SharedFile
-) extends WithMutableSharedFiles(mutables = List(alignmentSummary,
-                                                   biasDetail,
-                                                   biasSummary,
-                                                   errorSummary,
-                                                   preAdapterDetail,
-                                                   preAdapterSummary,
-                                                   insertSizeMetrics),
-                                   immutables = Nil)
+) extends WithSharedFiles(
+      mutables = List(alignmentSummary,
+                      biasDetail,
+                      biasSummary,
+                      errorSummary,
+                      preAdapterDetail,
+                      preAdapterSummary,
+                      insertSizeMetrics))
 
 case class SampleMetrics(analysisId: AnalysisId,
                          alignmentSummary: SharedFile,
@@ -66,23 +61,14 @@ case class SampleMetrics(analysisId: AnalysisId,
                          sampleId: SampleId,
                          insertSizeMetrics: SharedFile,
                          fastCoverages: List[(RunId, MeanCoverageResult)])
-    extends WithSharedFiles(List(
-      alignmentSummary,
-      hsMetrics,
-      duplicationMetrics,
-      wgsMetrics,
-      fastpReport.json,
-      insertSizeMetrics) ++ gvcfQCIntervalMetrics.toList ++ gvcfQCOverallMetrics.toList: _*)
 
 case class RunQCTableInput(fileName: String,
                            samples: StableSet[SampleMetrics],
                            rnaSeqAnalyses: StableSet[(AnalysisId, StarResult)])
-    extends WithSharedFiles(samples.toSeq.flatMap(_.files): _*)
 
 case class RunQCTable(htmlTable: SharedFile,
                       rnaCsvTable: SharedFile,
                       csvTable: SharedFile)
-    extends WithSharedFiles(htmlTable, rnaCsvTable, csvTable)
 
 object AlignmentQC {
 

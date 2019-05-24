@@ -12,17 +12,19 @@ import io.circe.Decoder
   * This class is an opaque wrapper around HashSet with a custom io.circe.Encoder.
   * The custom encoder reorders the serialized elements lexicographically.
   */
-case class StableSet[A](underlying: scala.collection.immutable.HashSet[A]) {
-  def toSeq = underlying.toSeq
+case class StableSet[A](underlying: scala.collection.immutable.HashSet[A])
+    extends Traversable[A] {
+  override def toSeq = underlying.toSeq
   def contains(a: A) = underlying.contains(a)
   def map[B](f: A => B) = StableSet(underlying.map(f))
-  def find(f: A => Boolean) = underlying.find(f)
-  def filterNot(f: A => Boolean) = StableSet(underlying.filterNot(f))
+  override def find(f: A => Boolean) = underlying.find(f)
+  override def filterNot(f: A => Boolean) = StableSet(underlying.filterNot(f))
   def flatMap[B](f: A => scala.collection.GenTraversableOnce[B]) =
     underlying.flatMap(f)
   def ++(that: StableSet[A]) = StableSet(underlying ++ that.underlying)
   def ++(that: Seq[A]) = StableSet(underlying ++ that)
-  def size = underlying.size
+  override def size = underlying.size
+  def foreach[U](f: A => U) = underlying.foreach(f)
 }
 
 object StableSet {
