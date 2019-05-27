@@ -548,7 +548,7 @@ class PipelinesApplicationTest
                                         "fake1_0fake2_1fake3_1")),
                      true)
           .runWith(Sink.last),
-        atMost = 90 seconds
+        atMost = 120 seconds
       )
 
     Then(
@@ -732,7 +732,7 @@ class PipelinesApplicationTest
           true
         )
         .runWith(Sink.last),
-      atMost = 90 seconds
+      atMost = 120 seconds
     )
     taskSystem.shutdown
     Await.result(AS.terminate, 5 seconds)
@@ -982,7 +982,7 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult, Unit] {
         runCounter.update(r.runId, 0)
       }
       println("Pretending demultiplexing exception.")
-      Future.failed(new RuntimeException("boo"))
+      Future.failed(new RuntimeException("simulated error"))
     } else
       Future.successful(
         List(

@@ -295,38 +295,42 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    *    This flow bears a state and is implemented as a scan and a broadcast.
    *
    *
+   *    The buffers are are very important because they break deadlocks arising on cycles.
+   *    Both sampleprocessing and demultiplexing are part of a cycle in the graph.
+   *    Without a buffer this can form a deadlock. To see this consider that akka-stream
+   *    is pull based and elements are pulled out only if there is a need.
+   *    E.g a cycle of length one with a map stage will immediately deadlock because the
+   *    map will signal the need only if being pulled, and it never pulls itself.
+   *    Placing a buffer is like a temporary sink which pulls.
+   *    (In akka's documentation this pull-based mechanism is referred to as backpressure.)
    *
    *
-   *                             IN [RunfolderReadForProcessing]
-   *                             |
-   *+----------------------------v-------------------------------------------------------+
-   *|                            |                                                       |
-   *|                            |                                                       |
-   *|                            .------>--+                                             |
-   *|                                      |                                             |
-   *|                                      |                                             |
-   *|                                      |                                             |
-   *|                                      v                                             |
-   *|                                      |                                             |
-   *|                            +-------- | ---[Demux]-Raw-<--+                         |
-   *|                            v         |      +------------^----------------+        |
-   *|                            |  .______.      |                             |        |
-   *|      +------------+        |  |             |     accountWorkDone         |        |
-   *|      |            |    +---v--v+ Demuxed    |                             |        |
-   *|      |            |    | merge >------------> Accumulates state of runs   |        |
-   *|      |  Sample    |    +---^---+ Result     |   and samples               |        |
-   *|      |  Processor |        |                +--v---------v----------------+        |
-   *|      |            |        |                   |         |                         |
-   *|      |            >-Result-+                   |         |                         |
-   *|      +------^-----+                            |         |                         |
-   *|             |                                  |         |completeds               |
-   *|             |                                  |         |                         |
-   *|             +----------Demultiplexed sample----.         |                         |
-   *|                        accounting of demultiplexed       |                         |
-   *|                        sample is done                    |                         |
-   *+------------------------------------------------------------------------------------+
-   *                                                           |
-   *                                                           OUT [Completeds]
+   *                                            IN [RunfolderReadyForProcessing]
+   * +-------------------------------------------+-------------------------------------------+
+   * |                                           |                                           |
+   * |                                           |                                           |
+   * |                                           v                                           |
+   * |   +------------------+             +------+------+                +----------------+  |
+   * |   |                  >--->BUFF>---->   Merge     <------<BUFF<----<                |  |
+   * |   | Sample processor |             +------v------+                |   Demultiplex  |  |
+   * |   |                  |                    |                       |                |  |
+   * |   |                  |           [Raw/Processed/Demuxed]          |                |  |
+   * |   |                  |                    |                       |                |  |
+   * |   |                  |       +------------v---------------+       |                |  |
+   * |   |                  |       |                            |       |                |  |
+   * |   |                  |       |  accountWorkDone           |       |                |  |
+   * |   |                  +<------<                            >------>|                |  |
+   * |   |            [Demultiplexed sample]                  [Raw runfolder]             |  |
+   * |   +------------------+       +-------------+--------------+       +----------------+  |
+   * |                                            |                                          |
+   * |                                            v                                          |
+   * +---------------------------------------------------------------------------------------+
+   *                                              |
+   *                                              v
+   *                                              OUT [Completeds]
+   * 
+   *
+   *
    */
   def accountAndProcess: Flow[Seq[RunWithAnalyses], Completeds, _] =
     Flow.fromGraph(
@@ -351,14 +355,16 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
                     samples.map(s => (run, s)).toList
                 } ~> sampleProcessing ~> Flow[(Option[SampleResult],
                                                DemultiplexedSample)]
-                .map(ProcessedSample.tupled) ~> merge.in(1)
+                .map(ProcessedSample.tupled)
+                .buffer(1, OverflowStrategy.backpressure) ~> merge.in(1)
 
               merge.out ~> accountWorkDone.in
 
-              accountWorkDone.out2 ~> demultiplex ~> Flow[Seq[DM]].map {
-                demultiplexedRuns =>
+              accountWorkDone.out2 ~> demultiplex ~> Flow[Seq[DM]]
+                .map { demultiplexedRuns =>
                   Demultiplexed(demultiplexedRuns)
-              } ~> merge.in(0)
+                }
+                .buffer(1, OverflowStrategy.backpressure) ~> merge.in(0)
 
               FlowShape(mapToRaw.in, accountWorkDone.out1)
         })
@@ -372,7 +378,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
                         Seq[(RunWithAnalyses, Seq[DemultiplexedSample])],
                         _] =
     Flow[Seq[RunWithAnalyses]]
-      .mapAsync(1) { runsWithAnalyses =>
+      .mapAsync(1000) { runsWithAnalyses =>
         traverseAll(runsWithAnalyses) { runWithAnalyses =>
           val run = runWithAnalyses.run
           logger.debug(
@@ -392,6 +398,34 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         }
       }
 
+  /* Accounting stage
+   *
+   * This stage of formed of a scan which accumulates the state,
+   * and a broadcast which copies (forks) emitted elements towards
+   * sample processing, demultiplexing or completion.
+   * Each flow after the broadcast takes only the elements it needs from the
+   * accumulated state.
+   *
+   *                                      IN
+   *                                      |
+   *                                      v
+   *                           +----------+--------------+
+   *                           |                         |
+   *                           |   State-scan            |
+   *                           |                         |
+   *                           +----------+--------------+
+   *                                      |
+   *                                      v
+   * +----------------------+      +------+------+          +--------------------+
+   * |sendToSampleProcessing+<-----+  Broadcast  +--------->+sendToDemultiplexing|
+   * +----------------------+      +------+------+          +--------------------+
+   *                                      |
+   *                                      v
+   *                           +----------+--------------+
+   *                           |   completeds            |
+   *                           +-------------------------+
+   *
+   */
   def accountWorkDone
     : Graph[FanOutShape3[Stage,
                          (RunWithAnalyses, Seq[DemultiplexedSample]),
@@ -602,7 +636,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       }
       // The following buffer separately buffers each sample
       // thus the groupBy is pulled unless the next sample would go into a
-      // bucket with an already full buffer
+      // bucket with an already full buffer.
+      // This is needed because groupBy is synchronous and otherwise samples were
+      // not processed in parallel.
       .buffer(size = 100, OverflowStrategy.backpressure)
       .scanAsync(List
         .empty[(Option[SampleResult], RunWithAnalyses, DemultiplexedSample)]) {
