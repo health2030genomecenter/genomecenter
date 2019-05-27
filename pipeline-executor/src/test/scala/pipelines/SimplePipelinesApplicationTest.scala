@@ -61,7 +61,7 @@ class SimplePipelinesApplicationTest
                                         "fake1_0fake2_0fake3_0")),
                      true)
           .runWith(Sink.last),
-        atMost = 60 seconds
+        atMost = 90 seconds
       )
 
     Then(

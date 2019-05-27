@@ -250,7 +250,7 @@ class PipelinesApplicationTest
                                       "fake0_0fake1_0fake2_0")),
                    true)
         .runWith(Sink.last),
-      atMost = 60 seconds
+      atMost = 90 seconds
     )
 
     processedRuns
@@ -298,7 +298,7 @@ class PipelinesApplicationTest
                                       "fake0_0fake1_0fake2_0")),
                    true)
         .runWith(Sink.last),
-      atMost = 60 seconds
+      atMost = 90 seconds
     )
 
     processedRuns
@@ -548,7 +548,7 @@ class PipelinesApplicationTest
                                         "fake1_0fake2_1fake3_1")),
                      true)
           .runWith(Sink.last),
-        atMost = 60 seconds
+        atMost = 90 seconds
       )
 
     Then(
@@ -631,7 +631,7 @@ class PipelinesApplicationTest
           true
         )
         .runWith(Sink.last),
-      atMost = 60 seconds
+      atMost = 90 seconds
     )
     taskSystem.shutdown
     Await.result(AS.terminate, 5 seconds)
@@ -659,7 +659,7 @@ class PipelinesApplicationTest
                        pipelineState.registered((run))
                    }
                    .runForeach(_ => ()),
-                 atMost = 60 seconds)
+                 atMost = 90 seconds)
 
     When("Sending these run sequence into a running application")
     val app = new PipelinesApplication(new CommandSource {
@@ -682,7 +682,7 @@ class PipelinesApplicationTest
           true
         )
         .runWith(Sink.last),
-      atMost = 60 seconds
+      atMost = 90 seconds
     )
     taskSystem.shutdown
     Await.result(AS.terminate, 5 seconds)
@@ -709,7 +709,7 @@ class PipelinesApplicationTest
                        pipelineState.registered((run))
                    }
                    .runForeach(_ => ()),
-                 atMost = 60 seconds)
+                 atMost = 90 seconds)
 
     When("Sending these run sequence into a running application")
     val app = new PipelinesApplication(new CommandSource {
@@ -732,7 +732,7 @@ class PipelinesApplicationTest
           true
         )
         .runWith(Sink.last),
-      atMost = 60 seconds
+      atMost = 90 seconds
     )
     taskSystem.shutdown
     Await.result(AS.terminate, 5 seconds)
@@ -772,7 +772,7 @@ class PipelinesApplicationTest
                                         "fake-1_0")),
                      true)
           .runWith(Sink.last),
-        atMost = 60 seconds
+        atMost = 90 seconds
       )
 
     Then("The first should be processed should be processed on the second try.")

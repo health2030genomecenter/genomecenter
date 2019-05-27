@@ -419,7 +419,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
             case (state, (run, _)) =>
               logger.info(s"Demultiplexed 0 samples from ${run.runId}.")
-              state.removeFromUnfinishedDemultiplexing(run.runId)
+              state.removeFromUnfinishedProcessing(run.runId)
 
           }
 
@@ -728,7 +728,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    */
   case class StateOfUnfinishedSamples(
       private val runFoldersOnHold: Seq[RunWithAnalyses],
-      private val unfinishedDemultiplexingOfRunIds: Set[RunId],
+      private val unfinishedProcessingOfRunIds: Set[RunId],
       private val unfinished: Set[(Project, SampleId, RunId)],
       private val finished: Seq[SampleResult],
       sendToSampleProcessing: Seq[(RunWithAnalyses, Seq[DemultiplexedSample])],
@@ -736,11 +736,11 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       sendToCompleteds: Option[Completeds])
       extends StrictLogging {
 
-    def removeFromUnfinishedDemultiplexing(runId: RunId) = {
+    def removeFromUnfinishedProcessing(runId: RunId) = {
       val runRemovedFromUnfinishedDemultiplexing = copy(
         runFoldersOnHold = runFoldersOnHold
           .filterNot(_.runId == runId),
-        unfinishedDemultiplexingOfRunIds = unfinishedDemultiplexingOfRunIds - runId
+        unfinishedProcessingOfRunIds = unfinishedProcessingOfRunIds - runId
       )
       val onHold = runFoldersOnHold.filter(_.runId == runId)
       logger.info(
@@ -761,13 +761,13 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
                       sendToCompleteds = None)
       runs.foldLeft(zero) {
         case (state, run) =>
-          if (state.unfinishedDemultiplexingOfRunIds.contains(run.runId)) {
+          if (state.unfinishedProcessingOfRunIds.contains(run.runId)) {
             logger.info(s"Put run on hold: ${run.runId}.")
             state.copy(runFoldersOnHold = state.runFoldersOnHold :+ run)
           } else {
             logger.debug(s"Append to demultiplexables: ${run.runId}.")
             state.copy(
-              unfinishedDemultiplexingOfRunIds = state.unfinishedDemultiplexingOfRunIds + run.runId,
+              unfinishedProcessingOfRunIds = state.unfinishedProcessingOfRunIds + run.runId,
               sendToDemultiplexing = state.sendToDemultiplexing :+ run)
           }
       }
@@ -841,18 +841,27 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           runIsIncomplete || runWasOnHoldIsBeingReleased || projectIsIncomplete
         }
 
-      val newUnfinishedDemultiplexing = unfinishedDemultiplexingOfRunIds
-        .filterNot(_ == keysOfFinishedSample._3) ++ releasableRunWithAnalyses
-        .map(_.runId)
-        .toSeq
+      val newUnfinishedProcessing = {
+        val runIdsOfInCompleteRuns =
+          if (runIdIsComplete)
+            unfinishedProcessingOfRunIds
+              .filterNot(_ == keysOfFinishedSample._3)
+          else unfinishedProcessingOfRunIds
+
+        val runIdsOfReleasedRunsFromHold = releasableRunWithAnalyses
+          .map(_.runId)
+          .toSeq
+
+        (runIdsOfInCompleteRuns ++ runIdsOfReleasedRunsFromHold)
+      }
 
       logger.debug(
-        s"Accounting the completion of sample processing of $keysOfFinishedSample. Run complete: $runIdIsComplete. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Remaining finished samples: ${finishedSamplesWithInCompleteRunOrProject.size}. Unfinished demultiplex: $newUnfinishedDemultiplexing. Runfolders on hold: $remainingRunsOnHold. Released to demux: $releasableRunWithAnalyses")
+        s"Accounting the completion of sample processing of $keysOfFinishedSample. Run complete: $runIdIsComplete. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Remaining finished samples: ${finishedSamplesWithInCompleteRunOrProject.size}. Unfinished processing: $newUnfinishedProcessing. Runfolders on hold: $remainingRunsOnHold. Released to demux: $releasableRunWithAnalyses")
 
       StateOfUnfinishedSamples(
         unfinished = remainingUnfinishedSamples,
         finished = finishedSamplesWithInCompleteRunOrProject,
-        unfinishedDemultiplexingOfRunIds = newUnfinishedDemultiplexing,
+        unfinishedProcessingOfRunIds = newUnfinishedProcessing,
         runFoldersOnHold = remainingRunsOnHold,
         sendToSampleProcessing = Nil,
         sendToDemultiplexing = releasableRunWithAnalyses.toSeq,
