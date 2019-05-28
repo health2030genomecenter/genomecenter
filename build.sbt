@@ -110,6 +110,7 @@ lazy val pipelineExecutor = project
   .settings(
     name := "pipeline-executor",
     libraryDependencies ++= Seq(
+      "org.health2030genomecenter" % "binaries" % "1-4-gafaea3e",
       "io.github.pityka" %% "tasks-core" % tasksVersion,
       "io.github.pityka" %% "tasks-collection" % tasksVersion,
       "io.github.pityka" %% "tasks-ui-backend" % tasksVersion,
