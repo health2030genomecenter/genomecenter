@@ -218,6 +218,7 @@ object CliHelpers {
               List(project, sample, "FAILED     ", run)
             }).map(_.mkString("\t"))
       }
+      .filter(_.nonEmpty)
       .mkString("", "\n", "\n")
 
     case class JointCallState(started: Seq[JointCallsStarted] = Nil,
