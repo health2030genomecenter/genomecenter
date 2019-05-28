@@ -328,7 +328,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    *                                              |
    *                                              v
    *                                              OUT [Completeds]
-   * 
+   *
    *
    *
    */
