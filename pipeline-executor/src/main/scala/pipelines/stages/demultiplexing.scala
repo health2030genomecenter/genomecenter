@@ -162,16 +162,15 @@ object Demultiplexing {
 
           mergedStatsInFile <- for {
             _ <- {
+              val demultiplexingSummary = DemultiplexingSummary.fromStats(
+                mergedStats,
+                sampleToProjectMap(demultiplexedLanes.toSeq),
+                globalIndexSet)
               val tableAsString =
-                DemultiplexingSummary.renderAsTable(
-                  DemultiplexingSummary.fromStats(
-                    mergedStats,
-                    sampleToProjectMap(demultiplexedLanes.toSeq),
-                    globalIndexSet))
+                DemultiplexingSummary.renderAsTable(demultiplexingSummary)
               SharedFile(
                 Source.single(ByteString(tableAsString.getBytes("UTF-8"))),
-                name = sampleSheet.runId
-                  .getOrElse("UnknownRun") + ".demultiplexing.stats.txt")
+                name = demultiplexingSummary.runId + ".demultiplexing.stats.txt")
             }
             mergedStatsEValue <- EValue.apply(mergedStats, "Stats.json")
           } yield mergedStatsEValue
