@@ -13,15 +13,6 @@ lazy val commonSettings = Seq(
 
 lazy val tasksVersion = "0.0.54"
 
-lazy val stagingIvy1Repository =
-  Resolver.url("gc-ivy1",
-               new java.net.URL("http://10.6.38.2:31080/artifactory/ivy1"))(
-    Resolver.ivyStylePatterns)
-
-lazy val publishToStagingArtifactory = Seq(
-  publishTo := Some(stagingIvy1Repository)
-)
-
 resolvers += Resolver.jcenterRepo
 
 lazy val tasksSlurm = project
@@ -37,7 +28,6 @@ lazy val tasksSlurm = project
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.18" % "test"
     )
   )
-  .settings(publishToStagingArtifactory: _*)
 
 lazy val readqc = project
   .in(file("readqc"))
@@ -188,9 +178,6 @@ lazy val pipelineExecutor = project
     else new File(testFolder).getCanonicalFile
   })
   .settings(inConfig(IntegrationTest)(scalafmtSettings))
-  .settings(
-    publishToStagingArtifactory: _*
-  )
 
 lazy val root = (project in file("."))
   .settings(commonSettings: _*)
