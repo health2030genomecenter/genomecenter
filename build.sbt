@@ -4,7 +4,7 @@ lazy val commonSettings = Seq(
   scalacOptions ++= scalacOptionList,
   scalacOptions in (Compile, console) := scalacOptions.value filterNot (_ == "-Ywarn-unused:imports")
 ) ++ Seq(
-  organization := "org.gc",
+  organization := "org.health2030genomecenter",
   fork := true,
   javaOptions += "-Xmx4G",
   cancelable in Global := true,
