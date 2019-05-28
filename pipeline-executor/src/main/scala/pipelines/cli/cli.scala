@@ -20,6 +20,7 @@ import org.gc.pipelines.model.{
 }
 import org.gc.pipelines.stages.Demultiplexing
 import scalaj.http.Http
+import org.gc.pipelines.model.SampleSheet
 
 object CliHelpers {
   val runConfigurationExample =
@@ -288,6 +289,7 @@ object Pipelinectl extends App {
   case object QueryDeliverables extends CliCommand
   case object QueryFreeRuns extends CliCommand
   case object AnalyseResourceUsage extends CliCommand
+  case object ParseSampleSheet extends CliCommand
 
   val config = {
     val configInUserHome =
@@ -361,7 +363,7 @@ object Pipelinectl extends App {
         scala.io.Source.stdin.mkString
       case path =>
         val conf = fileutils.openSource(path)(_.mkString)
-        println(s"File contents follows: ~~~\n\n $conf \n\n~~~")
+        println(s"File contents follows: ~~~\n\n$conf \n\n~~~")
         println("Type Y if ok!")
         if (scala.io.Source.stdin.take(1).mkString != "Y") {
           System.exit(0)
@@ -397,6 +399,15 @@ object Pipelinectl extends App {
               c
             }
             .text("print template configuration for add-run and exit")
+        ),
+      cmd("parse-samplesheet")
+        .text("Parse sample sheet, print it and exit")
+        .action((_, c) => c.copy(command = ParseSampleSheet))
+        .children(
+          arg[String]("sampleSheet")
+            .text("path to sample sheet file")
+            .action((v, c) => c.copy(configPath = Some(v)))
+            .required
         ),
       cmd("reprocess-all")
         .text("Reprocesses all runs")
@@ -888,6 +899,9 @@ object Pipelinectl extends App {
             println("OK")
           }
 
+        case ParseSampleSheet =>
+          val raw = readFileOrStdin(config.configPath.get)
+          println(SampleSheet(raw).parsed.poolingLayout)
         case AppendRun =>
           println("Command: add run")
 
