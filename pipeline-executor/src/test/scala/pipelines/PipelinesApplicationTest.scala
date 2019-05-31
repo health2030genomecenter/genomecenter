@@ -21,6 +21,8 @@ import java.io.File
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.Tag
+import org.gc.pipelines.util.ActorSource
+import akka.testkit.TestProbe
 
 object Only extends Tag("only")
 
@@ -827,6 +829,88 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
+  test("pipelines application should re-execute project completion", Only) {
+    implicit val AS = ActorSystem()
+    implicit val materializer = ActorMaterializer()
+    val config = ConfigFactory.parseString("""
+  tasks.cache.enabled = false
+    """)
+    Given("A sequence of two runs with the first repeated")
+    val eventSource =
+      new FakeSequencingCompleteEventSourceWithControl(pattern = List(1, 2, 2))
+    val pipelineState = new InMemoryPipelineState
+    val taskSystem = defaultTaskSystem(Some(config))
+    val testPipeline = new TestPipeline
+
+    When("Sending these run sequence into a running application")
+    val app = new PipelinesApplication(eventSource,
+                                       pipelineState,
+                                       implicitly[ActorSystem],
+                                       taskSystem,
+                                       testPipeline,
+                                       Set())
+
+    val probe = TestProbe()
+    app.processingFinishedSource.runWith(Sink.actorRef(probe.ref, None))
+
+    eventSource.send()
+    Then("the project should be completed for the first time")
+    probe.fishForSpecificMessage(30 seconds) {
+      case ProjectFinished(project, true, Some(samples))
+          if project == Project("project1") =>
+        samples
+          .asInstanceOf[Seq[FakeSampleResult]]
+          .map(_.runId)
+          .toSet shouldBe Set(RunId("fake1"))
+    }
+
+    When("The second run is sent")
+    eventSource.send()
+
+    Then("the project should be completed for the second time")
+    probe.fishForSpecificMessage(30 seconds) {
+      case ProjectFinished(project, true, Some(samples))
+          if project == Project("project1") && (Set(RunId("fake1"),
+                                                    RunId("fake2")) &~ samples
+            .asInstanceOf[Seq[FakeSampleResult]]
+            .map(_.runId)
+            .toSet).isEmpty =>
+        ()
+    }
+    When("The second run is sent again")
+    eventSource.send()
+    Then(
+      "The project should be completed with the first run, and the second analysis of the second run")
+    probe.fishForSpecificMessage(30 seconds) {
+      case ProjectFinished(project, true, Some(samples))
+          if project == Project("project1") && (Set(RunId("fake1"),
+                                                    RunId("fake2")) &~ samples
+            .asInstanceOf[Seq[FakeSampleResult]]
+            .map(_.runId)
+            .toSet).isEmpty =>
+        samples.asInstanceOf[Seq[FakeSampleResult]].toSet shouldBe Set(
+          FakeSampleResult(Project("project1"),
+                           SampleId("sample1"),
+                           RunId("fake1"),
+                           "fake1_0"),
+          FakeSampleResult(Project("project1"),
+                           SampleId("sample2"),
+                           RunId("fake1"),
+                           "fake1_0"),
+          FakeSampleResult(Project("project1"),
+                           SampleId("sample1"),
+                           RunId("fake2"),
+                           "fake1_0fake2_1"),
+          FakeSampleResult(Project("project1"),
+                           SampleId("sample2"),
+                           RunId("fake2"),
+                           "fake1_0fake2_1")
+        )
+    }
+    taskSystem.shutdown
+    Await.result(AS.terminate, 5 seconds)
+  }
+
   def samplesFinishedAll(waitFor: Set[FakeSampleResult])(
       s: Seq[Any]): Boolean = {
     val r = waitFor.forall { test =>
@@ -958,6 +1042,42 @@ class FakeSequencingCompleteEventSource(take: Int,
       .map(Append(_))
 }
 
+class FakeSequencingCompleteEventSourceWithControl(pattern: List[Int] = Nil)(
+    implicit AS: ActorSystem)
+    extends CommandSource
+    with StrictLogging {
+
+  val runFolder = fileutils.TempFile.createTempFile(".temp")
+  runFolder.delete
+  runFolder.mkdirs
+  val runInfo = new java.io.File(runFolder, "RunInfo.xml")
+  new java.io.FileOutputStream(runInfo).close
+  val fake = fileutils.TempFile.createTempFile(".temp").getAbsolutePath
+
+  val cmds = pattern
+    .map { idx =>
+      RunfolderReadyForProcessing(
+        RunId("fake" + idx),
+        Some(runFolder.getAbsolutePath),
+        None,
+        RunConfiguration(StableSet.empty, None, StableSet.empty)
+      )
+    }
+    .map(Append(_))
+
+  val (forwarder, source, closer) = ActorSource.make[Append]
+
+  def commands = source
+
+  private var idx = 0
+
+  def send() = {
+    forwarder ! cmds(idx)
+    idx += 1
+  }
+
+}
+
 case class FakeDemultiplexed(
     project: Project,
     sampleId: SampleId,
@@ -971,7 +1091,8 @@ case class FakeSampleResult(
     accumulator: String
 )
 
-trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult, Unit] {
+trait FakePipeline
+    extends Pipeline[FakeDemultiplexed, FakeSampleResult, Seq[FakeSampleResult]] {
 
   val counter = scala.collection.mutable.Map[FakeDemultiplexed, Int]()
   val runCounter = scala.collection.mutable.Map[RunId, Int]()
@@ -1010,12 +1131,12 @@ trait FakePipeline extends Pipeline[FakeDemultiplexed, FakeSampleResult, Unit] {
     scala.collection.mutable.ArrayBuffer[Seq[FakeSampleResult]]()
   def processCompletedProject(samples: Seq[FakeSampleResult])(
       implicit tsc: TaskSystemComponents)
-    : Future[(Project, Boolean, Option[Nothing])] =
+    : Future[(Project, Boolean, Option[Seq[FakeSampleResult]])] =
     Future.successful {
       synchronized {
         completedProjects.append(samples)
       }
-      (samples.head.project, true, None)
+      (samples.head.project, true, Some(samples))
     }
 
   def processSample(runConfiguration: RunfolderReadyForProcessing,

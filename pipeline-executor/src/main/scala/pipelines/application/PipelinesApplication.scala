@@ -126,11 +126,11 @@ object PipelinesApplication extends StrictLogging {
                                   ec: ExecutionContext) = {
     val (project, _, _) = pipeline.getKeysOfSampleResult(samples.head)
 
-    val lastRunOfEachSample = samples.zipWithIndex
+    val lastRunOfEachSampleRunPair = samples.zipWithIndex
       .groupBy {
         case (sample, _) =>
-          val (_, sampleId, _) = pipeline.getKeysOfSampleResult(sample)
-          sampleId
+          val (_, sampleId, runId) = pipeline.getKeysOfSampleResult(sample)
+          (sampleId, runId)
       }
       .toSeq
       .map {
@@ -141,8 +141,8 @@ object PipelinesApplication extends StrictLogging {
       .map { case (sample, _) => sample }
 
     logger.info(
-      s"Per sample processing of $project with ${lastRunOfEachSample.size} samples finished.")
-    pipeline.processCompletedProject(lastRunOfEachSample).recover {
+      s"Per sample processing of $project with ${lastRunOfEachSampleRunPair.size} sample-run pairs finished.")
+    pipeline.processCompletedProject(lastRunOfEachSampleRunPair).recover {
       case error =>
         logger.error(
           s"$pipeline failed on $project while processing completed project",
@@ -865,18 +865,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           runFoldersOnHold.filterNot(onHold => onHold == released)
       }
 
-      val finishedSamplesWithInCompleteRunOrProject =
-        allFinishedSamples.filter { sampleResult =>
-          val (project, _, runId) = getKeysOfSampleResult(sampleResult)
-          val runIsIncomplete = runIdsOfRemainingUnfinished.contains(runId)
-          val projectIsIncomplete =
-            projectsOfRemainingUnfinished.contains(project)
-          val runWasOnHoldIsBeingReleased =
-            releasableRunWithAnalyses.map(_.runId).contains(runId)
-
-          runIsIncomplete || runWasOnHoldIsBeingReleased || projectIsIncomplete
-        }
-
       val newUnfinishedProcessing = {
         val runIdsOfInCompleteRuns =
           if (runIdIsComplete)
@@ -892,11 +880,11 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       }
 
       logger.debug(
-        s"Accounting the completion of sample processing of $keysOfFinishedSample. Run complete: $runIdIsComplete. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Remaining finished samples: ${finishedSamplesWithInCompleteRunOrProject.size}. Unfinished processing: $newUnfinishedProcessing. Runfolders on hold: $remainingRunsOnHold. Released to demux: $releasableRunWithAnalyses")
+        s"Accounting the completion of sample processing of $keysOfFinishedSample. Run complete: $runIdIsComplete. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Remaining finished samples: ${allFinishedSamples.size}. Unfinished processing: $newUnfinishedProcessing. Runfolders on hold: $remainingRunsOnHold. Released to demux: $releasableRunWithAnalyses")
 
       StateOfUnfinishedSamples(
         unfinished = remainingUnfinishedSamples,
-        finished = finishedSamplesWithInCompleteRunOrProject,
+        finished = allFinishedSamples,
         unfinishedProcessingOfRunIds = newUnfinishedProcessing,
         runFoldersOnHold = remainingRunsOnHold,
         sendToSampleProcessing = Nil,
