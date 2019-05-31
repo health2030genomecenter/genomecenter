@@ -202,10 +202,10 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         """
         postString("/v2/runs", runConfiguration2).status.intValue shouldBe 200
 
-        Then("The sample's processing should finish immediately")
+        Then("The sample's processing should finish")
         probe.fishForSpecificMessage(timeout) {
-          case sample: SampleFinished[_] =>
-            sample.sample shouldBe "sample1"
+          case sample: SampleFinished[_]
+              if sample.sample == "sample1" && sample.runId == "runid2" =>
         }
         getProgress("/v2/runs") shouldBe "runid1\nrunid2\n"
 
