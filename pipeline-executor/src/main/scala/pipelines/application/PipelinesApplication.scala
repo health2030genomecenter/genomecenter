@@ -126,11 +126,11 @@ object PipelinesApplication extends StrictLogging {
                                   ec: ExecutionContext) = {
     val (project, _, _) = pipeline.getKeysOfSampleResult(samples.head)
 
-    val lastRunOfEachSampleRunPair = samples.zipWithIndex
+    val lastRunOfEachSample = samples.zipWithIndex
       .groupBy {
         case (sample, _) =>
-          val (_, sampleId, runId) = pipeline.getKeysOfSampleResult(sample)
-          (sampleId, runId)
+          val (_, sampleId, _) = pipeline.getKeysOfSampleResult(sample)
+          sampleId
       }
       .toSeq
       .map {
@@ -141,8 +141,8 @@ object PipelinesApplication extends StrictLogging {
       .map { case (sample, _) => sample }
 
     logger.info(
-      s"Per sample processing of $project with ${lastRunOfEachSampleRunPair.size} sample-run pairs finished.")
-    pipeline.processCompletedProject(lastRunOfEachSampleRunPair).recover {
+      s"Per sample processing of $project with ${lastRunOfEachSample.size} sample-run pairs finished.")
+    pipeline.processCompletedProject(lastRunOfEachSample).recover {
       case error =>
         logger.error(
           s"$pipeline failed on $project while processing completed project",

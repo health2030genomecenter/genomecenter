@@ -829,7 +829,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
-  test("pipelines application should re-execute project completion", Only) {
+  test("pipelines application should re-execute project completion") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -870,12 +870,20 @@ class PipelinesApplicationTest
     Then("the project should be completed for the second time")
     probe.fishForSpecificMessage(30 seconds) {
       case ProjectFinished(project, true, Some(samples))
-          if project == Project("project1") && (Set(RunId("fake1"),
-                                                    RunId("fake2")) &~ samples
+          if project == Project("project1") && (Set(RunId("fake2")) &~ samples
             .asInstanceOf[Seq[FakeSampleResult]]
             .map(_.runId)
             .toSet).isEmpty =>
-        ()
+        samples.asInstanceOf[Seq[FakeSampleResult]].toSet shouldBe Set(
+          FakeSampleResult(Project("project1"),
+                           SampleId("sample1"),
+                           RunId("fake2"),
+                           "fake1_0fake2_0"),
+          FakeSampleResult(Project("project1"),
+                           SampleId("sample2"),
+                           RunId("fake2"),
+                           "fake1_0fake2_0")
+        )
     }
     When("The second run is sent again")
     eventSource.send()
@@ -883,20 +891,11 @@ class PipelinesApplicationTest
       "The project should be completed with the first run, and the second analysis of the second run")
     probe.fishForSpecificMessage(30 seconds) {
       case ProjectFinished(project, true, Some(samples))
-          if project == Project("project1") && (Set(RunId("fake1"),
-                                                    RunId("fake2")) &~ samples
+          if project == Project("project1") && (Set(RunId("fake2")) &~ samples
             .asInstanceOf[Seq[FakeSampleResult]]
             .map(_.runId)
             .toSet).isEmpty =>
         samples.asInstanceOf[Seq[FakeSampleResult]].toSet shouldBe Set(
-          FakeSampleResult(Project("project1"),
-                           SampleId("sample1"),
-                           RunId("fake1"),
-                           "fake1_0"),
-          FakeSampleResult(Project("project1"),
-                           SampleId("sample2"),
-                           RunId("fake1"),
-                           "fake1_0"),
           FakeSampleResult(Project("project1"),
                            SampleId("sample1"),
                            RunId("fake2"),
