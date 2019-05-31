@@ -30,7 +30,10 @@ object WgsMetrics {
       pctCoverage20x: Double,
       pctCoverage60x: Double,
       pctCoverage100x: Double
-  )
+  ) {
+    def meanCoverageIncludingDuplicates: Double =
+      meanCoverage / (1d - pctExcludedDuplication)
+  }
 
   object Root {
 

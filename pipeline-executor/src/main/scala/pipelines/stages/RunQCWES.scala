@@ -842,6 +842,7 @@ object AlignmentQC {
               project -> left,
               sampleId -> left,
               f"$meanCoverage%13.1fx" -> right,
+              f"${wgsMetrics.metrics.meanCoverageIncludingDuplicates}%13.1fx" -> right,
               f"${aggregatedLaneMetrics.totalMeanTargetCoverage}%13.1fx" -> right,
               f"${aggregatedLaneMetrics.totalMeanTargetCoverageIncludingDuplicates}%13.1fx" -> right,
               f"${aggregatedLaneMetrics.totalReads / 1E6}%10.2fM" -> right,
@@ -937,6 +938,7 @@ object AlignmentQC {
       List("Proj", "Sample"),
       List(
         "MEAN_COVERAGE(Wgs)" -> right,
+        "MeanCoverageDupIncl(Wgs)" -> right,
         "MEAN_TARGET_COVERAGE" -> right,
         "MeanTargetCoverageDupIncl" -> right,
         "TOTAL_READS" -> right,
