@@ -1017,7 +1017,7 @@ object AlignmentQC {
   }
 
   val runQCTable =
-    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 6) {
+    AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 7) {
       case RunQCTableInput(fileName, sampleMetrics, rnaAnalyses) =>
         implicit computationEnvironment =>
           def read(f: File) = fileutils.openSource(f)(_.mkString)
