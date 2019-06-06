@@ -62,7 +62,8 @@ class PipelinesApplicationTest
         this.getClass.getResource("/migration_test_data").getFile).toPath
       better.files.Dsl.cp(source, file.toPath)
       And("loaded into a FilePipelineState")
-      val pipelineState = new FilePipelineState(file)
+      val AS = ActorSystem()
+      val pipelineState = new FilePipelineState(file)(AS, AS.dispatcher)
 
       And("two runs with the same ids ")
       val run = RunfolderReadyForProcessing(
@@ -78,28 +79,31 @@ class PipelinesApplicationTest
         RunConfiguration(StableSet.empty, None, StableSet.empty)
       )
       When("the first run is registered")
-      pipelineState.registered(run)
+      pipelineState.registered(run).await
 
       Then(
         "the FilePipelineState's pastRuns method should return 2 runs, first the one in the file")
       val result =
-        Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
+        Await.result((new FilePipelineState(file)(AS, AS.dispatcher)).pastRuns,
+                     5 seconds)
       result.size shouldBe 2
       result.takeRight(1) shouldBe List(
         RunWithAnalyses(run, analysisAssignment))
       result.map(_.runId) shouldBe List("", "fake")
 
       When("The second is invalidated")
-      pipelineState.invalidated(run.runId)
+      pipelineState.invalidated(run.runId).await
       Then("the pastRuns method should return 1 run")
       Await
-        .result((new FilePipelineState(file)).pastRuns, 5 seconds)
+        .result((new FilePipelineState(file)(AS, AS.dispatcher)).pastRuns,
+                5 seconds)
         .size shouldBe 1
 
       When("a new run with the same runId as the second is registered")
-      pipelineState.registered(run2)
+      pipelineState.registered(run2).await
       val result2 =
-        Await.result((new FilePipelineState(file)).pastRuns, 5 seconds)
+        Await.result((new FilePipelineState(file)(AS, AS.dispatcher)).pastRuns,
+                     5 seconds)
       Then("pastRuns should return two runs")
       result2.size shouldBe 2
       result2.map(_.runId) shouldBe List("", "fake")
@@ -107,7 +111,7 @@ class PipelinesApplicationTest
                                                      Some("fakePath2"))
 
       When("a project is assigned to a configuration")
-      pipelineState.assigned(Project("project1"), rnaConfiguration)
+      pipelineState.assigned(Project("project1"), rnaConfiguration).await
       Then("the state should zip the analysis configuration with future runs")
       Await
         .result(pipelineState.registered(run2), 5 seconds)
@@ -133,7 +137,9 @@ class PipelinesApplicationTest
       )
 
       When("a project is unassigned")
-      pipelineState.unassigned(Project("project1"), rnaConfiguration.analysisId)
+      pipelineState
+        .unassigned(Project("project1"), rnaConfiguration.analysisId)
+        .await
       Then(
         "the state should not zip the analysis configuration with future runs")
       Await
@@ -143,6 +149,8 @@ class PipelinesApplicationTest
         AnalysisAssignments(
           Map(Project("project1") -> Seq(),
               Project("project") -> Seq(wesConfigurationFromMigration))))
+
+      AS.terminate()
     }
   }
 
@@ -150,8 +158,10 @@ class PipelinesApplicationTest
     new Fixture {
       Given("an empty file ")
       val file = fileutils.TempFile.createTempFile("state")
+
+      val AS = ActorSystem()
       And("loaded into a FilePipelineState")
-      val pipelineState = new FilePipelineState(file)
+      val pipelineState = new FilePipelineState(file)(AS, AS.dispatcher)
 
       And("three runs with two ids ")
       val run1 = RunfolderReadyForProcessing(
@@ -174,47 +184,51 @@ class PipelinesApplicationTest
       )
 
       When("run1 and run2 are registered")
-      pipelineState.registered(run1)
-      pipelineState.registered(run2)
+      pipelineState.registered(run1).await
+      pipelineState.registered(run2).await
 
       Await.result(pipelineState.pastRuns, 5 seconds).map(_.runId) shouldBe Seq(
         "r1",
         "r2")
       Await
-        .result(new FilePipelineState(file).pastRuns, 5 seconds)
+        .result(new FilePipelineState(file)(AS, AS.dispatcher).pastRuns,
+                5 seconds)
         .map(_.runId) shouldBe Seq("r1", "r2")
 
       When("run1b is registered")
-      pipelineState.registered(run1b)
+      pipelineState.registered(run1b).await
       Await.result(pipelineState.pastRuns, 5 seconds).map(_.runId) shouldBe Seq(
         "r1",
         "r2")
       Await
-        .result(new FilePipelineState(file).pastRuns, 5 seconds)
+        .result(new FilePipelineState(file)(AS, AS.dispatcher).pastRuns,
+                5 seconds)
         .map(_.runId) shouldBe Seq("r1", "r2")
 
       When("run1b is invalidated")
-      pipelineState.invalidated(run1b.runId)
+      pipelineState.invalidated(run1b.runId).await
       And("registered again")
-      pipelineState.registered(run1b)
+      pipelineState.registered(run1b).await
       Await.result(pipelineState.pastRuns, 5 seconds).map(_.runId) shouldBe Seq(
         "r1",
         "r2")
       Await
-        .result(new FilePipelineState(file).pastRuns, 5 seconds)
+        .result(new FilePipelineState(file)(AS, AS.dispatcher).pastRuns,
+                5 seconds)
         .map(_.runId) shouldBe Seq("r1", "r2")
 
       When("run1b and run2 is invalidated")
-      pipelineState.invalidated(run1b.runId)
-      pipelineState.invalidated(run2.runId)
+      pipelineState.invalidated(run1b.runId).await
+      pipelineState.invalidated(run2.runId).await
       And("registered again")
-      pipelineState.registered(run2)
-      pipelineState.registered(run1b)
+      pipelineState.registered(run2).await
+      pipelineState.registered(run1b).await
       Await.result(pipelineState.pastRuns, 5 seconds).map(_.runId) shouldBe Seq(
         "r1",
         "r2")
       Await
-        .result(new FilePipelineState(file).pastRuns, 5 seconds)
+        .result(new FilePipelineState(file)(AS, AS.dispatcher).pastRuns,
+                5 seconds)
         .map(_.runId) shouldBe Seq("r1", "r2")
 
     }
@@ -926,6 +940,10 @@ class PipelinesApplicationTest
   }
 
   trait Fixture {
+
+    implicit class Pimp[T](f: Future[T]) {
+      def await = Await.result(f, 5 seconds)
+    }
 
     val wesConfigurationFromMigration =
       WESConfiguration(

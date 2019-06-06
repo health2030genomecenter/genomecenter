@@ -6,6 +6,11 @@ import java.io.File
 import io.circe.{Encoder, Decoder, Json, Printer}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import org.gc.pipelines.model.{RunId, AnalysisId, Project}
+import akka.actor.Actor
+import akka.actor.ActorSystem
+import akka.pattern.ask
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 
 class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
     extends StrictLogging {
@@ -71,103 +76,135 @@ class Storage[T: Encoder: Decoder](file: File, migrations: Seq[Json => Json])
   }
 }
 
-class FilePipelineState(logFile: File)
+sealed trait Event
+case class Registered(run: RunfolderReadyForProcessing) extends Event
+case class Deleted(runId: RunId) extends Event
+case class Assigned(project: Project, analysis: AnalysisConfiguration)
+    extends Event
+case class Unassigned(project: Project, analysis: AnalysisId) extends Event
+
+object Event {
+  implicit val encoder: Encoder[Event] =
+    deriveEncoder[Event]
+  implicit val decoder: Decoder[Event] =
+    deriveDecoder[Event]
+}
+
+class FilePipelineState(logFile: File)(implicit AS: ActorSystem,
+                                       EC: ExecutionContext)
     extends PipelineState
     with StrictLogging {
-  private var past = Vector[RunfolderReadyForProcessing]()
-  private var runOrder = Vector[RunId]()
-  private var _analyses = AnalysisAssignments.empty
-  sealed trait Event
-  case class Registered(run: RunfolderReadyForProcessing) extends Event
-  case class Deleted(runId: RunId) extends Event
-  case class Assigned(project: Project, analysis: AnalysisConfiguration)
-      extends Event
-  case class Unassigned(project: Project, analysis: AnalysisId) extends Event
 
-  object Event {
-    implicit val encoder: Encoder[Event] =
-      deriveEncoder[Event]
-    implicit val decoder: Decoder[Event] =
-      deriveDecoder[Event]
-  }
+  class Ac extends Actor {
+    private var past = Vector[RunfolderReadyForProcessing]()
+    private var runOrder = Vector[RunId]()
+    private var _analyses = AnalysisAssignments.empty
 
-  val storage =
-    new Storage[Event](logFile, PipelineStateMigrations.migrations)
+    val storage =
+      new Storage[Event](logFile, PipelineStateMigrations.migrations)
 
-  private def recover() = {
-    storage.read
-      .map { e =>
-        logger.debug(s"Recovered migrated event as $e")
-        e
+    private def recover() = {
+      storage.read
+        .map { e =>
+          logger.debug(s"Recovered migrated event as $e")
+          e
+        }
+        .foreach(updateState)
+
+      past.foreach { runFolder =>
+        logger.info(s"State after recovery: $runFolder")
       }
-      .foreach(updateState)
+    }
 
-    past.foreach { runFolder =>
-      logger.info(s"State after recovery: $runFolder")
+    val writer = new java.io.FileWriter(logFile, true) // append = true
+
+    private def appendEvent(e: Event) =
+      storage.append(e)
+
+    recover()
+
+    private def updateState(e: Event) = e match {
+      case Registered(r) =>
+        if (!runOrder.contains(r.runId)) {
+          past = past :+ r
+          runOrder = runOrder :+ r.runId
+        } else {
+          past = (past.filterNot(_.runId == r.runId) :+ r).sortBy(r =>
+            runOrder.indexOf(r.runId))
+        }
+      case Deleted(runId) =>
+        past = past.filterNot(runFolder =>
+          (runFolder.runId: RunId) == (runId: RunId))
+      case Assigned(project, analysis) =>
+        _analyses = _analyses.assigned(project, analysis)
+      case Unassigned(project, analysis) =>
+        _analyses = _analyses.unassigned(project, analysis)
+    }
+
+    def receive = {
+      case e: Event =>
+        appendEvent(e)
+        updateState(e)
+        println("!!!! " + e)
+        sender ! ((past, _analyses))
+      case _ =>
+        println("got query")
+        println(past)
+        sender ! ((past, _analyses))
     }
   }
 
-  val writer = new java.io.FileWriter(logFile, true) // append = true
+  val ac = AS.actorOf(akka.actor.Props(new Ac))
 
-  private def appendEvent(e: Event) =
-    storage.append(e)
+  implicit val to = akka.util.Timeout(30 seconds)
 
-  recover()
-
-  def updateState(e: Event) = e match {
-    case Registered(r) =>
-      if (!runOrder.contains(r.runId)) {
-        past = past :+ r
-        runOrder = runOrder :+ r.runId
-      } else {
-        past = (past.filterNot(_.runId == r.runId) :+ r).sortBy(r =>
-          runOrder.indexOf(r.runId))
-      }
-    case Deleted(runId) =>
-      past =
-        past.filterNot(runFolder => (runFolder.runId: RunId) == (runId: RunId))
-    case Assigned(project, analysis) =>
-      _analyses = _analyses.assigned(project, analysis)
-    case Unassigned(project, analysis) =>
-      _analyses = _analyses.unassigned(project, analysis)
-  }
-
-  def registered(r: RunfolderReadyForProcessing) = synchronized {
+  def registered(r: RunfolderReadyForProcessing) = {
     logger.info(s"Registering run ${r.runId}")
     val event = Registered(r)
-    appendEvent(event)
-    updateState(event)
-    Future.successful(Some(RunWithAnalyses(r, _analyses)))
+    for {
+      (_, _analyses) <- (ac ? event).mapTo[(Nothing, AnalysisAssignments)]
+    } yield Some(RunWithAnalyses(r, _analyses))
   }
 
-  def invalidated(runId: RunId) = synchronized {
+  def invalidated(runId: RunId) = {
     val event = Deleted(runId)
-    appendEvent(event)
-    Future.successful(())
+    for {
+      (_, _analyses) <- ac ? event
+    } yield ()
   }
 
   def pastRuns =
-    Future.successful(past.toList.map(run => RunWithAnalyses(run, _analyses)))
+    for {
+      (past, _analyses) <- (ac ? "query")
+        .mapTo[(Seq[RunfolderReadyForProcessing], AnalysisAssignments)]
+    } yield past.toList.map(run => RunWithAnalyses(run, _analyses))
 
-  def analyses = Future.successful(_analyses)
+  def analyses =
+    for {
+      (_, _analyses) <- (ac ? "query").mapTo[(Nothing, AnalysisAssignments)]
+    } yield _analyses
 
   def contains(runId: RunId) =
-    Future.successful(past.exists(_.runId == runId))
+    for {
+      (past, _) <- (ac ? "query")
+        .mapTo[(Seq[RunfolderReadyForProcessing], Nothing)]
+    } yield past.exists(_.runId == runId)
 
   def assigned(project: Project,
                analysisConfiguration: AnalysisConfiguration): Future[Unit] = {
     logger.info(s"Assigning $project to $analysisConfiguration")
     val event = Assigned(project, analysisConfiguration)
-    appendEvent(event)
-    updateState(event)
-    Future.successful(())
+
+    for {
+      _ <- ac ? event
+    } yield ()
   }
   def unassigned(project: Project, analysisId: AnalysisId): Future[Unit] = {
     logger.info(s"Unassigning $project to $analysisId")
     val event = Unassigned(project, analysisId)
-    appendEvent(event)
-    updateState(event)
-    Future.successful(())
+    for {
+      _ <- ac ? event
+    } yield ()
   }
 
 }
