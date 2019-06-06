@@ -316,16 +316,18 @@ object DemultiplexingSummary {
     def contaminatingIndices = {
       val lanes =
         laneSummaries.map(laneSummary => laneSummary.lane -> laneSummary).toMap
-      sampleSummaries.map { sampleSummary =>
-        val lane = lanes(sampleSummary.lane)
-        val contaminatingIndices = lane.indexSwaps.map(_.indexSequence)
-        ContaminatingIndices(sampleSummary.runId,
-                             sampleSummary.project,
-                             sampleSummary.sampleId,
-                             sampleSummary.lane,
-                             sampleSummary.indexSequence,
-                             contaminatingIndices)
-      }
+      sampleSummaries
+        .map { sampleSummary =>
+          val lane = lanes(sampleSummary.lane)
+          val contaminatingIndices = lane.indexSwaps.map(_.indexSequence)
+          ContaminatingIndices(sampleSummary.runId,
+                               sampleSummary.project,
+                               sampleSummary.sampleId,
+                               sampleSummary.lane,
+                               sampleSummary.indexSequence,
+                               contaminatingIndices)
+        }
+        .filter(_.unexpectedIndicesSpottedInLane.nonEmpty)
     }
   }
 
