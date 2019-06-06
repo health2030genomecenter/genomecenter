@@ -880,7 +880,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       }
 
       logger.debug(
-        s"Accounting the completion of sample processing of $keysOfFinishedSample. Run complete: $runIdIsComplete. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Remaining finished samples: ${allFinishedSamples.size}. Unfinished processing: $newUnfinishedProcessing. Runfolders on hold: $remainingRunsOnHold. Released to demux: $releasableRunWithAnalyses")
+        s"Accounting the completion of sample processing of $keysOfFinishedSample. Run complete: $runIdIsComplete. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Remaining finished samples: ${allFinishedSamples.size}. Unfinished processing: $newUnfinishedProcessing. Runfolders on hold: ${remainingRunsOnHold
+          .map(_.run.runId)}. Released to demux: $releasableRunWithAnalyses")
 
       StateOfUnfinishedSamples(
         unfinished = remainingUnfinishedSamples,
