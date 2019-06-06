@@ -293,11 +293,41 @@ object DemultiplexingSummary {
 
   }
 
+  case class ContaminatingIndices(
+      runId: RunId,
+      project: Project,
+      sampleId: SampleId,
+      lane: Lane,
+      indexOfSample: String,
+      unexpectedIndicesSpottedInLane: Seq[String]
+  )
+  object ContaminatingIndices {
+    implicit val encoder: Encoder[ContaminatingIndices] =
+      deriveEncoder[ContaminatingIndices]
+    implicit val decoder: Decoder[ContaminatingIndices] =
+      deriveDecoder[ContaminatingIndices]
+  }
+
   case class Root(
       runId: RunId,
       sampleSummaries: Seq[DemultiplexingSampleSummary],
       laneSummaries: Seq[DemultiplexingLaneSummary]
-  )
+  ) {
+    def contaminatingIndices = {
+      val lanes =
+        laneSummaries.map(laneSummary => laneSummary.lane -> laneSummary).toMap
+      sampleSummaries.map { sampleSummary =>
+        val lane = lanes(sampleSummary.lane)
+        val contaminatingIndices = lane.indexSwaps.map(_.indexSequence)
+        ContaminatingIndices(sampleSummary.runId,
+                             sampleSummary.project,
+                             sampleSummary.sampleId,
+                             sampleSummary.lane,
+                             sampleSummary.indexSequence,
+                             contaminatingIndices)
+      }
+    }
+  }
 
   case class DemultiplexingLaneSummary(
       lane: Lane,

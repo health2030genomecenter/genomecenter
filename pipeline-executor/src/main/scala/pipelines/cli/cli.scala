@@ -291,6 +291,7 @@ object Pipelinectl extends App {
   case object QueryFreeRuns extends CliCommand
   case object AnalyseResourceUsage extends CliCommand
   case object ParseSampleSheet extends CliCommand
+  case object QueryContaminatingIndices extends CliCommand
 
   val config = {
     val configInUserHome =
@@ -573,6 +574,14 @@ object Pipelinectl extends App {
             .text("List fastq files of free runs. (SLOW)")
             .action((_, c) => c.copy(queryFastQsOfFreeRuns = true))
         ),
+      cmd("query-contaminating-indices")
+        .text("Extract contaminating index data from demultiplexing reports")
+        .action((_, c) => c.copy(command = QueryContaminatingIndices))
+        .children(
+          opt[String]('p', "project")
+            .text("project name. If missing lists all.")
+            .action((v, c) => c.copy(project = Some(v)))
+        ),
       cmd("analyse-resource-usage")
         .text("Analyses resource usage log")
         .action((_, c) => c.copy(command = AnalyseResourceUsage))
@@ -762,6 +771,50 @@ object Pipelinectl extends App {
         case QueryVcf =>
           val project = config.project.get
           println(get(s"/v2/vcfs/$project"))
+        case QueryContaminatingIndices =>
+          val runIds = scala.io.Source
+            .fromString(get("/v2/runs"))
+            .getLines
+            .toList
+            .filter(_.nonEmpty)
+
+          val contaminatingIndices = runIds
+            .flatMap { runId =>
+              val runEvents = io.circe.parser
+                .decode[Seq[ProgressData]](get(s"/v2/runs/$runId"))
+                .right
+                .get
+                .collect {
+                  case v: Demultiplexed => v
+                }
+                .distinct
+
+              runEvents
+                .flatMap {
+                  case Demultiplexed(_, samples, stats) =>
+                    stats.flatMap {
+                      case (_, stats) =>
+                        DemultiplexingSummary
+                          .fromStats(
+                            stats,
+                            samples.map {
+                              case (project, sample, _) => sample -> project
+                            }.toMap,
+                            Demultiplexing.readGlobalIndexSetFromClassPath)
+                          .contaminatingIndices
+                    }
+                }
+            }
+            .filter { contaminatingIndex =>
+              config.project match {
+                case None          => true
+                case Some(project) => project == contaminatingIndex.project
+              }
+            }
+
+          import io.circe.syntax._
+          println(contaminatingIndices.asJson.noSpaces)
+
         case QueryRuns =>
           config.runId match {
             case None =>
