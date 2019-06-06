@@ -299,7 +299,7 @@ object DemultiplexingSummary {
       sampleId: SampleId,
       lane: Lane,
       indexOfSample: String,
-      unexpectedIndicesSpottedInLane: Seq[String]
+      unexpectedIndicesSpottedInLane: Seq[(String, Double)]
   )
   object ContaminatingIndices {
     implicit val encoder: Encoder[ContaminatingIndices] =
@@ -319,7 +319,8 @@ object DemultiplexingSummary {
       sampleSummaries
         .map { sampleSummary =>
           val lane = lanes(sampleSummary.lane)
-          val contaminatingIndices = lane.indexSwaps.map(_.indexSequence)
+          val contaminatingIndices = lane.indexSwaps.map(indexSwap =>
+            indexSwap.indexSequence -> indexSwap.fractionOfLane)
           ContaminatingIndices(sampleSummary.runId,
                                sampleSummary.project,
                                sampleSummary.sampleId,
