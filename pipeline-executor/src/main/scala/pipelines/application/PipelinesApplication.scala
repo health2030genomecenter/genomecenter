@@ -850,19 +850,14 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         }))
         else None
 
-      val releasableRunWithAnalyses =
-        if (!runIdIsComplete) None
+      val releasableRunsWithAnalyses =
+        if (remainingUnfinishedSamples.nonEmpty) Nil
         else
           runFoldersOnHold
-            .find { runOnHold =>
-              val runIdOnHold = runOnHold.runId
-              (runIdOnHold: RunId) == (runId: RunId)
-            }
 
-      val remainingRunsOnHold = releasableRunWithAnalyses match {
-        case None => runFoldersOnHold
-        case Some(released) =>
-          runFoldersOnHold.filterNot(onHold => onHold == released)
+      val remainingRunsOnHold = releasableRunsWithAnalyses match {
+        case Nil => runFoldersOnHold
+        case _   => Nil
       }
 
       val newUnfinishedProcessing = {
@@ -872,16 +867,15 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
               .filterNot(_ == keysOfFinishedSample._3)
           else unfinishedProcessingOfRunIds
 
-        val runIdsOfReleasedRunsFromHold = releasableRunWithAnalyses
+        val runIdsOfReleasedRunsFromHold = releasableRunsWithAnalyses
           .map(_.runId)
-          .toSeq
 
         (runIdsOfInCompleteRuns ++ runIdsOfReleasedRunsFromHold)
       }
 
       logger.debug(
         s"Accounting the completion of sample processing of $keysOfFinishedSample. Run complete: $runIdIsComplete. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Remaining finished samples: ${allFinishedSamples.size}. Unfinished processing: $newUnfinishedProcessing. Runfolders on hold: ${remainingRunsOnHold
-          .map(_.run.runId)}. Released to demux: $releasableRunWithAnalyses")
+          .map(_.run.runId)}. Released to demux: $releasableRunsWithAnalyses")
 
       StateOfUnfinishedSamples(
         unfinished = remainingUnfinishedSamples,
@@ -889,7 +883,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         unfinishedProcessingOfRunIds = newUnfinishedProcessing,
         runFoldersOnHold = remainingRunsOnHold,
         sendToSampleProcessing = Nil,
-        sendToDemultiplexing = releasableRunWithAnalyses.toSeq,
+        sendToDemultiplexing = releasableRunsWithAnalyses,
         sendToCompleteds =
           Some(Completeds(samplesOfCompletedRunId, samplesOfCompletedProject))
       )
