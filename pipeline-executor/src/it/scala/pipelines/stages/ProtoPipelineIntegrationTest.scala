@@ -117,7 +117,7 @@ class ProtopipelineIntegrationTestSuite
         Then("Complete run")
 
         Await.result(
-          pipeline.processCompletedRun(processedSamples.flatMap(_.toSeq)),
+          pipeline.summarizeCompletedSamples(processedSamples.flatMap(_.toSeq)),
           atMost = 400000 seconds)
 
         Then("Complete project")
