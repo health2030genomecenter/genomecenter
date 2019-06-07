@@ -256,13 +256,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
   (previousRuns ++ futureRuns)
     .filter(_.nonEmpty)
     .via(accountAndProcess)
-    .via(processCompletedRunsAndProjects)
+    .via(processCompletedProjects)
     .via(watchTermination)
     .to(Sink.ignore)
     .run
 
-  case class Completeds(runs: Option[CompletedRun],
-                        projects: Option[CompletedProject])
+  case class Completeds(projects: Option[CompletedProject])
 
   /* Accounting and processing stage
    *
@@ -514,57 +513,49 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
   }
 
-  def processCompletedRunsAndProjects =
-    Flow[Completeds]
-      .buffer(size = 10000, OverflowStrategy.fail)
-      .map { case Completeds(runs, projects) => (runs, projects) }
-      .alsoTo(processCompletedRuns)
-      .map { case (_, completedProject) => completedProject }
-      .filter(_.isDefined)
-      .map(_.get)
-      .via(processCompletedProjects)
+  // import scala.concurrent.duration._
 
-  import scala.concurrent.duration._
-
-  def processCompletedRuns =
-    Flow[(Option[CompletedRun], Option[CompletedProject])]
-      .map { case (completedRun, _) => completedRun }
-      .filter(_.isDefined)
-      .map(_.get)
-      .filter(_.samples.nonEmpty)
-      .map {
-        case CompletedRun(samples) =>
-          val (_, _, runId) = getKeysOfSampleResult(samples.head)
-          logger.info(s"Run $runId finished with ${samples.size} samples.")
-          processingFinishedListener ! RunFinished(runId, true)
-          (runId, samples)
-      }
-      .groupBy(maxSubstreams = 100000, { case (runId, _) => runId })
-      .via(deduplicate)
-      .mergeSubstreams
-      .scan(Map.empty[RunId, Seq[SampleResult]]) {
-        case (map, (runId, samples)) =>
-          map.updated(runId, samples)
-      }
-      .buffer(1, OverflowStrategy.dropHead)
-      .throttle(1,
-                1 minute,
-                maximumBurst = 1,
-                mode = akka.stream.ThrottleMode.Shaping)
-      .mapAsync(1) { completedRuns =>
-        logger.debug(s"Completing ${completedRuns.size} runs.")
-        pipeline.processCompletedRuns(completedRuns).recover {
-          case error =>
-            logger.error(
-              s"$pipeline failed while processing completed runs ${completedRuns.toSeq.map(_._1).mkString(", ")}",
-              error)
-            ()
-        }
-      }
-      .to(Sink.ignore)
+  // def processCompletedRuns =
+  //   Flow[(Option[CompletedRun], Option[CompletedProject])]
+  //     .map { case (completedRun, _) => completedRun }
+  //     .filter(_.isDefined)
+  //     .map(_.get)
+  //     .filter(_.samples.nonEmpty)
+  //     .map {
+  //       case CompletedRun(samples) =>
+  //         val (_, _, runId) = getKeysOfSampleResult(samples.head)
+  //         logger.info(s"Run $runId finished with ${samples.size} samples.")
+  //         processingFinishedListener ! RunFinished(runId, true)
+  //         (runId, samples)
+  //     }
+  //     .groupBy(maxSubstreams = 100000, { case (runId, _) => runId })
+  //     .via(deduplicate)
+  //     .mergeSubstreams
+  //     .scan(Map.empty[RunId, Seq[SampleResult]]) {
+  //       case (map, (runId, samples)) =>
+  //         map.updated(runId, samples)
+  //     }
+  //     .buffer(1, OverflowStrategy.dropHead)
+  //     .throttle(1,
+  //               1 minute,
+  //               maximumBurst = 1,
+  //               mode = akka.stream.ThrottleMode.Shaping)
+  //     .mapAsync(1) { completedRuns =>
+  //       logger.debug(s"Completing ${completedRuns.size} runs.")
+  //       pipeline.processCompletedRuns(completedRuns).recover {
+  //         case error =>
+  //           logger.error(
+  //             s"$pipeline failed while processing completed runs ${completedRuns.toSeq.map(_._1).mkString(", ")}",
+  //             error)
+  //           ()
+  //       }
+  //     }
+  //     .to(Sink.ignore)
 
   def processCompletedProjects =
-    Flow[CompletedProject]
+    Flow[Completeds]
+      .buffer(size = 10000, OverflowStrategy.fail)
+      .collect { case Completeds(Some(project)) => project }
       .filter(_.samples.nonEmpty)
       .map {
         case CompletedProject(samples) =>
@@ -593,6 +584,20 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
           project
       }
       .mergeSubstreams
+  //       .throttle(1,
+  //           1 minute,
+  //           maximumBurst = 1,
+  //           mode = akka.stream.ThrottleMode.Shaping)
+  //       .mapAsync(1) { completedRuns =>
+  //   logger.debug(s"Completing ${completedRuns.size} runs.")
+  //   pipeline.processCompletedRuns(completedRuns).recover {
+  //     case error =>
+  //       logger.error(
+  //         s"$pipeline failed while processing completed runs ${completedRuns.toSeq.map(_._1).mkString(", ")}",
+  //         error)
+  //       ()
+  //   }
+  // }
 
   def sampleProcessing: Flow[(RunWithAnalyses, DemultiplexedSample),
                              (Option[SampleResult], DemultiplexedSample),
@@ -821,7 +826,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     def finish(
         processedSample: Option[SampleResult],
         demultiplexedSample: DemultiplexedSample): StateOfUnfinishedSamples = {
-      val keysOfFinishedSample @ (project, _, runId) =
+      val keysOfFinishedSample @ (project, _, _) =
         getKeysOfDemultiplexedSample(demultiplexedSample)
 
       val remainingUnfinishedSamples =
@@ -829,18 +834,9 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       val runIdsOfRemainingUnfinished = remainingUnfinishedSamples.map(_._3)
       val projectsOfRemainingUnfinished = remainingUnfinishedSamples.map(_._1)
 
-      val runIdIsComplete = !runIdsOfRemainingUnfinished.contains(runId)
       val projectIsComplete = !projectsOfRemainingUnfinished.contains(project)
 
       val allFinishedSamples = finished ++ processedSample.toSeq
-
-      val samplesOfCompletedRunId =
-        if (runIdIsComplete) Some(CompletedRun(allFinishedSamples.filter {
-          sampleResult =>
-            val runIdOfSampleResult = getKeysOfSampleResult(sampleResult)._3
-            runIdOfSampleResult == runId
-        }))
-        else None
 
       val samplesOfCompletedProject =
         if (projectIsComplete) Some(CompletedProject(allFinishedSamples.filter {
@@ -860,32 +856,26 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         case _   => Nil
       }
 
-      val newUnfinishedProcessing = {
-        val runIdsOfInCompleteRuns =
-          if (runIdIsComplete)
-            unfinishedProcessingOfRunIds
-              .filterNot(_ == keysOfFinishedSample._3)
-          else unfinishedProcessingOfRunIds
+      val newUnfinishedProcessingOfRunIds = {
 
         val runIdsOfReleasedRunsFromHold = releasableRunsWithAnalyses
           .map(_.runId)
 
-        (runIdsOfInCompleteRuns ++ runIdsOfReleasedRunsFromHold)
+        (runIdsOfRemainingUnfinished ++ runIdsOfReleasedRunsFromHold)
       }
 
       logger.debug(
-        s"Accounting the completion of sample processing of $keysOfFinishedSample. Run complete: $runIdIsComplete. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Remaining finished samples: ${allFinishedSamples.size}. Unfinished processing: $newUnfinishedProcessing. Runfolders on hold: ${remainingRunsOnHold
+        s"Accounting the completion of sample processing of $keysOfFinishedSample. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Total finished samples: ${allFinishedSamples.size}. Unfinished processing of run ids: $newUnfinishedProcessingOfRunIds. Runfolders on hold: ${remainingRunsOnHold
           .map(_.run.runId)}. Released to demux: $releasableRunsWithAnalyses")
 
       StateOfUnfinishedSamples(
         unfinished = remainingUnfinishedSamples,
         finished = allFinishedSamples,
-        unfinishedProcessingOfRunIds = newUnfinishedProcessing,
+        unfinishedProcessingOfRunIds = newUnfinishedProcessingOfRunIds,
         runFoldersOnHold = remainingRunsOnHold,
         sendToSampleProcessing = Nil,
         sendToDemultiplexing = releasableRunsWithAnalyses,
-        sendToCompleteds =
-          Some(Completeds(samplesOfCompletedRunId, samplesOfCompletedProject))
+        sendToCompleteds = Some(Completeds(samplesOfCompletedProject))
       )
     }
 
