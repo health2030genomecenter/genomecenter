@@ -1138,7 +1138,7 @@ trait FakePipeline
   def getKeysOfSampleResult(d: FakeSampleResult): (Project, SampleId, RunId) =
     (d.project, d.sampleId, d.runId)
 
-  def processCompletedRuns(samples: Map[RunId, Seq[FakeSampleResult]])(
+  def summarizeCompletedSamples(samples: Seq[FakeSampleResult])(
       implicit tsc: TaskSystemComponents): Future[Unit] =
     Future.successful {
       ()

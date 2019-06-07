@@ -36,58 +36,18 @@ class ProtoPipeline(progressServer: SendProgressData)(
   def getKeysOfSampleResult(d: SampleResult): (Project, SampleId, RunId) =
     (d.project, d.sampleId, d.lastRunId)
 
-  def processCompletedRun(samples: Seq[SampleResult])(
-      implicit tsc: TaskSystemComponents): Future[(RunId, Boolean)] = {
-    require(samples.map(_.lastRunId).distinct.size == 1,
-            s"Multiple run ids found: ${samples.map(_.lastRunId)}")
-    val runId = samples.head.lastRunId
-
-    val fastqsOfThisRun =
-      samples
-        .flatMap(_.demultiplexed)
-        .filter(_.runId == runId)
-        .map(_.withoutRunId)
-
-    val sampleQCsWES =
-      samples.flatMap(_.extractWESQCFiles)
-
-    inRunQCFolder(runId) { implicit tsc =>
-      for {
-
-        _ <- AlignmentQC.runQCTable(
-          RunQCTableInput(
-            runId + "." + samples.size,
-            sampleQCsWES.toSet.toStable,
-            samples
-              .flatMap(sampleResult =>
-                sampleResult.rna.toSeq.map(rnaResult =>
-                  (rnaResult.analysisId, rnaResult.star)))
-              .toSet
-              .toStable
-          ))(ResourceConfig.minimal)
-
-        _ <- ReadQC.readQC(
-          ReadQCInput(fastqsOfThisRun.toSet.toStable,
-                      runId + "." + samples.size))(ResourceConfig.minimal)
-      } yield (runId, true)
-    }
-
-  }
-  def processCompletedRuns(samples: Map[RunId, Seq[SampleResult]])(
+  def summarizeCompletedSamples(samples: Seq[SampleResult])(
       implicit tsc: TaskSystemComponents): Future[Unit] = {
 
     val sampleQCsWES =
-      samples.toSeq.flatMap(_._2.flatMap(_.extractWESQCFiles))
+      samples.flatMap(_.extractWESQCFiles)
     val sampleQCsRNA =
-      samples.toSeq.flatMap(_._2.flatMap(_.rna.toSeq.map(rnaResult =>
-        (rnaResult.analysisId, rnaResult.star))))
+      samples.flatMap(
+        _.rna.toSeq.map(rnaResult => (rnaResult.analysisId, rnaResult.star)))
 
-    val allSamples = samples.toSeq.flatMap(_._2.map(_.sampleId)).distinct
-    val allRuns = samples.toSeq.map(_._1).distinct
+    val allSamples = samples.map(_.sampleId).distinct
+    val allRuns = samples.toSeq.flatMap(_.runFolders.map(_.runId)).distinct
 
-    val individualRunQCs = Future.traverse(samples.toSeq.map(_._2)) { samples =>
-      processCompletedRun(samples)
-    }
     for {
       _ <- inAllQCFolder { implicit tsc =>
         AlignmentQC.runQCTable(
@@ -98,7 +58,6 @@ class ProtoPipeline(progressServer: SendProgressData)(
           ))(ResourceConfig.minimal)
 
       }
-      _ <- individualRunQCs
     } yield ()
 
   }
@@ -747,10 +706,6 @@ class ProtoPipeline(progressServer: SendProgressData)(
           perSampleFastQs.runId)) { implicit tsc =>
       Fastp.report(perSampleFastQs)(ResourceConfig.fastp(perSampleFastQs))
     }
-
-  private def inRunQCFolder[T](runId: RunId)(f: TaskSystemComponents => T)(
-      implicit tsc: TaskSystemComponents) =
-    tsc.withFilePrefix(Seq("runQC", runId))(f)
 
   private def inAllQCFolder[T](f: TaskSystemComponents => T)(
       implicit tsc: TaskSystemComponents) =

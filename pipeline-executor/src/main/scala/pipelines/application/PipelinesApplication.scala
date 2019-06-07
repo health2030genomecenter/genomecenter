@@ -13,6 +13,7 @@ import org.gc.pipelines.util.traverseAll
 import org.gc.pipelines.util.AkkaStreamComponents.{deduplicate}
 import org.gc.pipelines.model.{Project, SampleId, RunId}
 import akka.stream.ActorMaterializer
+import scala.concurrent.duration._
 
 case class RunFinished(runId: RunId, success: Boolean)
 case class ProjectFinished[T](project: Project,
@@ -513,8 +514,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
   }
 
-  // import scala.concurrent.duration._
-
   // def processCompletedRuns =
   //   Flow[(Option[CompletedRun], Option[CompletedProject])]
   //     .map { case (completedRun, _) => completedRun }
@@ -571,33 +570,29 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .buffer(1, OverflowStrategy.dropHead)
       .mapAsync(1) {
         case (_, samples) =>
-          PipelinesApplication.processSamplesOfCompletedProject(pipeline,
-                                                                samples)
+          PipelinesApplication
+            .processSamplesOfCompletedProject(pipeline, samples)
+            .map(result => (result, samples))
       }
       .map {
-        case (project, success, deliverables) =>
+        case ((project, success, deliverables), samples) =>
           processingFinishedListener ! ProjectFinished(project,
                                                        success,
                                                        deliverables)
           logger.debug(
             s"Processing of completed project $project finished (with or without error). Success: $success.")
-          project
+          (samples)
       }
       .mergeSubstreams
-  //       .throttle(1,
-  //           1 minute,
-  //           maximumBurst = 1,
-  //           mode = akka.stream.ThrottleMode.Shaping)
-  //       .mapAsync(1) { completedRuns =>
-  //   logger.debug(s"Completing ${completedRuns.size} runs.")
-  //   pipeline.processCompletedRuns(completedRuns).recover {
-  //     case error =>
-  //       logger.error(
-  //         s"$pipeline failed while processing completed runs ${completedRuns.toSeq.map(_._1).mkString(", ")}",
-  //         error)
-  //       ()
-  //   }
-  // }
+      .groupedWithin(n = 10000, d = 5 minute)
+      .mapAsync(1) { samples =>
+        logger.debug(s"Summarizing ${samples.flatten.size} samples.")
+        pipeline.summarizeCompletedSamples(samples.flatten).recover {
+          case error =>
+            logger.error(s"Unexpected error while summarizing samples.", error)
+            ()
+        }
+      }
 
   def sampleProcessing: Flow[(RunWithAnalyses, DemultiplexedSample),
                              (Option[SampleResult], DemultiplexedSample),
