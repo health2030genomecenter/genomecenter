@@ -291,7 +291,7 @@ object Pipelinectl extends App {
   case object QueryFreeRuns extends CliCommand
   case object AnalyseResourceUsage extends CliCommand
   case object ParseSampleSheet extends CliCommand
-  case object QueryContaminatingIndices extends CliCommand
+  case object QuerySampleIndices extends CliCommand
 
   val config = {
     val configInUserHome =
@@ -574,9 +574,9 @@ object Pipelinectl extends App {
             .text("List fastq files of free runs. (SLOW)")
             .action((_, c) => c.copy(queryFastQsOfFreeRuns = true))
         ),
-      cmd("query-contaminating-indices")
-        .text("Extract contaminating index data from demultiplexing reports")
-        .action((_, c) => c.copy(command = QueryContaminatingIndices))
+      cmd("query-sample-indices")
+        .text("Extract index data from demultiplexing reports")
+        .action((_, c) => c.copy(command = QuerySampleIndices))
         .children(
           opt[String]('p', "project")
             .text("project name. If missing lists all.")
@@ -771,14 +771,14 @@ object Pipelinectl extends App {
         case QueryVcf =>
           val project = config.project.get
           println(get(s"/v2/vcfs/$project"))
-        case QueryContaminatingIndices =>
+        case QuerySampleIndices =>
           val runIds = scala.io.Source
             .fromString(get("/v2/runs"))
             .getLines
             .toList
             .filter(_.nonEmpty)
 
-          val contaminatingIndices = runIds
+          val sampleIndices = runIds
             .flatMap { runId =>
               val runEvents = io.circe.parser
                 .decode[Seq[ProgressData]](get(s"/v2/runs/$runId"))
@@ -801,19 +801,19 @@ object Pipelinectl extends App {
                               case (project, sample, _) => sample -> project
                             }.toMap,
                             Demultiplexing.readGlobalIndexSetFromClassPath)
-                          .contaminatingIndices
+                          .sampleIndices
                     }
                 }
             }
-            .filter { contaminatingIndex =>
+            .filter { sampleIndex =>
               config.project match {
                 case None          => true
-                case Some(project) => project == contaminatingIndex.project
+                case Some(project) => project == sampleIndex.project
               }
             }
 
           import io.circe.syntax._
-          println(contaminatingIndices.asJson.noSpaces)
+          println(sampleIndices.asJson.noSpaces)
 
         case QueryRuns =>
           config.runId match {

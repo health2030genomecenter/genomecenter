@@ -293,7 +293,7 @@ object DemultiplexingSummary {
 
   }
 
-  case class ContaminatingIndices(
+  case class SampleIndex(
       runId: RunId,
       project: Project,
       sampleId: SampleId,
@@ -301,11 +301,11 @@ object DemultiplexingSummary {
       indexOfSample: String,
       unexpectedIndicesSpottedInLane: Seq[(String, Double)]
   )
-  object ContaminatingIndices {
-    implicit val encoder: Encoder[ContaminatingIndices] =
-      deriveEncoder[ContaminatingIndices]
-    implicit val decoder: Decoder[ContaminatingIndices] =
-      deriveDecoder[ContaminatingIndices]
+  object SampleIndex {
+    implicit val encoder: Encoder[SampleIndex] =
+      deriveEncoder[SampleIndex]
+    implicit val decoder: Decoder[SampleIndex] =
+      deriveDecoder[SampleIndex]
   }
 
   case class Root(
@@ -313,7 +313,7 @@ object DemultiplexingSummary {
       sampleSummaries: Seq[DemultiplexingSampleSummary],
       laneSummaries: Seq[DemultiplexingLaneSummary]
   ) {
-    def contaminatingIndices = {
+    def sampleIndices = {
       val lanes =
         laneSummaries.map(laneSummary => laneSummary.lane -> laneSummary).toMap
       sampleSummaries
@@ -321,14 +321,13 @@ object DemultiplexingSummary {
           val lane = lanes(sampleSummary.lane)
           val contaminatingIndices = lane.indexSwaps.map(indexSwap =>
             indexSwap.indexSequence -> indexSwap.fractionOfLane)
-          ContaminatingIndices(sampleSummary.runId,
-                               sampleSummary.project,
-                               sampleSummary.sampleId,
-                               sampleSummary.lane,
-                               sampleSummary.indexSequence,
-                               contaminatingIndices)
+          SampleIndex(sampleSummary.runId,
+                      sampleSummary.project,
+                      sampleSummary.sampleId,
+                      sampleSummary.lane,
+                      sampleSummary.indexSequence,
+                      contaminatingIndices)
         }
-        .filter(_.unexpectedIndicesSpottedInLane.nonEmpty)
     }
   }
 
