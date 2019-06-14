@@ -167,7 +167,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         When("reprocessing all run")
         postString("/v2/reprocess", "").status.intValue shouldBe 200
         Then("The sample's processing should finish immediately")
-        probe.expectMsgPF(15 seconds) {
+        probe.fishForSpecificMessage(15 seconds) {
           case sample: SampleFinished[_] =>
             sample.sample shouldBe "sample1"
           case _: RunFinished =>
