@@ -452,12 +452,16 @@ object HaplotypeCaller {
               val javaTmpDir =
                 s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
-              /* values are from the broad worfklow */
+              /* values are from:
+               * https://github.com/gatk-workflows/broad-prod-wgs-germline-snps-indels/blob/904564ad46af8d69ffc4077b579185317b2dc53b/JointGenotypingWf.hg38.inputs.json
+               */
               val tranches =
                 List(100.0, 99.95, 99.9, 99.8, 99.6, 99.5, 99.4, 99.3, 99.0,
                   98.0, 97.0, 90.0).mkString(" -tranche ", " -tranche ", "")
 
-              /* values are from the broad worfklow
+              /* values are from:
+               * https://github.com/gatk-workflows/broad-prod-wgs-germline-snps-indels/blob/904564ad46af8d69ffc4077b579185317b2dc53b/JointGenotypingWf.hg38.inputs.json
+               *
                *  I removed DP annotation as some suggest
                *  that it is not appropriate for exomes due to high variation
                *  in coverage due to capture
@@ -528,14 +532,16 @@ object HaplotypeCaller {
               val javaTmpDir =
                 s""" -Djava.io.tmpdir=${System.getProperty("java.io.tmpdir")} """
 
-              /* values are from the broad worfklow
+              /* values are from:
                * https://github.com/gatk-workflows/broad-prod-wgs-germline-snps-indels/blob/904564ad46af8d69ffc4077b579185317b2dc53b/JointGenotypingWf.hg38.inputs.json
                */
               val tranches = List(100.0, 99.95, 99.9, 99.5, 99.0, 97.0, 96.0,
                 95.0, 94.0, 93.5, 93.0, 92.0, 91.0,
                 90.0).mkString(" -tranche ", " -tranche ", "")
 
-              /* values are from the broad worfklow */
+              /* values are from:
+               * https://github.com/gatk-workflows/broad-prod-wgs-germline-snps-indels/blob/904564ad46af8d69ffc4077b579185317b2dc53b/JointGenotypingWf.hg38.inputs.json
+               */
               val annotations =
                 List("FS", "ReadPosRankSum", "MQRankSum", "QD", "SOR", "DP")
                   .mkString(" -an ", " -an ", "")
