@@ -57,4 +57,12 @@ object BAM {
     validator.validateSamFileSummary(reader, refFile)
   }
 
+  def getReadGroups(file: java.io.File) = {
+
+    import htsjdk.samtools.SamReaderFactory
+    val reader = SamReaderFactory.makeDefault.open(file)
+
+    reader.getFileHeader.getReadGroups.asScala
+  }
+
 }

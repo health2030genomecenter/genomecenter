@@ -21,6 +21,7 @@ import org.gc.pipelines.model.{
 import org.gc.pipelines.stages.Demultiplexing
 import scalaj.http.Http
 import org.gc.pipelines.model.SampleSheet
+import org.gc.pipelines.util.BAM
 
 object CliHelpers {
   val runConfigurationExample =
@@ -617,6 +618,33 @@ object Pipelinectl extends App {
     )
   }
 
+  def demultiplexedReadNumberOfRunBySample(runId: String) = {
+    val runEvents = io.circe.parser
+      .decode[Seq[ProgressData]](get(s"/v2/runs/$runId"))
+      .right
+      .get
+      .collect {
+        case v: Demultiplexed => v
+      }
+      .distinct
+
+    runEvents
+      .flatMap {
+        case Demultiplexed(_, _, stats) =>
+          stats.flatMap {
+            case (_, stats) =>
+              stats.ConversionResults.flatMap { conversionResult =>
+                conversionResult.DemuxResults.map { demuxResultsOfSample =>
+                  ((stats.RunId,
+                    demuxResultsOfSample.SampleId,
+                    conversionResult.LaneNumber),
+                   demuxResultsOfSample.NumberReads)
+                }
+              }
+          }
+      }
+  }
+
   OParser.parse(parser1, args, Config()) match {
     case Some(config) =>
       config.command match {
@@ -723,6 +751,76 @@ object Pipelinectl extends App {
               deliveryList.samples.toSeq.sortBy(_.toString).foreach(println)
               println(s"Files:\n")
               deliveryList.files.foreach(println)
+
+              println("Fetching sample configuration data..")
+
+              val lanesBySample = {
+                val runConfigurations = io.circe.parser
+                  .decode[Seq[RunfolderReadyForProcessing]](
+                    get(s"/v2/runconfigurations"))
+                  .right
+                  .get
+
+                val runIds = runConfigurations.map(_.runId)
+                val demultiplexingResultsByLaneAndSample = runIds.flatMap {
+                  runId =>
+                    demultiplexedReadNumberOfRunBySample(runId)
+                }.toMap
+
+                val samples = runConfigurations.flatMap { runConfig =>
+                  runConfig.sampleSheets.flatMap {
+                    case (sampleSheet, _) =>
+                      sampleSheet.poolingLayout.flatMap { multiplex =>
+                        val demultiplexedReadNumberofSampleInLane =
+                          demultiplexingResultsByLaneAndSample.get(
+                            (runConfig.runId,
+                             multiplex.sampleId,
+                             multiplex.lane))
+
+                        val demultiplexedSomeReads =
+                          demultiplexedReadNumberofSampleInLane.exists(_ > 0)
+
+                        if (demultiplexedSomeReads)
+                          List(
+                            (multiplex.project + "." + multiplex.sampleId,
+                             runConfig.runId + "." + multiplex.lane))
+                        else Nil
+                      }
+                  }
+                }
+
+                samples.groupBy { case (sampleId, _) => sampleId }.map {
+                  case (key, group) => (key, group.map(_._2))
+                }
+              }
+              val bamFiles = deliveryList.files.filter(_.endsWith(".bam"))
+              println(s"Verifying ${bamFiles.size} bam files..")
+              val missingLanesPerFile = bamFiles
+                .map { file =>
+                  val readGroups = BAM.getReadGroups(new File(file))
+                  val platformUnitsInFile =
+                    readGroups.map(_.getPlatformUnit).toSet
+                  val sampleIds = readGroups.map(_.getSample)
+                  assert(sampleIds.distinct.size == 1)
+                  val sampleIdInFile = sampleIds.head
+                  val expectedPlatformUnits =
+                    lanesBySample(sampleIdInFile).toSet
+                  val missing = expectedPlatformUnits &~ platformUnitsInFile
+                  (file, missing)
+                }
+                .filter(_._2.nonEmpty)
+
+              if (missingLanesPerFile.isEmpty) {
+                println(s"All ${bamFiles.size} contain all expected lanes.")
+              } else {
+                println(
+                  s"Missing lanes (${missingLanesPerFile.size} files):\nFILE\tLANES")
+                missingLanesPerFile.foreach {
+                  case (file, missingPlatformUnits) =>
+                    println(s"$file\t${missingPlatformUnits.mkString(",")}")
+                }
+              }
+
           }
 
         case QueryCoverage =>
