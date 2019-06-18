@@ -17,7 +17,7 @@ before_script:
 
 sbt-unit-test:
   script:
-    - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-2.tar | tar xf - 2> /dev/null
+    - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-3.tar | tar xf - 2> /dev/null
     - GC_TESTFOLDER=testdata sbt -Dsbt.repository.config=repositories -Dsbt.override.build.repos=true -batch 'coverage' 'test' 'coverageReport' 'coverageAggregate'
   artifacts:
     reports:
@@ -31,7 +31,7 @@ sbt-unit-test:
 
 sbt-it-test:
   script:
-    - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-2.tar | tar xf - 2> /dev/null
+    - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-3.tar | tar xf - 2> /dev/null
     - GC_TESTFOLDER=testdata sbt -Dsbt.repository.config=repositories -Dsbt.override.build.repos=true -batch 'coverage' 'it:test' 'coverageReport' 'coverageAggregate'
   artifacts:
     reports:
@@ -45,7 +45,7 @@ sbt-it-test:
 
 sbt-unit-it-test:
   script:
-    - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-2.tar | tar xf - 2> /dev/null
+    - curl http://10.6.38.2:31080/artifactory/generic/org.gc/testdata/testdata-3.tar | tar xf - 2> /dev/null
     - GC_TESTFOLDER=testdata sbt -Dsbt.repository.config=repositories -Dsbt.override.build.repos=true -batch 'coverage' 'test' 'it:test' 'coverageReport' 'coverageAggregate'
   artifacts:
     reports:
