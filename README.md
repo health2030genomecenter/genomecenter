@@ -19,7 +19,6 @@ You need `sbt` to build (`brew install sbt`). Documentation: https://www.scala-s
 - `tasks-slum/` library providing slurm support
 - `umiprocessor/` helper application to process UMIs
 - `fqsplit/` helper application which splits tuples of fastq files into bounded batches of tuples of fastq files
-- `cli/` command line interface to the whole application
 - `.gitlab-ci.yml` continuous integration job definitions
 - `build.sbt` sbt build definition
 - `test.sh` runs the tests in a suitable docker container locally
