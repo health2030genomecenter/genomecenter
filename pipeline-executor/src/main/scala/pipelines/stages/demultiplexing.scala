@@ -31,19 +31,25 @@ case class DemultiplexingInput(
 ) {
   def readLengths: Map[ReadType, Int] =
     DemultiplexingInput.parseReadLengthFromBcl2FastqArguments(
-      extraBcl2FastqCliArguments)
+      extraBcl2FastqCliArguments
+    )
 }
 
-case class DemultiplexSingleLaneInput(run: DemultiplexingInput,
-                                      tiles: StableSet[String],
-                                      partitionIndex: Int)
+case class DemultiplexSingleLaneInput(
+    run: DemultiplexingInput,
+    tiles: StableSet[String],
+    partitionIndex: Int
+)
 
-case class DemultiplexedReadData(fastqs: StableSet[FastQWithSampleMetadata],
-                                 stats: EValue[DemultiplexingStats.Root]) {
+case class DemultiplexedReadData(
+    fastqs: StableSet[FastQWithSampleMetadata],
+    stats: EValue[DemultiplexingStats.Root]
+) {
   def withoutUndetermined =
     DemultiplexedReadData(
       fastqs.filterNot(_.sampleId == SampleId("Undetermined")),
-      stats)
+      stats
+    )
 }
 
 object Demultiplexing {
@@ -54,9 +60,9 @@ object Demultiplexing {
       sample <- lanes.fastqs.toSeq
     } yield (sample.sampleId -> sample.project)).toMap
 
-  def parseGlobalIndexSet(source: Source[ByteString, _])(
-      implicit am: Materializer,
-      ec: ExecutionContext) =
+  def parseGlobalIndexSet(
+      source: Source[ByteString, _]
+  )(implicit am: Materializer, ec: ExecutionContext) =
     source.runFold(ByteString.empty)(_ ++ _).map(_.utf8String).map { string =>
       scala.io.Source.fromString(string).getLines.filter(_.nonEmpty).toSet
     }
@@ -90,6 +96,10 @@ object Demultiplexing {
         implicit val actorMaterializer =
           computationEnvironment.components.actorMaterializer
 
+        // See how this is called in def executeDemultiplexing
+        // I can't add it to the input data without triggering re-execution
+        val demultiplexingId = computationEnvironment.filePrefix.list.lastOption
+
         val partitionByLane = runFolder.partitionByLane match {
           case None       => true
           case Some(bool) => bool
@@ -100,8 +110,9 @@ object Demultiplexing {
         def tilesOfLanes(lanes: Seq[Lane]): Seq[String] = {
           val runInfo = new File(runFolder.runFolderPath + "/RunInfo.xml")
           val allTiles = Demultiplexing.parseTiles(runInfo)
-          allTiles.filter(tile =>
-            lanes.exists(lane => tile.startsWith(lane.toString)))
+          allTiles.filter(
+            tile => lanes.exists(lane => tile.startsWith(lane.toString))
+          )
         }
 
         for {
@@ -137,9 +148,8 @@ object Demultiplexing {
           demultiplexedLanes <- traverseAll(partitions.toSeq.zipWithIndex) {
             case (tiles, idx) =>
               perLane(
-                DemultiplexSingleLaneInput(runFolder,
-                                           tiles.toSet.toStable,
-                                           idx))(ResourceConfig.bcl2fastq)
+                DemultiplexSingleLaneInput(runFolder, tiles.toSet.toStable, idx)
+              )(ResourceConfig.bcl2fastq)
 
           }
 
@@ -162,19 +172,24 @@ object Demultiplexing {
               val demultiplexingSummary = DemultiplexingSummary.fromStats(
                 mergedStats,
                 sampleToProjectMap(demultiplexedLanes.toSeq),
-                globalIndexSet)
+                globalIndexSet
+              )
               val tableAsString =
                 DemultiplexingSummary.renderAsTable(demultiplexingSummary)
               SharedFile(
                 Source.single(ByteString(tableAsString.getBytes("UTF-8"))),
-                name = demultiplexingSummary.runId + ".demultiplexing.stats.txt")
+                name = demultiplexingSummary.runId + demultiplexingId.map(
+                  v => "." + v
+                ) + ".demultiplexing.stats.txt"
+              )
             }
             mergedStatsEValue <- EValue.apply(mergedStats, "Stats.json")
           } yield mergedStatsEValue
         } yield
           DemultiplexedReadData(
             demultiplexedLanes.flatMap(_.fastqs.toSeq).toSet.toStable,
-            mergedStatsInFile)
+            mergedStatsInFile
+          )
 
     }
 
@@ -184,16 +199,19 @@ object Demultiplexing {
   val perLane =
     AsyncTask[DemultiplexSingleLaneInput, DemultiplexedReadData](
       "__demultiplex-per-lane",
-      5) {
+      5
+    ) {
       case DemultiplexSingleLaneInput(
-          dmInput @ DemultiplexingInput(runFolderPath,
-                                        sampleSheet,
-                                        extraArguments,
-                                        _,
-                                        _,
-                                        _,
-                                        _,
-                                        createIndexFastqInReadType),
+          dmInput @ DemultiplexingInput(
+            runFolderPath,
+            sampleSheet,
+            extraArguments,
+            _,
+            _,
+            _,
+            _,
+            createIndexFastqInReadType
+          ),
           tilesToProcess,
           partitionIndex
           ) =>
@@ -202,29 +220,36 @@ object Demultiplexing {
             computationEnvironment.components.actorMaterializer
 
           val executable =
-            fileutils.TempFile.getExecutableFromJar(resourceName =
-                                                      "/bin/bcl2fastq_v220",
-                                                    fileName = "bcl2fastq_v220")
+            fileutils.TempFile.getExecutableFromJar(
+              resourceName = "/bin/bcl2fastq_v220",
+              fileName = "bcl2fastq_v220"
+            )
 
           val createIndexFastqInUmi = createIndexFastqInReadType.isDefined
 
-          def extractMetadataFromFilename(fastq: SharedFile,
-                                          sampleSheet: SampleSheet.ParsedData,
-                                          stats: DemultiplexingStats.Root) =
+          def extractMetadataFromFilename(
+              fastq: SharedFile,
+              sampleSheet: SampleSheet.ParsedData,
+              stats: DemultiplexingStats.Root
+          ) =
             fastq.name match {
-              case fastqFileNameRegex(_,
-                                      _sampleName,
-                                      sampleNumberInSampleSheet1Based,
-                                      lane,
-                                      readOrIndex,
-                                      read) =>
+              case fastqFileNameRegex(
+                  _,
+                  _sampleName,
+                  sampleNumberInSampleSheet1Based,
+                  lane,
+                  readOrIndex,
+                  read
+                  ) =>
                 if (sampleNumberInSampleSheet1Based.toInt > 0) {
                   val sampleSheetEntries =
                     sampleSheet.getSampleSheetEntriesByBcl2FastqSampleNumber(
-                      sampleNumberInSampleSheet1Based.toInt)
+                      sampleNumberInSampleSheet1Based.toInt
+                    )
                   require(sampleSheetEntries.map(_.sampleId).distinct.size == 1)
                   require(
-                    sampleSheetEntries.map(_.sampleName).distinct.size == 1)
+                    sampleSheetEntries.map(_.sampleName).distinct.size == 1
+                  )
                   require(sampleSheetEntries.map(_.project).distinct.size == 1)
 
                   val sampleSheetSampleId = sampleSheetEntries.head.sampleId
@@ -247,9 +272,11 @@ object Demultiplexing {
 
                   val numberOfReads = for {
                     laneStats <- stats.ConversionResults.find(
-                      _.LaneNumber == parsedLane)
+                      _.LaneNumber == parsedLane
+                    )
                     sampleStats <- laneStats.DemuxResults.find(
-                      _.SampleId == sampleSheetSampleId)
+                      _.SampleId == sampleSheetSampleId
+                    )
                   } yield sampleStats.NumberReads
 
                   val readType =
@@ -268,11 +295,13 @@ object Demultiplexing {
                       readType,
                       PartitionId(partitionIndex),
                       FastQ(fastq, numberOfReads.get, readLength)
-                    ))
+                    )
+                  )
                 } else {
                   val numberOfReads = for {
                     laneStats <- stats.ConversionResults.find(
-                      _.LaneNumber == lane.toInt)
+                      _.LaneNumber == lane.toInt
+                    )
                   } yield laneStats.Undetermined.NumberReads
 
                   Some(
@@ -282,11 +311,14 @@ object Demultiplexing {
                       Lane(lane.toInt),
                       ReadType(read.toInt),
                       PartitionId(partitionIndex),
-                      FastQ(fastq, numberOfReads.get, None)))
+                      FastQ(fastq, numberOfReads.get, None)
+                    )
+                  )
                 }
               case _ =>
                 log.error(
-                  s"Fastq file name has unexpected pattern. $fastq name: ${fastq.name}")
+                  s"Fastq file name has unexpected pattern. $fastq name: ${fastq.name}"
+                )
                 None
             }
 
@@ -294,8 +326,10 @@ object Demultiplexing {
             log.warning("--tiles argument to bcl2fastq is overriden.")
             Nil
           } else
-            List("--tiles",
-                 tilesToProcess.toSeq.sorted.map(t => "s_" + t).mkString(","))
+            List(
+              "--tiles",
+              tilesToProcess.toSeq.sorted.map(t => "s_" + t).mkString(",")
+            )
 
           /* bcl2fastq manual page 16:
            * Use one thread per CPU core plus a little more to supply CPU with work.
@@ -345,25 +379,30 @@ object Demultiplexing {
                 if (exitCode != 0) {
                   val stdErrContents = fileutils.openSource(stderr)(_.mkString)
                   log.error(
-                    "bcl2fastq failed. stderr follows:\n" + stdErrContents)
+                    "bcl2fastq failed. stderr follows:\n" + stdErrContents
+                  )
                   throw new RuntimeException(
-                    s"bcl2fastq exited with code != 0 stderr: \n $stdErrContents")
+                    s"bcl2fastq exited with code != 0 stderr: \n $stdErrContents"
+                  )
                 }
 
                 val statsFile =
                   new File(new File(outputFolder, "Stats"), "Stats.json")
 
                 val files = Files.list(outputFolder, "**.fastq.gz") :+ statsFile :+ new File(
-                  stdout) :+ new File(stderr)
+                  stdout
+                ) :+ new File(stderr)
 
                 files.foreach(_.deleteOnExit)
 
                 Future.traverse(files) { file =>
-                  SharedFile(file,
-                             name = file.getAbsolutePath
-                               .drop(outputFolder.getAbsolutePath.size)
-                               .stripPrefix("/"),
-                             deleteFile = true)
+                  SharedFile(
+                    file,
+                    name = file.getAbsolutePath
+                      .drop(outputFolder.getAbsolutePath.size)
+                      .stripPrefix("/"),
+                    deleteFile = true
+                  )
                 }
 
             }
@@ -420,22 +459,27 @@ object DemultiplexingInput {
     deriveDecoder[DemultiplexingInput]
 
   def parseReadLengthFromBcl2FastqArguments(
-      arguments: Seq[String]): Map[ReadType, Int] = {
+      arguments: Seq[String]
+  ): Map[ReadType, Int] = {
 
-    def parsingLoop(input: List[Char],
-                    subLength: Int,
-                    subChar: Option[Char],
-                    acc: List[(Char, Int)]): Either[String, List[(Char, Int)]] =
+    def parsingLoop(
+        input: List[Char],
+        subLength: Int,
+        subChar: Option[Char],
+        acc: List[(Char, Int)]
+    ): Either[String, List[(Char, Int)]] =
       input match {
         case Nil if subChar.isDefined =>
           Right((subChar.get, subLength) :: acc)
         case Nil => Right(acc)
         case c :: cs if c.isDigit && subChar.isDefined =>
           val (lenString, remaining) = (c :: cs).span(_.isDigit)
-          parsingLoop(remaining,
-                      lenString.mkString.toInt + subLength - 1,
-                      subChar,
-                      acc)
+          parsingLoop(
+            remaining,
+            lenString.mkString.toInt + subLength - 1,
+            subChar,
+            acc
+          )
         case c :: _ if c.isDigit =>
           Left("Illegal input. Expected non digit. " + input.mkString)
         case c :: cs if subChar.isDefined && subChar.get == c =>
