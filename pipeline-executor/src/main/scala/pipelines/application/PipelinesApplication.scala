@@ -586,7 +586,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .mergeSubstreams
       .groupedWithin(n = 10000, d = 5 minute)
       .mapAsync(1) { samples =>
-        logger.debug(s"Summarizing ${samples.flatten.size} samples.")
+        logger.debug(s"Summarizing ${samples.flatten.size} sample results.")
         pipeline.summarizeCompletedSamples(samples.flatten).recover {
           case error =>
             logger.error(s"Unexpected error while summarizing samples.", error)
