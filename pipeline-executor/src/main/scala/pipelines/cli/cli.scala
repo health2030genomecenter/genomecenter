@@ -192,7 +192,7 @@ object CliHelpers {
             else List(project, sample, "DEMULTIPLEX", run)
           } ++
             folded.processing.map { run =>
-              List(project, sample, "PROCESSING ", run)
+              List(project, sample, "PROCESSING STARTED", run)
             } ++
             folded.coverage.map { run =>
               if (suppressCompletedTasks) Nil
