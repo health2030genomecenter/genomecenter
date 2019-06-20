@@ -1122,13 +1122,13 @@ object AlignmentQC {
               val table =
                 makeHtmlTable(laneMetrics, sampleMetrics, parsedRNAMetrics)
               SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
-                         fileName + ".wes.qc.table.html")
+                         fileName + ".qc.table.html")
             }
             csvTable <- {
               val table =
                 makeCsvTable(laneMetrics, sampleMetrics, parsedRNAMetrics)
               SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
-                         fileName + ".wes.qc.table.csv")
+                         fileName + ".qc.table.csv")
             }
             _ <- {
               val analyses
@@ -1140,7 +1140,7 @@ object AlignmentQC {
                                       sampleMetrics.filter(_._7 == analysis),
                                       parsedRNAMetrics.filter(_._1 == analysis))
                 SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
-                           fileName + "." + analysis + ".wes.qc.table.html")
+                           fileName + "." + analysis + ".qc.table.html")
               }
             }
           } yield RunQCTable(htmlTable, rnaCSVTable, csvTable)
