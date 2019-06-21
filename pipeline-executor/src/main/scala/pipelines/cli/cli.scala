@@ -741,18 +741,20 @@ object Pipelinectl extends App {
             .collect {
               case d: DeliveryListAvailable => d
             }
+          def logInfo(s:String) = println(s"[INFO]$s")
+          def logFile(s:String) = println(s)
           deliveryList match {
             case None => println("Nothing to deliver yet.")
             case Some(deliveryList) =>
-              println("Runs included:\n")
-              deliveryList.runsIncluded.foreach(println)
-              println(
-                s"\nSamples included (${deliveryList.samples.size} total):\n")
-              deliveryList.samples.toSeq.sortBy(_.toString).foreach(println)
-              println(s"Files:\n")
-              deliveryList.files.foreach(println)
+              logInfo("Runs included:")
+              deliveryList.runsIncluded.foreach(logInfo)
+              logInfo(
+                s"Samples included (${deliveryList.samples.size} total):")
+              deliveryList.samples.toSeq.sortBy(_.toString).foreach(logInfo)
+              logInfo(s"Files:")
+              deliveryList.files.foreach(logFile)
 
-              println("Fetching sample configuration data..")
+              logInfo("Fetching sample configuration data..")
 
               val lanesBySample = {
                 val runConfigurations = io.circe.parser
@@ -794,7 +796,7 @@ object Pipelinectl extends App {
                 }
               }
               val bamFiles = deliveryList.files.filter(_.endsWith(".bam"))
-              println(s"Verifying ${bamFiles.size} bam files..")
+              logInfo(s"Verifying ${bamFiles.size} bam files..")
               val missingLanesPerFile = bamFiles
                 .map { file =>
                   val readGroups = BAM.getReadGroups(new File(file))
@@ -811,13 +813,14 @@ object Pipelinectl extends App {
                 .filter(_._2.nonEmpty)
 
               if (missingLanesPerFile.isEmpty) {
-                println(s"All ${bamFiles.size} contain all expected lanes.")
+                logInfo(s"All ${bamFiles.size} contain all expected lanes.")
               } else {
-                println(
-                  s"Missing lanes (${missingLanesPerFile.size} files):\nFILE\tLANES")
+                logInfo(
+                  s"Missing lanes (${missingLanesPerFile.size} files):")
+                logInfo("FILE\tLANES")
                 missingLanesPerFile.foreach {
                   case (file, missingPlatformUnits) =>
-                    println(s"$file\t${missingPlatformUnits.mkString(",")}")
+                  logInfo(s"$file\t${missingPlatformUnits.mkString(",")}")
                 }
               }
 
