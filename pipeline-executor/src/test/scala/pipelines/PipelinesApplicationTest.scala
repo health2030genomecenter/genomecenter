@@ -647,7 +647,7 @@ class PipelinesApplicationTest
           true
         )
         .runWith(Sink.last),
-      atMost = 90 seconds
+      atMost = 120 seconds
     )
     taskSystem.shutdown
     Await.result(AS.terminate, 5 seconds)
@@ -698,7 +698,7 @@ class PipelinesApplicationTest
           true
         )
         .runWith(Sink.last),
-      atMost = 90 seconds
+      atMost = 120 seconds
     )
     taskSystem.shutdown
     Await.result(AS.terminate, 5 seconds)
@@ -987,7 +987,7 @@ class PipelinesApplicationTest
     eventSource.send()
     Then(
       "The project should be completed with the first run, and the second analysis of the second run")
-    probe.fishForSpecificMessage(30 seconds) {
+    probe.fishForSpecificMessage(90 seconds) {
 
       case ProjectFinished(project, true, Some(samples))
           if project == Project("project1") && samples
@@ -1009,7 +1009,7 @@ class PipelinesApplicationTest
     eventSource.send()
     Then(
       "The project should be completed with the first run, and the second analysis of the second run")
-    probe.fishForSpecificMessage(30 seconds) {
+    probe.fishForSpecificMessage(90 seconds) {
       case ProjectFinished(project, true, Some(samples))
           if project == Project("project1") && (Set(RunId("fake2")) &~ samples
             .asInstanceOf[Seq[FakeSampleResult]]
