@@ -514,43 +514,6 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
   }
 
-  // def processCompletedRuns =
-  //   Flow[(Option[CompletedRun], Option[CompletedProject])]
-  //     .map { case (completedRun, _) => completedRun }
-  //     .filter(_.isDefined)
-  //     .map(_.get)
-  //     .filter(_.samples.nonEmpty)
-  //     .map {
-  //       case CompletedRun(samples) =>
-  //         val (_, _, runId) = getKeysOfSampleResult(samples.head)
-  //         logger.info(s"Run $runId finished with ${samples.size} samples.")
-  //         processingFinishedListener ! RunFinished(runId, true)
-  //         (runId, samples)
-  //     }
-  //     .groupBy(maxSubstreams = 100000, { case (runId, _) => runId })
-  //     .via(deduplicate)
-  //     .mergeSubstreams
-  //     .scan(Map.empty[RunId, Seq[SampleResult]]) {
-  //       case (map, (runId, samples)) =>
-  //         map.updated(runId, samples)
-  //     }
-  //     .buffer(1, OverflowStrategy.dropHead)
-  //     .throttle(1,
-  //               1 minute,
-  //               maximumBurst = 1,
-  //               mode = akka.stream.ThrottleMode.Shaping)
-  //     .mapAsync(1) { completedRuns =>
-  //       logger.debug(s"Completing ${completedRuns.size} runs.")
-  //       pipeline.processCompletedRuns(completedRuns).recover {
-  //         case error =>
-  //           logger.error(
-  //             s"$pipeline failed while processing completed runs ${completedRuns.toSeq.map(_._1).mkString(", ")}",
-  //             error)
-  //           ()
-  //       }
-  //     }
-  //     .to(Sink.ignore)
-
   def processCompletedProjects =
     Flow[Completeds]
       .buffer(size = 10000, OverflowStrategy.fail)
