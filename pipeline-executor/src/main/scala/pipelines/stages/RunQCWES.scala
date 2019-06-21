@@ -83,7 +83,7 @@ object AlignmentQC {
         .runFold(ByteString(""))(_ ++ _)
         .map(_.utf8String)
       parsed = {
-        WgsMetrics.Root(txt, project, sample).metrics.meanCoverage
+        WgsMetrics.Root(txt, project, sample).metrics.meanCoverageIncludingDuplicates
       }
     } yield parsed.toDouble
   }
@@ -101,7 +101,7 @@ object AlignmentQC {
       parsed = {
         HsMetrics
           .Root(txt, project, sample)
-          .map(_.metrics.meanTargetCoverage)
+          .map(_.metrics.meanTargetCoverageIncludingDuplicates)
           .sum
       }
     } yield parsed
