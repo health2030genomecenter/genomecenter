@@ -87,7 +87,7 @@ object PipelinesApplication extends StrictLogging {
       pastResultsOfThisSample: Option[SampleResult],
       currentDemultiplexedSample: DemultiplexedSample)(
       implicit tsc: TaskSystemComponents,
-      ec: ExecutionContext) =
+      ec: ExecutionContext): Future[Option[SampleResult]] =
     pipeline
       .processSample(currentRunConfiguration.run,
                      currentRunConfiguration.analyses,
@@ -605,6 +605,11 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
      */
     val maxTotalAccumulatedSamples = 1000000
 
+    case class ScanState(
+        pastResultsAndRuns: List[(Option[SampleResult], DemultiplexedSample)],
+        triggeringRun: DemultiplexedSample
+    )
+
     Flow[(RunWithAnalyses, DemultiplexedSample)]
       .scan((Set.empty[(Project, SampleId)],
              Option.empty[(RunWithAnalyses, DemultiplexedSample)])) {
@@ -640,57 +645,81 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       // This is needed because groupBy is synchronous and otherwise samples were
       // not processed in parallel.
       .buffer(size = 100, OverflowStrategy.backpressure)
-      .scanAsync(List
-        .empty[(Option[SampleResult], RunWithAnalyses, DemultiplexedSample)]) {
-        case (pastResultsOfThisSample,
-              (currentRunConfiguration, currentDemultiplexedSample)) =>
+      // The following scanAsync flow manages the processing of a sample
+      // It accumulates results of multiple runs in order
+      // It ensures that if an already processed run is receive again then
+      // the sequence of processing is rolled back to that point and reapplied
+      // It always uses the most recent analysis configuration
+      .scanAsync(Option.empty[ScanState]) {
+        case (maybeState,
+              (latestRunConfiguration, currentDemultiplexedSample)) =>
           val (runsBeforeThis, runsAfterInclusive) =
-            pastResultsOfThisSample.span {
-              case (_, pastRunFolder, _) =>
-                pastRunFolder.run.runId != currentRunConfiguration.run.runId
+            maybeState.map(_.pastResultsAndRuns).getOrElse(Nil).span {
+              case (_, pastDemultiplexedSamples) =>
+                val (_, _, runId: RunId) =
+                  getKeysOfDemultiplexedSample(pastDemultiplexedSamples)
+                runId != latestRunConfiguration.run.runId
             }
 
           val runsAfterThis = runsAfterInclusive.drop(1).map {
-            case (_, runFolder, demultiplexedSamples) =>
-              (runFolder, demultiplexedSamples)
+            case (_, pastDemultiplexedSamples) =>
+              pastDemultiplexedSamples
           }
 
-          val runsToReApply = ((currentRunConfiguration,
-                                currentDemultiplexedSample)) +: runsAfterThis
+          val runsToReApply = currentDemultiplexedSample +: runsAfterThis
 
-          logger.info(
-            s"Processing sample: ${getSampleId(currentDemultiplexedSample)}. RunsBefore: ${runsBeforeThis
-              .map(_._2.run.runId)}. RunsToReapply: ${runsToReApply.map(_._1.run.runId)}.")
+          { // this block is used solely for logging
+            val runIdsBefore = runsBeforeThis.map {
+              case (_, pastDemultiplexedSample) =>
+                getKeysOfDemultiplexedSample(pastDemultiplexedSample)._3
+            }
 
-          runsToReApply.foldLeft(Future.successful(runsBeforeThis)) {
-            case (pastIntermediateResults,
-                  (currentRunConfiguration, currentDemultiplexedSample)) =>
-              for {
-                pastIntermediateResults <- pastIntermediateResults
+            val runIdsToReapply = runsToReApply.map {
+              case dm =>
+                getKeysOfDemultiplexedSample(dm)._3
+            }
 
-                lastSampleResult = pastIntermediateResults.lastOption.flatMap {
-                  case (sampleResult, _, _) => sampleResult
-                }
-
-                newSampleResult <- PipelinesApplication.foldSample(
-                  pipeline,
-                  processingFinishedListener,
-                  currentRunConfiguration,
-                  lastSampleResult,
-                  currentDemultiplexedSample)
-              } yield
-                pastIntermediateResults :+ ((newSampleResult,
-                                             currentRunConfiguration,
-                                             currentDemultiplexedSample))
-
+            logger.info(
+              s"Processing sample: ${getSampleId(currentDemultiplexedSample)}. RunsBefore: $runIdsBefore. RunsToReapply: $runIdsToReapply.")
           }
+
+          val result =
+            runsToReApply.foldLeft(Future.successful(runsBeforeThis)) {
+              case (pastIntermediateResults, (reAppliedDemultiplexedSample)) =>
+                for {
+                  pastIntermediateResults <- pastIntermediateResults
+
+                  lastSampleResult = pastIntermediateResults.lastOption
+                    .flatMap {
+                      case (sampleResult, _) => sampleResult
+                    }
+
+                  newSampleResult <- PipelinesApplication.foldSample(
+                    pipeline,
+                    processingFinishedListener,
+                    latestRunConfiguration,
+                    lastSampleResult,
+                    reAppliedDemultiplexedSample)
+                } yield
+                  pastIntermediateResults :+ ((newSampleResult,
+                                               reAppliedDemultiplexedSample))
+
+            }
+
+          for {
+            result <- result
+          } yield Some(ScanState(result, currentDemultiplexedSample))
 
       }
       .mergeSubstreams
-      .filter(_.nonEmpty)
-      .map { scans =>
-        val (result, _, demultiplexedSample) = scans.last
-        (result, demultiplexedSample)
+      .collect {
+        case Some(ScanState(folds, triggeringRun)) =>
+          val (finalResultOfSample, _) = folds.last
+          // This is the element that the whole `sampleProcessing` flow returns
+          // for each of its input: the result of the last run and the run which
+          // was in the input. The latter two might not be the same in case
+          // the input was the first of two runs.
+          (finalResultOfSample, triggeringRun)
       }
 
   }
@@ -730,7 +759,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
 
   object StateOfUnfinishedSamples {
     def empty =
-      StateOfUnfinishedSamples(Nil, Set(), Set(), Seq(), Nil, Nil, None)
+      StateOfUnfinishedSamples(Map.empty, Set(), Set(), Seq(), Nil, Nil, None)
   }
 
   /* State held in the accounting flow
@@ -763,7 +792,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    * - sendToCompleteds
    */
   case class StateOfUnfinishedSamples(
-      private val runFoldersOnHold: Seq[RunWithAnalyses],
+      private val runFoldersOnHold: Map[RunId, RunWithAnalyses],
       private val unfinishedProcessingOfRunIds: Set[RunId],
       private val unfinished: Set[(Project, SampleId, RunId)],
       private val finished: Seq[SampleResult],
@@ -775,14 +804,14 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     def removeFromUnfinishedProcessing(runId: RunId) = {
       val runRemovedFromUnfinishedDemultiplexing = copy(
         runFoldersOnHold = runFoldersOnHold
-          .filterNot(_.runId == runId),
+          .filterNot(pair => (pair._1: RunId) == (runId: RunId)),
         unfinishedProcessingOfRunIds = unfinishedProcessingOfRunIds - runId
       )
-      val onHold = runFoldersOnHold.filter(_.runId == runId)
+      val onHold = runFoldersOnHold.get(runId)
       logger.info(
         s"Removed ${onHold.size} runs from hold and re-add the last with id $runId ")
 
-      onHold.lastOption match {
+      onHold match {
         case None => runRemovedFromUnfinishedDemultiplexing
         case Some(run) =>
           runRemovedFromUnfinishedDemultiplexing
@@ -799,7 +828,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
         case (state, run) =>
           if (state.unfinishedProcessingOfRunIds.contains(run.runId)) {
             logger.info(s"Put run on hold: ${run.runId}.")
-            state.copy(runFoldersOnHold = state.runFoldersOnHold :+ run)
+            state.copy(runFoldersOnHold = runFoldersOnHold + ((run.runId, run)))
           } else {
             logger.debug(s"Append to demultiplexables: ${run.runId}.")
             state.copy(
@@ -814,6 +843,12 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       : StateOfUnfinishedSamples = {
       val keys = samples._2.map(getKeysOfDemultiplexedSample)
       logger.debug(s"Add new demultiplexed samples: $keys.")
+      keys.foreach { key =>
+        if (unfinished.contains(key)) {
+          logger.error(
+            s"$key is already contained in the list of unfinished samples when trying to add demultiplexed samples. this should not happen!")
+        }
+      }
       copy(unfinished = unfinished ++ keys,
            sendToSampleProcessing = sendToSampleProcessing :+ samples)
     }
@@ -844,15 +879,15 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       val releasableRunsWithAnalyses =
         if (remainingUnfinishedSamples.nonEmpty) Nil
         else
-          runFoldersOnHold
+          runFoldersOnHold.values.toList
 
-      val remainingRunsOnHold = releasableRunsWithAnalyses match {
-        case Nil => runFoldersOnHold
-        case _   => Nil
-      }
+      val remainingRunsOnHold: Map[RunId, RunWithAnalyses] =
+        releasableRunsWithAnalyses match {
+          case Nil => runFoldersOnHold
+          case _   => Map.empty
+        }
 
       val newUnfinishedProcessingOfRunIds = {
-
         val runIdsOfReleasedRunsFromHold = releasableRunsWithAnalyses
           .map(_.runId)
 
@@ -860,8 +895,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       }
 
       logger.debug(
-        s"Accounting the completion of sample processing of $keysOfFinishedSample. Project complete: $projectIsComplete. Remaining unfinished samples ${remainingUnfinishedSamples.size}. Total finished samples: ${allFinishedSamples.size}. Unfinished processing of run ids: $newUnfinishedProcessingOfRunIds. Runfolders on hold: ${remainingRunsOnHold
-          .map(_.run.runId)}. Released to demux: $releasableRunsWithAnalyses")
+        s"Accounting the completion of sample processing of $keysOfFinishedSample. Project complete: $projectIsComplete. Remaining unfinished (samples,run) pairs ${remainingUnfinishedSamples.size}. Total finished sample results: ${allFinishedSamples.size}. Unfinished processing of run ids: $newUnfinishedProcessingOfRunIds. Runfolders on hold: ${remainingRunsOnHold.keySet.toList}. Released to demux: $releasableRunsWithAnalyses")
 
       StateOfUnfinishedSamples(
         unfinished = remainingUnfinishedSamples,
