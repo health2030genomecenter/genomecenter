@@ -568,7 +568,7 @@ object Pipelinectl extends App {
             .action((_, c) => c.copy(listProjects = Some(true)))
         ),
       cmd("query-freeruns")
-        .text("Query runs which contain unprocessed projects")
+        .text("Query runs which contain only projects which have no analyses assigned to it.")
         .action((_, c) => c.copy(command = QueryFreeRuns))
         .children(
           opt[Unit]("fastqs")
