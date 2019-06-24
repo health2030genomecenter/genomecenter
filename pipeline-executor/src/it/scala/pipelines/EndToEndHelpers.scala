@@ -11,7 +11,7 @@ import org.gc.pipelines.application.{
   HttpServer,
   HttpCommandSource,
   FilePipelineState,
-  PipelinesApplication,
+  PipelineStreamProcessor,
   ProgressServer,
   ConfigurationQueryHttpComponent
 }
@@ -32,11 +32,12 @@ import scala.concurrent.duration._
 import akka.util.ByteString
 import akka.testkit.TestProbe
 import akka.stream.scaladsl.Sink
+import org.gc.pipelines.application.PipelineStreamProcessor
 
 object MyTestKit extends akka.testkit.TestKit(ActorSystem())
 
 case class TestApplication[A, B, C](
-    pipelinesApplication: PipelinesApplication[A, B, C],
+    pipelinesApplication: PipelineStreamProcessor[A, B, C],
     httpServer: HttpServer,
     commandSource: HttpCommandSource
 ) {
@@ -73,7 +74,7 @@ object EndToEndHelpers {
 
   def postString(endpoint: String, data: String)(
       implicit app: TestApplication[_, _, _]) = {
-    implicit val AS = app.pipelinesApplication.actorSystem
+    implicit val AS = app.pipelineProcessor.actorSystem
     val binding = await(app.httpServer.startServer)
     await(
       Http().singleRequest(
@@ -85,7 +86,7 @@ object EndToEndHelpers {
 
   def getProgress(endpoint: String)(implicit app: TestApplication[_, _, _],
                                     ec: ExecutionContext) = {
-    implicit val AS = app.pipelinesApplication.actorSystem
+    implicit val AS = app.pipelineProcessor.actorSystem
     implicit val mat = ActorMaterializer()
     val binding = await(app.httpServer.startServer)
     await(
@@ -98,10 +99,10 @@ object EndToEndHelpers {
   }
 
   def createProbe(implicit app: TestApplication[_, _, _]) = {
-    implicit val AS = app.pipelinesApplication.actorSystem
+    implicit val AS = app.pipelineProcessor.actorSystem
     implicit val mat = ActorMaterializer()
     val probe = TestProbe()
-    app.pipelinesApplication.processingFinishedSource
+    app.pipelineProcessor.processingFinishedSource
       .to(Sink.actorRef(probe.ref, "completed"))
       .run()
     probe
@@ -129,7 +130,7 @@ object EndToEndHelpers {
         port = 0,
         Seq(commandSource.route, progressServer.route, queryComponent.route))
 
-    val pipelineApp = new PipelinesApplication(
+    val pipelineProcessor = new PipelineStreamProcessor(
       commandSource,
       pipelineState,
       AS,
@@ -137,7 +138,7 @@ object EndToEndHelpers {
       new ProtoPipeline(progressServer),
       Set.empty)
 
-    val app = TestApplication(pipelineApp, httpServer, commandSource)
+    val app = TestApplication(pipelineProcessor, httpServer, commandSource)
 
     try {
       fun(app)

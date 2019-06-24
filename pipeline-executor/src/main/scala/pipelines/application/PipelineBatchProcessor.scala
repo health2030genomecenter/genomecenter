@@ -19,14 +19,14 @@ class PersistCommandSource(
   implicit val mat = ActorMaterializer()
 
   val persistCommandsFunction =
-    PipelinesApplication.persistCommands(pipelineState)
+    PipelineStreamProcessor.persistCommands(pipelineState)
 
   commandSource.commands
     .mapAsync(1)(persistCommandsFunction)
     .runWith(Sink.ignore)
 }
 
-class SimplePipelinesApplication[DemultiplexedSample, SampleResult, Delivery](
+class PipelineBatchProcessor[DemultiplexedSample, SampleResult, Delivery](
     pastRuns: Seq[RunWithAnalyses],
     actorSystem: ActorSystem,
     taskSystem: TaskSystem,
@@ -111,7 +111,7 @@ class SimplePipelinesApplication[DemultiplexedSample, SampleResult, Delivery](
                         case (sampleResult, _, _) => sampleResult
                       }
                     for {
-                      newSampleResult <- PipelinesApplication.foldSample(
+                      newSampleResult <- PipelineStreamProcessor.foldSample(
                         pipeline,
                         processingFinishedListener,
                         currentRunConfiguration,
@@ -147,7 +147,8 @@ class SimplePipelinesApplication[DemultiplexedSample, SampleResult, Delivery](
     completedProjects <- traverseAll(processedSamplesByProject) { samples =>
       assert(samples.map(s => getKeysOfSampleResult(s)._1).distinct.size == 1)
 
-      PipelinesApplication.processSamplesOfCompletedProject(pipeline, samples)
+      PipelineStreamProcessor.processSamplesOfCompletedProject(pipeline,
+                                                               samples)
 
     }
 

@@ -117,18 +117,18 @@ class Application(implicit ec: ExecutionContext,
 
     new PersistCommandSource(commandSource, pipelineState)
 
-    new SimplePipelinesApplication(pastRuns,
-                                   actorSystem,
-                                   taskSystem,
-                                   pipeline,
-                                   blacklist).finished
+    new PipelineBatchProcessor(pastRuns,
+                               actorSystem,
+                               taskSystem,
+                               pipeline,
+                               blacklist).finished
   } else {
-    new PipelinesApplication(commandSource,
-                             pipelineState,
-                             actorSystem,
-                             taskSystem,
-                             pipeline,
-                             blacklist).finished
+    new PipelineStreamProcessor(commandSource,
+                                pipelineState,
+                                actorSystem,
+                                taskSystem,
+                                pipeline,
+                                blacklist).finished
 
   }
 

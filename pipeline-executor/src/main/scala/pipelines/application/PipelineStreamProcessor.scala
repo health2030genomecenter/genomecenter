@@ -32,7 +32,7 @@ case class SampleFinished[T](project: Project,
                              success: Boolean,
                              result: Option[T])
 
-object PipelinesApplication extends StrictLogging {
+object PipelineStreamProcessor extends StrictLogging {
 
   /* Validates commands and persists events into `pipelineState`*/
   def persistCommands(pipelineState: PipelineState)(
@@ -176,7 +176,7 @@ object PipelinesApplication extends StrictLogging {
  * until the first invocation is finished.
  *
  */
-class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
+class PipelineStreamProcessor[DemultiplexedSample, SampleResult, Deliverables](
     val commandSource: CommandSource,
     val pipelineState: PipelineState,
     val actorSystem: ActorSystem,
@@ -218,7 +218,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       }
 
   private val persistCommandsFunction =
-    PipelinesApplication.persistCommands(pipelineState)
+    PipelineStreamProcessor.persistCommands(pipelineState)
 
   private def validateCommandAndPersistEvents
     : Flow[Command, List[RunWithAnalyses], _] =
@@ -548,7 +548,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       .buffer(1, OverflowStrategy.dropHead)
       .mapAsync(1) {
         case (_, samples) =>
-          PipelinesApplication
+          PipelineStreamProcessor
             .processSamplesOfCompletedProject(pipeline, samples)
             .map(result => (result, samples))
       }
@@ -673,7 +673,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
                       case (sampleResult, _) => sampleResult
                     }
 
-                  newSampleResult <- PipelinesApplication.foldSample(
+                  newSampleResult <- PipelineStreamProcessor.foldSample(
                     pipeline,
                     processingFinishedListener,
                     latestRunConfiguration,

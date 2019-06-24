@@ -18,12 +18,12 @@ import org.gc.pipelines.util.StableSet
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class SimplePipelinesApplicationTest
+class PipelineBatchProcessorTest
     extends FunSuite
     with GivenWhenThen
     with Matchers {
 
-  test("pipelines application should replace old runs - pattern 1 2 3 2") {
+  test("batch processor should replace old runs - pattern 1 2 3 2") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -43,7 +43,7 @@ class SimplePipelinesApplicationTest
     val taskSystem = defaultTaskSystem(Some(config))
 
     When("Sending these run sequence into a running application")
-    val app = new SimplePipelinesApplication(
+    val app = new PipelineBatchProcessor(
       Await.result(pipelineState.pastRuns, atMost = 5 seconds),
       implicitly[ActorSystem],
       taskSystem,

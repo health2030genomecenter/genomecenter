@@ -43,9 +43,9 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
 
       Given("a running application")
       withApplication { implicit app =>
-        implicit val AS = app.pipelinesApplication.actorSystem
+        implicit val AS = app.pipelineProcessor.actorSystem
         implicit val mat = ActorMaterializer()
-        implicit val tsc = app.pipelinesApplication.taskSystem.components
+        implicit val tsc = app.pipelineProcessor.taskSystem.components
         import AS.dispatcher
         val probe = createProbe
         And("A configuration with an already demultiplexed set of fastq files")
@@ -243,7 +243,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         getProgress("/v2/free-runs?fastq=true") shouldBe ""
 
         postString("/v2/shutdown", "").status.intValue shouldBe 200
-        await(app.pipelinesApplication.finished) shouldBe Done
+        await(app.pipelineProcessor.finished) shouldBe Done
         await(app.shutdown) shouldBe (())
 
       }

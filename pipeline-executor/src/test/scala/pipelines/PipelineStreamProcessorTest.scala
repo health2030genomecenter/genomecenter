@@ -29,7 +29,7 @@ object Only extends Tag("only")
 
 object MyTestKit extends akka.testkit.TestKit(ActorSystem())
 
-class PipelinesApplicationTest
+class PipelineStreamProcessorTest
     extends FunSuite
     with GivenWhenThen
     with Matchers {
@@ -236,7 +236,7 @@ class PipelinesApplicationTest
 
   }
 
-  test("pipelines application should respect the blacklist") {
+  test("stream processor should respect the blacklist") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -250,12 +250,13 @@ class PipelinesApplicationTest
     val taskSystem = defaultTaskSystem(Some(config))
 
     val app =
-      new PipelinesApplication(eventSource,
-                               pipelineState,
-                               implicitly[ActorSystem],
-                               taskSystem,
-                               new TestPipeline,
-                               Set((Project("project1"), SampleId("sample1"))))
+      new PipelineStreamProcessor(
+        eventSource,
+        pipelineState,
+        implicitly[ActorSystem],
+        taskSystem,
+        new TestPipeline,
+        Set((Project("project1"), SampleId("sample1"))))
 
     val processedRuns = Await.result(
       app.processingFinishedSource
@@ -284,8 +285,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
 
   }
-  test(
-    "pipelines application should react if a RunfolderReady event is received") {
+  test("stream processor should react if a RunfolderReady event is received") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -298,12 +298,12 @@ class PipelinesApplicationTest
 
     val taskSystem = defaultTaskSystem(Some(config))
 
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       new TestPipeline,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          new TestPipeline,
+                                          Set())
 
     val processedRuns = Await.result(
       app.processingFinishedSource
@@ -347,7 +347,7 @@ class PipelinesApplicationTest
   }
 
   test(
-    "pipelines application should react if the same RunfolderReady event is received multiple times by replacing the old instance of the run") {
+    "stream processor should react if the same RunfolderReady event is received multiple times by replacing the old instance of the run") {
 
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
@@ -362,12 +362,12 @@ class PipelinesApplicationTest
 
     val testPipeline = new TestPipeline
 
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       testPipeline,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          testPipeline,
+                                          Set())
 
     val processedRuns =
       Await.result(
@@ -406,7 +406,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
-  test("pipelines application should not demultiplex the same run prematurely") {
+  test("stream processor should not demultiplex the same run prematurely") {
 
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
@@ -421,12 +421,12 @@ class PipelinesApplicationTest
 
     val testPipeline = new TestPipeline
 
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       testPipeline,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          testPipeline,
+                                          Set())
 
     intercept[Exception](
       Await.result(
@@ -448,7 +448,7 @@ class PipelinesApplicationTest
   }
 
   test(
-    "pipelines application should not process the same sample twice on project completion") {
+    "stream processor should not process the same sample twice on project completion") {
 
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
@@ -463,12 +463,12 @@ class PipelinesApplicationTest
 
     val testPipeline = new TestPipeline
 
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       testPipeline,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          testPipeline,
+                                          Set())
 
     Await.result(
       app.processingFinishedSource
@@ -530,7 +530,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
-  test("pipelines application should replace old runs - pattern 1 2 3 2") {
+  test("stream processor should replace old runs - pattern 1 2 3 2") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -547,12 +547,12 @@ class PipelinesApplicationTest
     val taskSystem = defaultTaskSystem(Some(config))
 
     When("Sending these run sequence into a running application")
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       new TestPipeline,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          new TestPipeline,
+                                          Set())
 
     val processedRuns =
       Await.result(
@@ -605,7 +605,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
-  test("pipelines application should replace old runs -- pattern 1 1 2") {
+  test("stream processor should replace old runs -- pattern 1 1 2") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -622,12 +622,12 @@ class PipelinesApplicationTest
     val testPipeline = new TestPipeline
 
     When("Sending these run sequence into a running application")
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       testPipeline,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          testPipeline,
+                                          Set())
 
     Then(
       "The first should be processed twice, after which the second should be processed.")
@@ -654,7 +654,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
-  test("pipelines application should recover old runs -- pattern 1 1 2", Only) {
+  test("stream processor should recover old runs -- pattern 1 1 2", Only) {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -680,7 +680,7 @@ class PipelinesApplicationTest
                  atMost = 90 seconds)
 
     When("Sending these run sequence into a running application")
-    val app = new PipelinesApplication(new CommandSource {
+    val app = new PipelineStreamProcessor(new CommandSource {
       val commands = Source.empty ++ Delayed(600)
     }, pipelineState, implicitly[ActorSystem], taskSystem, testPipeline, Set())
 
@@ -705,7 +705,7 @@ class PipelinesApplicationTest
     taskSystem.shutdown
     Await.result(AS.terminate, 5 seconds)
   }
-  test("pipelines application should recover old runs -- pattern 1, 2, 3, 2") {
+  test("stream processor should recover old runs -- pattern 1, 2, 3, 2") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -731,7 +731,7 @@ class PipelinesApplicationTest
                  atMost = 90 seconds)
 
     When("Sending these run sequence into a running application")
-    val app = new PipelinesApplication(new CommandSource {
+    val app = new PipelineStreamProcessor(new CommandSource {
       val commands = Source.empty ++ Delayed(600)
     }, pipelineState, implicitly[ActorSystem], taskSystem, testPipeline, Set())
 
@@ -757,7 +757,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
-  test("pipelines application should replace old runs even in case of failure ") {
+  test("stream processor should replace old runs even in case of failure ") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -773,12 +773,12 @@ class PipelinesApplicationTest
     val taskSystem = defaultTaskSystem(Some(config))
 
     When("Sending these run sequence into a running application")
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       new TestPipeline,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          new TestPipeline,
+                                          Set())
 
     val processedRuns =
       Await.result(
@@ -814,7 +814,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
-  test("pipelines application should survive a failing pipeline") {
+  test("stream processor should survive a failing pipeline") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -825,12 +825,12 @@ class PipelinesApplicationTest
     val pipelineState = new InMemoryPipelineState
     val taskSystem = defaultTaskSystem(Some(config))
 
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       TestPipelineWhichFails,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          TestPipelineWhichFails,
+                                          Set())
 
     val processedRuns = Await.result(app.processingFinishedSource
                                        .takeWithin(6 seconds)
@@ -846,7 +846,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
-  test("pipelines application should re-execute project completion") {
+  test("stream processor should re-execute project completion") {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -860,12 +860,12 @@ class PipelinesApplicationTest
     val testPipeline = new TestPipeline
 
     When("Sending these run sequence into a running application")
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       testPipeline,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          testPipeline,
+                                          Set())
 
     val probe = TestProbe()
     app.processingFinishedSource.runWith(Sink.actorRef(probe.ref, None))
@@ -928,7 +928,7 @@ class PipelinesApplicationTest
   }
 
   test(
-    "pipelines application should re-execute project completion on full reprocessing"
+    "stream processor should re-execute project completion on full reprocessing"
   ) {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
@@ -944,12 +944,12 @@ class PipelinesApplicationTest
     val testPipeline = new TestPipeline
 
     When("Sending these run sequence into a running application")
-    val app = new PipelinesApplication(eventSource,
-                                       pipelineState,
-                                       implicitly[ActorSystem],
-                                       taskSystem,
-                                       testPipeline,
-                                       Set())
+    val app = new PipelineStreamProcessor(eventSource,
+                                          pipelineState,
+                                          implicitly[ActorSystem],
+                                          taskSystem,
+                                          testPipeline,
+                                          Set())
 
     val probe = TestProbe()
     app.processingFinishedSource.runWith(Sink.actorRef(probe.ref, None))
