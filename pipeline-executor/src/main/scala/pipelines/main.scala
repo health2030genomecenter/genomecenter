@@ -63,7 +63,17 @@ object Main extends App with StrictLogging {
     implicit val actorSystem = ActorSystem("Main")
     implicit val materializer = ActorMaterializer()
     import scala.concurrent.ExecutionContext.Implicits.global
-    new Application
+    val finished = (new Application).finished
+    finished.onComplete {
+      case completion =>
+        logger.info(
+          s"Application finished with result: $completion . Shutting down task system and actor system..")
+        taskSystem.shutdown
+        logger.info("TaskSystem terminated")
+        actorSystem.terminate.andThen {
+          case _ => logger.info("ActorSystem terminated.")
+        }
+    }
 
   } else {
     logger.info("Worker started.")

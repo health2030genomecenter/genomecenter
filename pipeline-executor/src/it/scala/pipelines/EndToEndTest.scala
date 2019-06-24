@@ -34,6 +34,7 @@ import org.gc.pipelines.GenericTestHelpers._
 import org.gc.pipelines.PipelineFixtures._
 
 import io.circe.syntax._
+import akka.Done
 
 class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
 
@@ -240,6 +241,9 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         getProgress("/v2/free-runs") shouldBe s"""{"Left":{"value":"runid3"}}${"\n"}"""
 
         getProgress("/v2/free-runs?fastq=true") shouldBe ""
+
+        postString("/v2/shutdown", "").status.intValue shouldBe 200
+        await(app.pipelinesApplication.finished) shouldBe Done
 
       }
     }

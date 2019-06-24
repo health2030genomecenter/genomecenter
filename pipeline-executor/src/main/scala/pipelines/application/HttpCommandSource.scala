@@ -86,10 +86,14 @@ class HttpCommandSource(implicit AS: ActorSystem)
     } ~
       pathPrefix("v2") {
         post {
-          path("reprocess") {
-            sourceActor ! ReprocessAllRuns
+          path("shutdown") {
+            closeSource()
             complete(akka.http.scaladsl.model.StatusCodes.OK)
           } ~
+            path("reprocess") {
+              sourceActor ! ReprocessAllRuns
+              complete(akka.http.scaladsl.model.StatusCodes.OK)
+            } ~
             path("analyses" / Segment) { project =>
               entity(as[String]) { analysisConfigurationAsString =>
                 val parsedFromJson = io.circe.parser

@@ -33,7 +33,8 @@ class SimplePipelinesApplication[DemultiplexedSample, SampleResult, Delivery](
     pipeline: Pipeline[DemultiplexedSample, SampleResult, Delivery],
     blacklist: Set[(Project, SampleId)]
 )(implicit EC: ExecutionContext)
-    extends StrictLogging {
+    extends StrictLogging
+    with WithFinished {
 
   import pipeline.getKeysOfDemultiplexedSample
   import pipeline.getKeysOfSampleResult
@@ -80,7 +81,7 @@ class SimplePipelinesApplication[DemultiplexedSample, SampleResult, Delivery](
       .map(_.flatten)
   }
 
-  for {
+  val finished = for {
     demultiplexed <- demultiplex(pastRuns)
     groupedBySample = demultiplexed
       .groupBy {
@@ -150,7 +151,7 @@ class SimplePipelinesApplication[DemultiplexedSample, SampleResult, Delivery](
 
     }
 
-  } {
+  } yield {
     completedProjects.foreach { project =>
       logger.info(s"Project done. $project")
     }

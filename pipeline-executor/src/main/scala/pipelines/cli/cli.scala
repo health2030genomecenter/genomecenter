@@ -293,6 +293,7 @@ object Pipelinectl extends App {
   case object AnalyseResourceUsage extends CliCommand
   case object ParseSampleSheet extends CliCommand
   case object QuerySampleIndices extends CliCommand
+  case object Shutdown extends CliCommand
 
   val config = {
     val configInUserHome =
@@ -425,6 +426,9 @@ object Pipelinectl extends App {
             .action((v, c) => c.copy(runId = Some(v)))
             .required
         ),
+      cmd("stop")
+        .text("Stops the pipeline.")
+        .action((_, c) => c.copy(command = Shutdown)),
       cmd("delete-freeruns")
         .text(
           "Deletes all existing runs. A deleted run won't get processed after restarting the pipeline. No files are deleted from the disk. The run's reads won't show up in any future analyses and reports. Does not affect currently running jobs (i.e. does not stop jobs).")
@@ -649,6 +653,11 @@ object Pipelinectl extends App {
   OParser.parse(parser1, args, Config()) match {
     case Some(config) =>
       config.command match {
+        case Shutdown =>
+          val response = post("/v2/shutdown")
+          if (response.code == 200) {
+            println("OK")
+          }
         case DeleteFreeRuns =>
           import io.circe.generic.auto._
           val runs = get("/v2/free-runs").split("\n").map { line =>

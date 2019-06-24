@@ -17,6 +17,7 @@ object ActorSource extends StrictLogging {
         listeners = actorRef :: listeners
       case other =>
         listeners.foreach(_ ! other)
+
     }
   }
 
@@ -32,7 +33,6 @@ object ActorSource extends StrictLogging {
                    overflowStrategy = OverflowStrategy.fail)
       .mapMaterializedValue { actorRef =>
         fw ! actorRef
-
       }
       .watchTermination() {
         case (mat, future) =>
@@ -41,7 +41,7 @@ object ActorSource extends StrictLogging {
               result.failed.foreach { e =>
                 logger.error("Unexpected exception ", e)
               }
-              logger.info("ActorSource terminated.")
+              logger.info(s"ActorSource terminated. $result")
           }(AS.dispatcher)
           mat
       }

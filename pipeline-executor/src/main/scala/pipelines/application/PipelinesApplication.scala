@@ -14,6 +14,13 @@ import org.gc.pipelines.util.AkkaStreamComponents.{deduplicate}
 import org.gc.pipelines.model.{Project, SampleId, RunId}
 import akka.stream.ActorMaterializer
 import scala.concurrent.duration._
+import akka.stream.scaladsl.Keep
+import scala.util.Success
+import scala.util.Failure
+
+trait WithFinished {
+  def finished: Future[Any]
+}
 
 case class RunFinished(runId: RunId, success: Boolean)
 case class ProjectFinished[T](project: Project,
@@ -177,7 +184,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
     val pipeline: Pipeline[DemultiplexedSample, SampleResult, Deliverables],
     blacklist: Set[(Project, SampleId)]
 )(implicit EC: ExecutionContext)
-    extends StrictLogging {
+    extends StrictLogging
+    with WithFinished {
 
   private val (processingFinishedListener,
                _processingFinishedSource,
@@ -254,13 +262,20 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
    *    in side channels to the outside world (i.e. the filesystem and the
    *    http interface)
    */
-  (previousRuns ++ futureRuns)
+  val finished = (previousRuns ++ futureRuns)
     .filter(_.nonEmpty)
     .via(accountAndProcess)
     .via(processCompletedProjects)
     .via(watchTermination)
-    .to(Sink.ignore)
+    .toMat(Sink.ignore)(Keep.right)
     .run
+    .andThen {
+      case Success(value) =>
+        logger.info(s"PipelinesApplication graph completed with success $value")
+      case Failure(exception) =>
+        logger.error("PipelinesApplication graph completed with error",
+                     exception)
+    }
 
   case class Completeds(projects: Option[CompletedProject])
 
@@ -343,7 +358,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
               type DM = (RunWithAnalyses, Seq[DemultiplexedSample])
 
               val merge =
-                builder.add(Merge[Stage](3))
+                builder.add(Merge[Stage](3, eagerComplete = true))
 
               val mapToRaw =
                 builder.add(Flow[Seq[RunWithAnalyses]].map(runs => Raw(runs)))
@@ -696,9 +711,8 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
             result.failed.foreach { e =>
               logger.error("Unexpected exception ", e)
             }
+            logger.info(s"PipelinesApplication stream terminated $result")
             closeProcessingFinishedSource()
-            taskSystem.shutdown
-            actorSystem.terminate
         }
         mat
     }

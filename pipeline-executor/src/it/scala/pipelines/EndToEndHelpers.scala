@@ -135,6 +135,7 @@ object EndToEndHelpers {
       fun(app)
     } finally {
       taskSystem.shutdown
+      AS.terminate
     }
 
   }

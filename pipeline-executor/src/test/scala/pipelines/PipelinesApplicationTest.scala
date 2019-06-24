@@ -23,6 +23,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.Tag
 import org.gc.pipelines.util.ActorSource
 import akka.testkit.TestProbe
+import akka.stream.DelayOverflowStrategy
 
 object Only extends Tag("only")
 
@@ -653,7 +654,7 @@ class PipelinesApplicationTest
     Await.result(AS.terminate, 5 seconds)
   }
 
-  test("pipelines application should recover old runs -- pattern 1 1 2") {
+  test("pipelines application should recover old runs -- pattern 1 1 2", Only) {
     implicit val AS = ActorSystem()
     implicit val materializer = ActorMaterializer()
     val config = ConfigFactory.parseString("""
@@ -664,7 +665,8 @@ class PipelinesApplicationTest
     val eventSource =
       new FakeSequencingCompleteEventSource(numberOfRuns,
                                             uniform = false,
-                                            pattern = List(1, 1, 2))
+                                            pattern = List(1, 1, 2),
+                                            addDelaySeconds = 0)
     val pipelineState = new InMemoryPipelineState
     val taskSystem = defaultTaskSystem(Some(config))
     val testPipeline = new TestPipeline
@@ -679,7 +681,7 @@ class PipelinesApplicationTest
 
     When("Sending these run sequence into a running application")
     val app = new PipelinesApplication(new CommandSource {
-      val commands = Source.empty
+      val commands = Source.empty ++ Delayed(600)
     }, pipelineState, implicitly[ActorSystem], taskSystem, testPipeline, Set())
 
     Then(
@@ -714,7 +716,8 @@ class PipelinesApplicationTest
     val eventSource =
       new FakeSequencingCompleteEventSource(numberOfRuns,
                                             uniform = false,
-                                            pattern = List(1, 2, 3, 2))
+                                            pattern = List(1, 2, 3, 2),
+                                            addDelaySeconds = 0)
     val pipelineState = new InMemoryPipelineState
     val taskSystem = defaultTaskSystem(Some(config))
     val testPipeline = new TestPipeline
@@ -729,7 +732,7 @@ class PipelinesApplicationTest
 
     When("Sending these run sequence into a running application")
     val app = new PipelinesApplication(new CommandSource {
-      val commands = Source.empty
+      val commands = Source.empty ++ Delayed(600)
     }, pipelineState, implicitly[ActorSystem], taskSystem, testPipeline, Set())
 
     Then(
@@ -1128,9 +1131,30 @@ class PipelinesApplicationTest
 
 }
 
+// provides a fake element with after a custom delay
+// needed to prevent the pipeline closing down before the test is complete
+// this is a problem in these test because here we use bounded sources (Source.single or Source.tick.take)
+object Delayed {
+  val runFolder = fileutils.TempFile.createTempFile(".temp")
+  runFolder.delete
+  runFolder.mkdirs
+  def apply(delay: Int) =
+    Source
+      .single(
+        Append(
+          RunfolderReadyForProcessing(
+            RunId("never"),
+            Some(runFolder.getAbsolutePath),
+            None,
+            RunConfiguration(StableSet.empty, None, StableSet.empty)
+          )))
+      .delay(delay seconds, DelayOverflowStrategy.emitEarly)
+}
+
 class FakeSequencingCompleteEventSource(take: Int,
                                         uniform: Boolean,
-                                        pattern: List[Int] = Nil)
+                                        pattern: List[Int] = Nil,
+                                        addDelaySeconds: Int = 600)
     extends CommandSource
     with StrictLogging {
 
@@ -1140,6 +1164,9 @@ class FakeSequencingCompleteEventSource(take: Int,
   val runInfo = new java.io.File(runFolder, "RunInfo.xml")
   new java.io.FileOutputStream(runInfo).close
   val fake = fileutils.TempFile.createTempFile(".temp").getAbsolutePath
+
+  // concatenating this to the end of the source prevents early completion of the source
+  val delay = Delayed(addDelaySeconds)
 
   def commands =
     Source
@@ -1162,7 +1189,7 @@ class FakeSequencingCompleteEventSource(take: Int,
             run.copy(runId = RunId(run.runId + idx))
           else run.copy(runId = RunId(run.runId + pattern(idx.toInt)))
       }
-      .map(Append(_))
+      .map(Append(_)) ++ delay
 }
 
 class FakeSequencingCompleteEventSourceWithControl(pattern: List[Int] = Nil)(
