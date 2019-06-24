@@ -751,15 +751,21 @@ object Pipelinectl extends App {
             .collect {
               case d: DeliveryListAvailable => d
             }
-          def logInfo(s:String) = println(s"[INFO]$s")
-          def logFile(s:String) = println(s)
+          def logInfo(s: String) = println(s"[INFO]$s")
+          def logFile(s: String) = println(s)
           deliveryList match {
             case None => println("Nothing to deliver yet.")
             case Some(deliveryList) =>
               logInfo("Runs included:")
               deliveryList.runsIncluded.foreach(logInfo)
-              logInfo(
-                s"Samples included (${deliveryList.samples.size} total):")
+              logInfo(s"Samples included: ${deliveryList.samples.size}")
+              val bamCount = deliveryList.files.count(_.endsWith(".bam"))
+              val fastqCount = deliveryList.files.count(_.endsWith(".fastq.gz"))
+              val vcfCount = deliveryList.files.count(_.endsWith(".vcf.gz"))
+              logInfo(s"Bam files included: $bamCount")
+              logInfo(s"Fastq files included: $fastqCount")
+              logInfo(s"VCF files included: $vcfCount")
+              logInfo("Sample list:")
               deliveryList.samples.toSeq.sortBy(_.toString).foreach(logInfo)
               logInfo(s"Files:")
               deliveryList.files.foreach(logFile)
@@ -825,12 +831,11 @@ object Pipelinectl extends App {
               if (missingLanesPerFile.isEmpty) {
                 logInfo(s"All ${bamFiles.size} contain all expected lanes.")
               } else {
-                logInfo(
-                  s"Missing lanes (${missingLanesPerFile.size} files):")
+                logInfo(s"Missing lanes (${missingLanesPerFile.size} files):")
                 logInfo("FILE\tLANES")
                 missingLanesPerFile.foreach {
                   case (file, missingPlatformUnits) =>
-                  logInfo(s"$file\t${missingPlatformUnits.mkString(",")}")
+                    logInfo(s"$file\t${missingPlatformUnits.mkString(",")}")
                 }
               }
 
