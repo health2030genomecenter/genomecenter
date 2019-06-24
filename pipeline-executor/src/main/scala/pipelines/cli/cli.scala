@@ -568,7 +568,8 @@ object Pipelinectl extends App {
             .action((_, c) => c.copy(listProjects = Some(true)))
         ),
       cmd("query-freeruns")
-        .text("Query runs which contain only projects which have no analyses assigned to it.")
+        .text(
+          "Query runs which contain only projects which have no analyses assigned to it.")
         .action((_, c) => c.copy(command = QueryFreeRuns))
         .children(
           opt[Unit]("fastqs")
@@ -649,12 +650,15 @@ object Pipelinectl extends App {
     case Some(config) =>
       config.command match {
         case DeleteFreeRuns =>
-          val runs = io.circe.parser
-            .decode[List[(RunId, Seq[String])]](get("/v2/free-runs"))
-            .right
-            .get
-            .map(_._1)
-            .distinct
+          import io.circe.generic.auto._
+          val runs = get("/v2/free-runs").split("\n").map { line =>
+            io.circe.parser
+              .decode[Either[RunId, (RunId, String)]](line)
+              .right
+              .get
+              .left
+              .get
+          }
 
           val keep = config.runIds.toSet
 
@@ -680,18 +684,24 @@ object Pipelinectl extends App {
             if (config.queryFastQsOfFreeRuns) get("/v2/free-runs?fastq=true")
             else get("/v2/free-runs")
 
-          val parsed = io.circe.parser
-            .decode[List[(RunId, Seq[String])]](response)
-            .right
-            .get
+          import io.circe.generic.auto._
+          val parsed = response.split("\n").map { line =>
+            io.circe.parser
+              .decode[Either[RunId, (RunId, String)]](line)
+              .right
+              .get
+          }
 
-          if (config.queryFastQsOfFreeRuns)
-            parsed.foreach {
-              case (_, fastqs) =>
-                fastqs.foreach { path =>
-                  println(path)
-                }
-            } else parsed.foreach { case (run, _) => println(run) }
+          val runs = parsed.collect {
+            case Left(runId)       => runId
+            case Right((runId, _)) => runId
+          }
+          val fastqs = parsed.collect {
+            case Right((_, file)) => file
+          }
+
+          runs.foreach(println)
+          fastqs.foreach(println)
         case SendReprocessAllRuns =>
           val response = post("/v2/reprocess")
           if (response.code != 200) {

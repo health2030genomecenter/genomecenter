@@ -237,7 +237,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
         }
         getProgress("/v2/runs") shouldBe "runid1\nrunid2\nrunid3\n"
 
-        getProgress("/v2/free-runs") shouldBe """{"Left":{"value":"runid3"}}"""
+        getProgress("/v2/free-runs") shouldBe s"""{"Left":{"value":"runid3"}}${"\n"}"""
 
         getProgress("/v2/free-runs?fastq=true") shouldBe ""
 

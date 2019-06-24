@@ -112,13 +112,17 @@ class ConfigurationQueryHttpComponent(state: PipelineState)(
                   val sourceOfResponseData: Source[ByteString, _] = {
                     import io.circe.syntax._
                     import io.circe.generic.auto._
-                    val sourceOfEithers =
+                    val sourceOfEithers
+                      : Source[Either[RunId, (RunId, String)], _] =
                       if (withFastQ.isDefined)
                         Source(runIds).flatMapConcat(runId =>
                           findFastqFiles(runId).map(path =>
                             Right((runId, path))))
                       else Source.apply(runIds).map(Left(_))
-                    sourceOfEithers.map(_.asJson.noSpaces).map(ByteString(_))
+                    sourceOfEithers
+                      .map(_.asJson.noSpaces + "\n")
+                      .map(ByteString(_))
+
                   }
 
                   sourceOfResponseData.watchTermination() {
