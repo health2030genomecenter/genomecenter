@@ -54,7 +54,11 @@ class ProtoPipeline(progressServer: SendProgressData)(
           RunQCTableInput(
             s"s${allSamples.size}.r${allRuns.size}.hs${allSamples.hashCode}.hr${allRuns.hashCode}",
             sampleQCsWES.toSet.toStable,
-            sampleQCsRNA.toSet.toStable
+            sampleQCsRNA.toSet.toStable,
+            samples
+              .map(result => (result.project, result.sampleId))
+              .toSet
+              .toStable
           ))(ResourceConfig.minimal)
 
       }
@@ -131,6 +135,11 @@ class ProtoPipeline(progressServer: SendProgressData)(
             samples
               .flatMap(_.rna.toSeq.map(rnaResult =>
                 (rnaResult.analysisId, rnaResult.star)))
+              .toSet
+              .toStable,
+            samples
+              .map(sampleResult =>
+                (sampleResult.project, sampleResult.sampleId))
               .toSet
               .toStable
           ))(ResourceConfig.minimal)

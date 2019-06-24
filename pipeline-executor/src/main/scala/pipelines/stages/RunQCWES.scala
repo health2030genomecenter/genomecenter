@@ -64,7 +64,8 @@ case class SampleMetrics(analysisId: AnalysisId,
 
 case class RunQCTableInput(fileName: String,
                            samples: StableSet[SampleMetrics],
-                           rnaSeqAnalyses: StableSet[(AnalysisId, StarResult)])
+                           rnaSeqAnalyses: StableSet[(AnalysisId, StarResult)],
+                           allSamples: StableSet[(Project, SampleId)])
 
 case class RunQCTable(htmlTable: SharedFile,
                       rnaCsvTable: SharedFile,
@@ -626,10 +627,54 @@ object AlignmentQC {
          InsertSizeMetrics.Root,
          AnalysisId,
          List[(RunId, MeanCoverageResult)])],
-      rnaSeqMetrics: Seq[(AnalysisId, StarMetrics.Root)]): String = {
+      rnaSeqMetrics: Seq[(AnalysisId, StarMetrics.Root)],
+      allSamples: Seq[(Project, SampleId)]): String = {
 
     val left = true
     val right = false
+
+    val summaryLines = {
+      val totalSamples = allSamples.distinct.size
+      val samplesWithMergedBam = sampleMetrics
+        .map { tuple =>
+          val duplicationMetrics = tuple._1
+          (duplicationMetrics.project, duplicationMetrics.sampleId)
+        }
+        .distinct
+        .size
+      val samplesWithVCF = sampleMetrics
+        .flatMap { tuple =>
+          val vcfMetrics = tuple._4
+          vcfMetrics.toSeq.map { vcfMetrics =>
+            (vcfMetrics.project, vcfMetrics.sampleId)
+          }
+        }
+        .distinct
+        .size
+      val rnaSeqSamples = rnaSeqMetrics
+        .map {
+          case (_, metrics) =>
+            (metrics.project, metrics.sampleId)
+        }
+        .distinct
+        .size
+
+      List(
+        Html.line(
+          Seq("Total samples:" -> left, totalSamples.toString -> right),
+        ),
+        Html.line(
+          Seq("WxS > minimum coverage:" -> left,
+              samplesWithMergedBam.toString -> right),
+        ),
+        Html.line(
+          Seq("With VCF:" -> left, samplesWithVCF.toString -> right),
+        ),
+        Html.line(
+          Seq("RNASeq:" -> left, rnaSeqSamples.toString -> right),
+        )
+      )
+    }
 
     case class AggregatedLaneMetrics(
         totalReads: Long,
@@ -984,6 +1029,9 @@ object AlignmentQC {
       )
     )
 
+    val summaryTable = """<table style="border-collapse: collapse;">""" + Html
+      .mkHeader(List("", ""), Nil) + "\n<tbody>" + summaryLines + "</tbody></table>"
+
     val rnaTable =
       if (rnaLines.isEmpty) ""
       else
@@ -1001,13 +1049,13 @@ object AlignmentQC {
       else
         """<table style="border-collapse: collapse;">""" + runHeader + "\n<tbody>" + runLines + "</tbody></table>"
 
-    """<!DOCTYPE html><head></head><body>""" + runTable + sampleTable + laneTable + rnaTable + "</body>"
+    """<!DOCTYPE html><head></head><body>""" + summaryTable + runTable + sampleTable + laneTable + rnaTable + "</body>"
 
   }
 
   val runQCTable =
     AsyncTask[RunQCTableInput, RunQCTable]("__runqctable", 7) {
-      case RunQCTableInput(fileName, sampleMetrics, rnaAnalyses) =>
+      case RunQCTableInput(fileName, sampleMetrics, rnaAnalyses, allSamples) =>
         implicit computationEnvironment =>
           def read(f: File) = fileutils.openSource(f)(_.mkString)
           def parseAlignmentSummaries(m: SampleMetrics) =
@@ -1141,7 +1189,8 @@ object AlignmentQC {
                 val table =
                   makeNarrowHtmlTable(laneMetrics.filter(_._3 == analysis),
                                       sampleMetrics.filter(_._7 == analysis),
-                                      parsedRNAMetrics.filter(_._1 == analysis))
+                                      parsedRNAMetrics.filter(_._1 == analysis),
+                                      allSamples.toSeq)
                 SharedFile(Source.single(ByteString(table.getBytes("UTF-8"))),
                            fileName + "." + analysis + ".qc.table.html")
               }

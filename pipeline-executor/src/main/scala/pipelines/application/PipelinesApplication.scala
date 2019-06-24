@@ -563,7 +563,7 @@ class PipelinesApplication[DemultiplexedSample, SampleResult, Deliverables](
       }
       .mergeSubstreams
       .groupedWithin(n = 10000, d = 5 minute)
-      .scan(Seq.empty[SampleResult])((acc,elem) => acc ++ elem.flatten)
+      .scan(Seq.empty[SampleResult])((acc, elem) => acc ++ elem.flatten)
       .mapAsync(1) { samples =>
         logger.debug(s"Summarizing ${samples.size} sample results.")
         pipeline.summarizeCompletedSamples(samples).recover {
