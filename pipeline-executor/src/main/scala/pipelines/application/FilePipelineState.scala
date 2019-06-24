@@ -145,11 +145,8 @@ class FilePipelineState(logFile: File)(implicit AS: ActorSystem,
       case e: Event =>
         appendEvent(e)
         updateState(e)
-        println("!!!! " + e)
         sender ! ((past, _analyses))
       case _ =>
-        println("got query")
-        println(past)
         sender ! ((past, _analyses))
     }
   }
