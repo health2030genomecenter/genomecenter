@@ -83,7 +83,10 @@ object AlignmentQC {
         .runFold(ByteString(""))(_ ++ _)
         .map(_.utf8String)
       parsed = {
-        WgsMetrics.Root(txt, project, sample).metrics.meanCoverageIncludingDuplicates
+        WgsMetrics
+          .Root(txt, project, sample)
+          .metrics
+          .meanCoverageIncludingDuplicates
       }
     } yield parsed.toDouble
   }
