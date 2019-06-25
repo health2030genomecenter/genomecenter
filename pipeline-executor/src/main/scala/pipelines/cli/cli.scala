@@ -1088,7 +1088,7 @@ object Pipelinectl extends App {
 
           val maybeRunFolderReadyEvent = for {
             parsed <- Try(ConfigFactory.parseString(configuration)).toEither.left
-              .map(_.toString)
+              .map(e => "Failed to parse configuration: " + e.toString)
             runFolder <- RunfolderReadyForProcessing.fromConfig(parsed)
           } yield runFolder
 

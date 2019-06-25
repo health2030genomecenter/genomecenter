@@ -277,7 +277,7 @@ object RunfolderReadyForProcessing {
             config
               .getConfigList("fastqs")
               .asScala).toEither.left
-            .map(_.toString)
+            .map(e => "Missing fastq configuration: " + e.toString)
           parsed <- {
             val eithers = configList.map(c => InputSampleAsFastQ(c))
 
@@ -478,7 +478,7 @@ object InputSampleAsFastQ {
         .asScala
         .map(config => InputFastQPerLane(config))
       InputSampleAsFastQ(lanes.toSet, Project(project), SampleId(sampleId))
-    }).toEither.left.map(_.toString)
+    }).toEither.left.map(e => "Failed parsing fastq entries: " + e.toString)
 
 }
 
