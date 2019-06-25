@@ -673,7 +673,7 @@ object AlignmentQC {
         Html.line(
           Seq("RNASeq:" -> left, rnaSeqSamples.toString -> right),
         )
-      )
+      ).mkString("\n")
     }
 
     case class AggregatedLaneMetrics(
