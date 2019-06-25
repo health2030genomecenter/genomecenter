@@ -889,7 +889,8 @@ object Pipelinectl extends App {
           println("TOTAL")
           println(total)
           println(
-            "\nWhat this is: number of mapped, mapQ >20, read length >30, properly paired, pass filter reads over total sequence length (as in the fasta).")
+            "\nThe coverage is computed by dividing the number of bases in reads by the total sequence length. Only reads meeting the following criteria are used: mapped, mapQ>20, read length>30, properly paired, pass filter. The sequence length is computed from the fasta file.")
+
         case QueryFastq =>
           val project = config.project.get
           println(get(s"/v2/fastqs/$project"))
