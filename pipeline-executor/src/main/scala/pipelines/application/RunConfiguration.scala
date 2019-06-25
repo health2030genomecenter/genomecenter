@@ -391,6 +391,8 @@ object RunConfiguration {
           demultiplexingId = DemultiplexingId(config.getString("id")),
           readAssignment = {
             val list = config.getIntList("readAssignment").asScala
+            if (list.size != 2)
+              throw new RuntimeException("readAssignment needs two numbers")
             (list(0), list(1))
           },
           umi =
@@ -436,7 +438,7 @@ object RunConfiguration {
       }
       .toEither
       .left
-      .map(_.toString)
+      .map(e => "Failed to parse RunConfiguration: " + e.toString)
 
 }
 object InputFastQPerLane {
