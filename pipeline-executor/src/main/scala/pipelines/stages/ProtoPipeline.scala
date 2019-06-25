@@ -673,6 +673,7 @@ class ProtoPipeline(progressServer: SendProgressData)(
           quantificationGtf = quantificationGtf,
           starVersion = conf.starVersion match {
             case Some("2.6.1c") => StarVersion.Star261c
+            case Some("2.7.1a") => StarVersion.Star271a
             case _              => StarVersion.Star261a
           }
         ))(ResourceConfig.minimal,

@@ -17,6 +17,7 @@ object Executables {
       "fastp" -> fastpExecutable,
       "readQCJar" -> readQCJar,
       "star261c" -> star261cExecutable,
+      "star271a" -> star271aExecutable,
       "star260a" -> star261aExecutable,
       "qtlTools" -> qtlToolsExecutable
     ).toList
@@ -123,6 +124,17 @@ object Executables {
       .getAbsolutePath
   }
 
+  val star271aExecutable: String = {
+    val resourceName =
+      if (util.isMac) "/bin/STAR_5c2a941_2.7.1a_mac"
+      else if (util.isLinux) "/bin/STAR_5c2a941_2.7.1a_linux"
+      else
+        throw new RuntimeException(
+          "Unknown OS: " + System.getProperty("os.name"))
+    fileutils.TempFile
+      .getExecutableFromJar(resourceName, "STAR_5c2a941_2.7.1a")
+      .getAbsolutePath
+  }
   val qtlToolsExecutable: String = {
     val resourceName =
       if (util.isMac) "/bin/QTLtools-v1.1-37-gecf7b84_mac"
