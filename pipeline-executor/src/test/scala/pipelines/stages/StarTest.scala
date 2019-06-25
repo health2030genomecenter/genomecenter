@@ -83,6 +83,57 @@ class StarAlignmentTestSuite
     }
   }
 
+//Done by Cedric
+  test("STAR alignment with star 2.7.1a") {
+    new Fixture {
+
+      withTaskSystem(testConfig) { implicit ts =>
+        val fasta = fetchReference(referenceFile)
+        val indexedFasta =
+          await(
+            StarAlignment.indexReference(
+              StarIndexInput(fasta, StarVersion.Star271a))(
+              ResourceRequest(1, 500)))
+
+        val input =
+          StarAlignmentInput(
+            fastqs = StableSet(
+              FastQPerLane(
+                runId,
+                Lane(1),
+                FastQ(await(SharedFile(fastq1, "fastq1.gz")), 10000L, Some(75)),
+                FastQ(await(SharedFile(fastq2, "fastq2.gz")), 10000L, Some(75)),
+                None,
+                PartitionId(0)
+              )),
+            project = project,
+            sampleId = sampleId,
+            reference = indexedFasta,
+            gtf = await(SharedFile(gtfFile, "gtf")),
+            readLength = 151,
+            starVersion = StarVersion.Star271a
+          )
+
+        val result =
+          await(StarAlignment.alignSample(input)(ResourceRequest(1, 500)))
+
+        val bamFile = await(result.bam.bam.file.file)
+        val finalLog = await(result.finalLog.file)
+        recordsInBamFile(bamFile) shouldBe 10000
+        println(fileutils.openSource(finalLog)(_.mkString))
+        val metrics =
+          StarMetrics.Root(fileutils.openSource(finalLog)(_.mkString),
+                           project,
+                           sampleId)
+        println(metrics.metrics)
+        metrics.metrics.meanReadLength shouldBe 302d
+        metrics.metrics.numberOfReads shouldBe 5000
+
+      }
+
+    }
+  }
+
   trait Fixture {
 
     val project = Project("someProject")
