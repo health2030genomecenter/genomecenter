@@ -106,7 +106,13 @@ class Application(implicit ec: ExecutionContext,
 
   logger.info(s"Black list: $blacklist")
 
-  val finished = if (useSimpleApplication) {
+  val shutdown = for {
+    _ <- commandSource.shutdown
+    binding <- httpBinding
+    _ <- binding.unbind
+  } yield ()
+
+  private val processingFinished = if (useSimpleApplication) {
     val pastRuns = Await.result(pipelineState.pastRuns, atMost = 15 seconds)
 
     new PersistCommandSource(commandSource, pipelineState)
@@ -117,17 +123,19 @@ class Application(implicit ec: ExecutionContext,
                                    pipeline,
                                    blacklist).finished
   } else {
-    val pipelineFinished = new PipelinesApplication(commandSource,
-                                                    pipelineState,
-                                                    actorSystem,
-                                                    taskSystem,
-                                                    pipeline,
-                                                    blacklist).finished
-    for {
-      _ <- pipelineFinished
-      binding <- httpBinding
-      _ <- binding.unbind
-    } yield ()
+    new PipelinesApplication(commandSource,
+                             pipelineState,
+                             actorSystem,
+                             taskSystem,
+                             pipeline,
+                             blacklist).finished
+
   }
+
+  val finished = for {
+    _ <- processingFinished
+    binding <- httpBinding
+    _ <- binding.unbind
+  } yield ()
 
 }

@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import java.io.File
-
+import scala.concurrent.Promise
 import io.circe.{Encoder, Decoder}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import com.typesafe.config.ConfigFactory
@@ -22,6 +22,9 @@ class HttpCommandSource(implicit AS: ActorSystem)
     ActorSource.make[Command]
 
   val commands = source
+
+  private val shutdownPromise = Promise[Unit]
+  val shutdown = shutdownPromise.future
 
   case class RunfolderDTO(path: String, configurationFilePath: String)
   object RunfolderDTO {
@@ -88,6 +91,7 @@ class HttpCommandSource(implicit AS: ActorSystem)
         post {
           path("shutdown") {
             closeSource()
+            shutdownPromise.trySuccess(())
             complete(akka.http.scaladsl.model.StatusCodes.OK)
           } ~
             path("reprocess") {

@@ -37,8 +37,16 @@ object MyTestKit extends akka.testkit.TestKit(ActorSystem())
 
 case class TestApplication[A, B, C](
     pipelinesApplication: PipelinesApplication[A, B, C],
-    httpServer: HttpServer
-)
+    httpServer: HttpServer,
+    commandSource: HttpCommandSource
+) {
+  import scala.concurrent.ExecutionContext.Implicits.global
+  val shutdown = for {
+    _ <- commandSource.shutdown
+    binding <- httpServer.startServer
+    _ <- binding.unbind
+  } yield ()
+}
 
 object EndToEndHelpers {
 
@@ -129,7 +137,7 @@ object EndToEndHelpers {
       new ProtoPipeline(progressServer),
       Set.empty)
 
-    val app = TestApplication(pipelineApp, httpServer)
+    val app = TestApplication(pipelineApp, httpServer, commandSource)
 
     try {
       fun(app)

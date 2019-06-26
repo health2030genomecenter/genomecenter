@@ -5,6 +5,7 @@ import com.typesafe.config.{ConfigFactory}
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import tasks._
+import scala.concurrent.Future
 
 /** Main entrypoint of the application process (main method)
   *
@@ -63,8 +64,9 @@ object Main extends App with StrictLogging {
     implicit val actorSystem = ActorSystem("Main")
     implicit val materializer = ActorMaterializer()
     import scala.concurrent.ExecutionContext.Implicits.global
-    val finished = (new Application).finished
-    finished.onComplete {
+    val app = new Application
+    val shutdown = Future.firstCompletedOf(List(app.finished, app.shutdown))
+    shutdown.onComplete {
       case completion =>
         logger.info(
           s"Application finished with result: $completion . Shutting down task system and actor system..")

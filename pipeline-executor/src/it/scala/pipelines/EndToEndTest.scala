@@ -244,6 +244,7 @@ class EndToEndTestSuite extends FunSuite with Matchers with GivenWhenThen {
 
         postString("/v2/shutdown", "").status.intValue shouldBe 200
         await(app.pipelinesApplication.finished) shouldBe Done
+        await(app.shutdown) shouldBe (())
 
       }
     }
