@@ -142,8 +142,14 @@ lazy val pipelineExecutor = project
     buildInfoPackage := "org.gc.buildinfo"
   )
   .settings(
-    // This amends the launch script to put ../resources onto the classpath
-    scriptClasspath := scriptClasspath.value :+ "../resources/"
+    scriptClasspath ++= Seq(
+      // This amends the launch script to put ../resources onto the class path
+      "../resources/",
+      // This adds an optional user defined folder defined in
+      // environment variable $extraClassPathRelativeToResourcesFolder on the
+      // class path which might be useful to add a configuration folder
+      "../resources/$extraClassPathRelativeToResourcesFolder"
+    )
   )
   .configs(IntegrationTest)
   .settings(
