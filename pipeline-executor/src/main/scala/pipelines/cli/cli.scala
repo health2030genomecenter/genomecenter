@@ -380,7 +380,7 @@ object Pipelinectl extends App {
     import builder._
     OParser.sequence(
       programName("pipelinectl"),
-      head("Command line tool to control the pipeline. Version:",
+      head("Command line tool to control the Genome Center pipeline. Version:",
            org.gc.buildinfo.BuildInfo.version),
       help("help"),
       version("version"),
