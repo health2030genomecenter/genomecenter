@@ -11,7 +11,7 @@ lazy val commonSettings = Seq(
   git.useGitDescribe := true
 )
 
-lazy val tasksVersion = "0.0.57"
+lazy val tasksVersion = "0.0.59"
 
 resolvers += Resolver.jcenterRepo
 
