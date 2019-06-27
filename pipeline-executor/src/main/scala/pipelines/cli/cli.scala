@@ -1004,6 +1004,7 @@ object Pipelinectl extends App {
 
         case PrintHelp =>
           println(OParser.usage(parser1))
+          println("Will talk to " + hostname + ":" + port)
         case Unassign =>
           println(
             s"Command: unassign project ${config.project.get} from analysis ${config.analysisId.get}")
