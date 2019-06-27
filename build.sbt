@@ -145,10 +145,8 @@ lazy val pipelineExecutor = project
     scriptClasspath ++= Seq(
       // This amends the launch script to put ../resources onto the class path
       "../resources/",
-      // This adds an optional user defined folder defined in
-      // environment variable $extraClassPathRelativeToResourcesFolder on the
-      // class path which might be useful to add a configuration folder
-      "../resources/$extraClassPathRelativeToResourcesFolder"
+      // Adds a dedicated config folder to the class path
+      "../../config"
     )
   )
   .configs(IntegrationTest)
