@@ -37,7 +37,7 @@ import org.gc.pipelines.application.PipelineStreamProcessor
 object MyTestKit extends akka.testkit.TestKit(ActorSystem())
 
 case class TestApplication[A, B, C](
-    pipelinesApplication: PipelineStreamProcessor[A, B, C],
+    pipelineProcessor: PipelineStreamProcessor[A, B, C],
     httpServer: HttpServer,
     commandSource: HttpCommandSource
 ) {
